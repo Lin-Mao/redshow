@@ -24,6 +24,9 @@ struct ThreadId {
     bool operator<(const ThreadId &o) const {
         return bz < o.bz || by < o.by || bx < o.bx || tz < o.tz || ty < o.ty || tx < o.tx;
     }
+    bool operator==(const ThreadId &o) const {
+        return bz == o.bz && by == o.by && bx == o.bx && tz  == o.tz && ty == o.ty && tx == o.tx;
+    }
 };
 
 

@@ -26,6 +26,8 @@ using std::accumulate;
 using std::tuple;
 using std::max;
 using std::get;
+using std::find_if;
+
 void init();
 
 ThreadId transform_tid(string bid, string tid);
@@ -52,7 +54,14 @@ double calc_srag_redundancy_rate();
 
 // Spatial Redundancy Address Shared memory
 void get_sras_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value);
+
 int calc_sras_redundancy_rate();
+
+// Spatial Redundancy Value
+void get_srv_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value);
+
+void calc_srv_redundancy_rate(_u64 index);
+
 
 // Every thread has a ordered set to save the read addresses.
 map<ThreadId, list<_u64 >> tra_list;
@@ -68,7 +77,8 @@ long long dead_read_num, dead_write_num;
 //Spatial Redundancy Address Global memory
 //@todo At this time, we don't know every variable's addr range, so we regard all addr as global or shared
 map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>> srag_trace_map;
-
+//{pc:{value:{thread:num}}}
+map<_u64, map<_u64, map<ThreadId, _u64 >>> srv_trace_map;
 
 regex line_read_re("0x(.+?)\\|\\((.+?)\\)\\|\\((.+?)\\)\\|0x(.+?)\\|0x(.+)");
 regex tid_re("(\\d+),(\\d+),(\\d+)");
@@ -145,12 +155,16 @@ void read_input_file(string input_file, string target_name) {
             get_tra_trace_map(tid, addr);
             get_trv_trace_map(index, pc, tid, addr, value);
             get_srag_trace_map(index, pc, tid, addr, value);
+            get_srv_trace_map(pc, tid, addr, value);
         }
     }
-    cout << "tra rate" << calc_tra_redundancy_rate() << endl;
-    cout << "trv rate" << calc_trv_redundancy_rate(index) << endl;
-    cout << "srag degree" << calc_srag_redundancy_rate()<<endl;
-    cout << "sras degree" << calc_sras_redundancy_rate()<<endl;
+//    cout << "tra rate" << calc_tra_redundancy_rate() << endl;
+//    cout << "trv rate" << calc_trv_redundancy_rate(index) << endl;
+//    cout << "srag degree" << calc_srag_redundancy_rate()<<endl;
+//    cout << "sras degree" << calc_sras_redundancy_rate()<<endl;
+    cout << "srv rate";
+    calc_srv_redundancy_rate(index);
+    cout << endl;
 }
 
 
@@ -259,6 +273,36 @@ void get_sras_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value
 
 }
 
+
+void get_srv_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
+    auto stm_it = srv_trace_map.find(pc);
+    if (stm_it == srv_trace_map.end()) {
+        map<_u64, map<ThreadId, _u64 >> tmp = {{value, map<ThreadId, _u64>{
+                pair<ThreadId, _u64>(tid, 1)},}};
+        srv_trace_map.insert(pair<_u64, map<_u64, map<ThreadId, _u64>>>(pc, tmp));
+    } else {
+//        m_it is map: {value: {thread:num}}
+        auto m_it = stm_it->second.find(value);
+        if (m_it == stm_it->second.end()) {
+
+            map<ThreadId, _u64> tmp_1 = {pair<ThreadId, _u64>(tid, 1)};
+            stm_it->second.insert(pair<_u64, map<ThreadId, _u64 >>(value, tmp_1));
+        } else {
+//            has the value mapping
+//            update the statistics
+//            auto v_it = find_if( m_it->second.begin(), m_it->second.end(),[&tid](const pair<ThreadId, _u64 >& element){ return element.first == tid;} );
+            auto it = m_it->second.find(tid);
+            if (it == m_it->second.end()) {
+                m_it->second.insert(pair<ThreadId, _u64>(tid, 1));
+            } else {
+                m_it->second[tid] += 1;
+            }
+        }
+
+    }
+
+}
+
 double calc_tra_redundancy_rate() {
     double tra_rate = 0;
     long long r_sum = 0;
@@ -302,7 +346,7 @@ double calc_srag_redundancy_rate() {
                                         remain_items = max(remain_items, (int) m_it->second.size());
                                     }
                                 }
-                                if(remain_items >1){cout<<"remain_items is "<<remain_items<<endl;}
+                                if (remain_items > 1) { cout << "remain_items is " << remain_items << endl; }
                                 int degree = 0;
                                 for (int i = 0; i < remain_items; ++i) {
 //                                    per warp, per pc, per iteration of a loop
@@ -312,7 +356,7 @@ double calc_srag_redundancy_rate() {
                                         auto m_it = stm_it->second.find(tmp_id);
                                         if (m_it != stm_it->second.end() && m_it->second.size() > i) {
 //                                            the tuple has three items now. We need the second one, addr
-                                            warp_unique_cache_lines.insert(get<1>(m_it->second[tx_i])>>6);
+                                            warp_unique_cache_lines.insert(get<1>(m_it->second[tx_i]) >> 6);
                                         }
                                     }
                                     degree += warp_unique_cache_lines.size();
@@ -352,7 +396,7 @@ int calc_sras_redundancy_rate() {
                                         remain_items = max(remain_items, (int) m_it->second.size());
                                     }
                                 }
-                                if(remain_items >1){cout<<"remain_items is "<<remain_items<<endl;}
+                                if (remain_items > 1) { cout << "remain_items is " << remain_items << endl; }
                                 int degree = 0;
                                 for (int i = 0; i < remain_items; ++i) {
 //                                    per warp, per pc, per iteration of a loop
@@ -379,6 +423,16 @@ int calc_sras_redundancy_rate() {
     }
     return sum_degree;
 }
+
+void calc_srv_redundancy_rate(_u64 index) {
+//    {pc:{value:{thread:num}}}
+//map<_u64, map<_u64, map<ThreadId,_u64 >>> srv_trace_map;
+    for (auto stm_it = srv_trace_map.begin(); stm_it != srv_trace_map.end(); stm_it++) {
+//        It will has so much to output. Should in log file.
+        cout << stm_it->first << ":\t" << stm_it->second.size() / index << endl;
+    }
+}
+
 int main() {
 
     init();
