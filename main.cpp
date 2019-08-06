@@ -122,50 +122,6 @@ ThreadId transform_tid(string s_bid, string s_tid) {
     tid.tz = stoi(sm[3], 0, 10);
     return tid;
 }
-//std::map<pc, std::map<>>
-
-//read input file and get every line
-void read_input_file(string input_file, string target_name) {
-    ifstream fin(input_file.c_str());
-    string line;
-//    just for trv's record of every redundancy
-    _u64 index = 0;
-    bool in_target_kernel = false;
-    while (getline(fin, line)) {
-        in_target_kernel = true;
-        if (in_target_kernel) {
-            index++;
-            smatch sm;
-            regex_match(line, sm, line_read_re);
-            if (sm.size() == 0) {
-                cout << "This line can't match the regex:\t" << line << endl;
-                continue;
-            }
-
-            _u64 pc, addr, value;
-            pc = stoull(sm[1], 0, 16);
-            ThreadId tid = transform_tid(sm[2], sm[3]);
-            if (tid.bx == -1 || tid.by == -1 || tid.bz == -1 || tid.tx == -1 || tid.ty == -1 | tid.tz == -1) {
-                cout << "Can not filter threadid from " << line << endl;
-            }
-            threadid_max = get_max_threadId(tid, threadid_max);
-            addr = stoull(sm[4], 0, 16);
-            value = stoull(sm[5], 0, 16);
-//            get_md_trace_map(line);
-            get_tra_trace_map(tid, addr);
-            get_trv_trace_map(index, pc, tid, addr, value);
-            get_srag_trace_map(index, pc, tid, addr, value);
-            get_srv_trace_map(pc, tid, addr, value);
-        }
-    }
-//    cout << "tra rate" << calc_tra_redundancy_rate() << endl;
-//    cout << "trv rate" << calc_trv_redundancy_rate(index) << endl;
-//    cout << "srag degree" << calc_srag_redundancy_rate()<<endl;
-//    cout << "sras degree" << calc_sras_redundancy_rate()<<endl;
-    cout << "srv rate";
-    calc_srv_redundancy_rate(index);
-    cout << endl;
-}
 
 
 void get_tra_trace_map(ThreadId tid, _u64 addr) {
@@ -181,17 +137,21 @@ void get_tra_trace_map(ThreadId tid, _u64 addr) {
 //        save the reuse distance
         list<_u64>::iterator l_it;
         l_it = find(tl_it->second.begin(), tl_it->second.end(), addr);
+        int tmp_rd = 0;
 //        if the addr is in thread's set, calc the rd and insert the rd into trace_map
         if (l_it != tl_it->second.end()) {
-            int tmp_rd = distance(tl_it->second.begin(), l_it);
+            tmp_rd = distance(l_it, tl_it->second.end()) - 1;
+
             auto ttm_it = tra_trace_map.find(addr);
             if (ttm_it == tra_trace_map.end()) {
                 vector<int> tmp_vector;
                 tmp_vector.push_back(tmp_rd);
                 tra_trace_map.insert(pair<_u64, vector<int>>(addr, tmp_vector));
             } else {
+
                 ttm_it->second.push_back(tmp_rd);
             }
+            //                @todo if tmp_rd == 0 and item is in list, it's useless work to reinsert the item
 //            remove the pre addr from the set
             tl_it->second.remove(addr);
         }
@@ -308,12 +268,16 @@ double calc_tra_redundancy_rate() {
     long long r_sum = 0;
 //    How many reuse distance has recorded.
     long long r_num = 0;
+    int thread_nums =
+            (threadid_max.tx + 1) * (threadid_max.ty + 1) * (threadid_max.tz + 1) * (threadid_max.bx + 1) *
+            (threadid_max.by + 1) * (threadid_max.bz + 1);
     map<_u64, vector<int >>::iterator ttm_it;
     for (ttm_it = tra_trace_map.begin(); ttm_it != tra_trace_map.end(); ttm_it++) {
         r_sum += accumulate(ttm_it->second.begin(), ttm_it->second.end(), 0);
         r_num += ttm_it->second.size();
     }
-    tra_rate = r_num == 0 ? 0 : r_sum / r_num;
+    tra_rate = thread_nums == 0 ? 0 : r_sum * 1.0 / thread_nums;
+//    cout << r_sum << endl;
 //    cout << tra_rate << endl;
     return tra_rate;
 
@@ -433,12 +397,55 @@ void calc_srv_redundancy_rate(_u64 index) {
     }
 }
 
+
+//read input file and get every line
+void read_input_file(string input_file, string target_name) {
+    ifstream fin(input_file.c_str());
+    string line;
+//    just for trv's record of every redundancy
+    _u64 index = 0;
+    bool in_target_kernel = false;
+    while (getline(fin, line)) {
+        in_target_kernel = true;
+        if (in_target_kernel) {
+            index++;
+            smatch sm;
+            regex_match(line, sm, line_read_re);
+            if (sm.size() == 0) {
+                cout << "This line can't match the regex:\t" << line << endl;
+                continue;
+            }
+
+            _u64 pc, addr, value;
+            pc = stoull(sm[1], 0, 16);
+            ThreadId tid = transform_tid(sm[2], sm[3]);
+            if (tid.bx == -1 || tid.by == -1 || tid.bz == -1 || tid.tx == -1 || tid.ty == -1 | tid.tz == -1) {
+                cout << "Can not filter threadid from " << line << endl;
+            }
+            threadid_max = get_max_threadId(tid, threadid_max);
+            addr = stoull(sm[4], 0, 16);
+            value = stoull(sm[5], 0, 16);
+            get_tra_trace_map(tid, addr);
+//            get_trv_trace_map(index, pc, tid, addr, value);
+//            get_srag_trace_map(index, pc, tid, addr, value);
+//            get_srv_trace_map(pc, tid, addr, value);
+        }
+    }
+    cout << "tra rate\t" << calc_tra_redundancy_rate() << endl;
+//    cout << "trv rate" << calc_trv_redundancy_rate(index) << endl;
+//    cout << "srag degree" << calc_srag_redundancy_rate()<<endl;
+//    cout << "sras degree" << calc_sras_redundancy_rate()<<endl;
+//    cout << "srv rate";
+//    calc_srv_redundancy_rate(index);
+//    cout << endl;
+}
+
 int main() {
 
     init();
 //    read_input_file("/home/find/d/hpctoolkit-gpu-samples/cuda_vec_add/hpctoolkit-main-measurements/cubins/7137380e327b90e81e4df66b2b71c97e.trace.0","");
     read_input_file(
-            "/home/find/d/gpu-rodinia/cuda/streamcluster.hpc/hpctoolkit-sc_gpu-measurements/cubins/a7995a7dc4d642e13fdca830f16fc248.trace.0",
+            "/home/find/d/hpctoolkit-gpu-samples/cuda_vec_add.2/trace",
             "");
 //    read_input_file("/home/find/Downloads/a.txt", "");
 //    std::cout << "Hello, World!" << std::endl;
