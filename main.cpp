@@ -27,6 +27,9 @@ using std::tuple;
 using std::max;
 using std::get;
 using std::find_if;
+using std::make_pair;
+using std::hex;
+using std::dec;
 
 void init();
 
@@ -50,12 +53,16 @@ double calc_trv_redundancy_rate(_u64 line_num);
 // Spatial Redundancy Address Global Memory
 void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value);
 
-double calc_srag_redundancy_rate(_u64 index);
+void get_srag_trace_map_test(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value);
+
+double calc_srag_redundancy_degree(_u64 index);
+
+double calc_srag_redundancy_degree_test(_u64 index);
 
 // Spatial Redundancy Address Shared memory
 void get_sras_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value);
 
-int calc_sras_redundancy_rate();
+pair<_u64, double> calc_sras_redundancy_rate(_u64 index);
 
 // Spatial Redundancy Value
 void get_srv_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value);
@@ -78,6 +85,8 @@ long long dead_read_num, dead_write_num;
 //@todo At this time, we don't know every variable's addr range, so we regard all addr as global or shared
 // {pc: {tid: [(index, addr, value), ]}}
 map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>> srag_trace_map;
+//// {pc: {tid: {addr,}, ]}}
+map<_u64, map<ThreadId, set<_u64>>> srag_trace_map_test;
 //{pc:{value:{thread:num}}}
 map<_u64, map<_u64, map<ThreadId, _u64 >>> srv_trace_map;
 
@@ -210,6 +219,32 @@ void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value
 
 }
 
+// For every thread, it just accesses one addr per pc?
+void get_srag_trace_map_test(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value) {
+//    tuple: <_u64, _u64, _u64>(index, addr, value)
+    map<_u64, map<ThreadId, set<_u64 >>>::iterator stm_it;
+    stm_it = srag_trace_map_test.find(pc);
+    if (stm_it == srag_trace_map_test.end()) {
+        map<ThreadId, set<_u64 >> tmp;
+        set<_u64> tmp_s;
+        tmp_s.insert(addr);
+        tmp.insert(pair<ThreadId, set<_u64 >>(tid, tmp_s));
+        srag_trace_map_test.insert(pair<_u64, map<ThreadId, set<_u64>>>(pc, tmp));
+    } else {
+        map<ThreadId, set<_u64 >>::iterator m_it;
+        m_it = stm_it->second.find(tid);
+//      stm has addr key but inner doesn't have tid key
+        if (m_it == stm_it->second.end()) {
+            set<_u64> tmp_1;
+            tmp_1.insert(addr);
+            stm_it->second.insert(pair<ThreadId, set<_u64>>(tid, tmp_1));
+        } else {
+            m_it->second.insert(addr);
+        }
+
+    }
+
+}
 
 void get_sras_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value) {
 //    tuple: <_u64, _u64, _u64>(index, addr, value)
@@ -290,7 +325,7 @@ double calc_trv_redundancy_rate(_u64 line_num) {
     return (double) dead_read_num / line_num;
 }
 
-double calc_srag_redundancy_rate(_u64 index) {
+double calc_srag_redundancy_degree(_u64 index) {
     _u64 all_transactions = 0;
     map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>>::iterator stm_it;
     int bz, by, bx, tz, ty, tx;
@@ -317,10 +352,10 @@ double calc_srag_redundancy_rate(_u64 index) {
                                     for (int tx_i = 0; tx_i < 32; ++tx_i) {
                                         ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
                                         auto m_it = stm_it->second.find(tmp_id);
-                                        if (m_it != stm_it->second.end() && m_it->second.size() > tx_i) {
+                                        if (m_it != stm_it->second.end() && m_it->second.size() > i) {
 //                                            the tuple has three items now. We need the second one, addr
 //                                      Every cache line is 32bytes now.
-                                            int x = get<1>(m_it->second[tx_i]) >> 5;
+                                            int x = get<1>(m_it->second[i]) >> 5;
                                             warp_unique_cache_lines.insert(get<1>(m_it->second[tx_i]) >> 5);
                                         }
                                     }
@@ -338,8 +373,55 @@ double calc_srag_redundancy_rate(_u64 index) {
 }
 
 
-int calc_sras_redundancy_rate() {
-    double sum_degree = 0;
+double calc_srag_redundancy_degree_test(_u64 index) {
+    _u64 all_transactions = 0;
+    map<_u64, map<ThreadId, set<_u64>>>::iterator stm_it;
+    int bz, by, bx, tz, ty, tx;
+    for (stm_it = srag_trace_map_test.begin(); stm_it != srag_trace_map_test.end(); stm_it++) {
+        for (bz = 0; bz <= threadid_max.bz; bz++) {
+            for (by = 0; by <= threadid_max.by; ++by) {
+                for (bx = 0; bx <= threadid_max.bx; ++bx) {
+                    for (tz = 0; tz <= threadid_max.tz; ++tz) {
+                        for (ty = 0; ty <= threadid_max.ty; ++ty) {
+                            for (tx = 0; tx <= threadid_max.tx; tx += 32) {
+                                int remain_items = 0;
+                                for (int tx_i = 0; tx_i < 32; ++tx_i) {
+                                    ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
+//                                    m_it: map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>
+                                    auto m_it = stm_it->second.find(tmp_id);
+                                    if (m_it != stm_it->second.end()) {
+                                        remain_items = max(remain_items, (int) m_it->second.size());
+                                    }
+                                }
+                                if (remain_items > 1) { cout << "remain_items is " << remain_items << endl; }
+//                                for (int i = 0; i < remain_items; ++i) {
+////                                    per warp, per pc, per iteration of a loop
+//                                    set<_u64> warp_unique_cache_lines;
+//                                    for (int tx_i = 0; tx_i < 32; ++tx_i) {
+//                                        ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
+//                                        auto m_it = stm_it->second.find(tmp_id);
+//                                        if (m_it != stm_it->second.end() && m_it->second.size() > tx_i) {
+////                                            the tuple has three items now. We need the second one, addr
+////                                      Every cache line is 32bytes now.
+//                                            int x = get<1>(m_it->second[tx_i]) >> 5;
+//                                            warp_unique_cache_lines.insert(get<1>(m_it->second[tx_i]) >> 5);
+//                                        }
+//                                    }
+//                                    all_transactions += warp_unique_cache_lines.size();
+//                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    double perfect_transaction = index * 4.0 / 32;
+    return all_transactions / perfect_transaction;
+}
+
+pair<_u64, double> calc_sras_redundancy_rate(_u64 index) {
+    _u64 conflict_time = 0;
     map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>>::iterator stm_it;
     int bz, by, bx, tz, ty, tx;
     for (stm_it = srag_trace_map.begin(); stm_it != srag_trace_map.end(); stm_it++) {
@@ -360,9 +442,9 @@ int calc_sras_redundancy_rate() {
                                         remain_items = max(remain_items, (int) m_it->second.size());
                                     }
                                 }
-                                if (remain_items > 1) { cout << "remain_items is " << remain_items << endl; }
-                                int degree = 0;
+//                                if (remain_items > 1) { cout << "remain_items is " << remain_items << endl; }
                                 for (int i = 0; i < remain_items; ++i) {
+                                    int this_iterations_valid_item = 32;
 //                                    per warp, per pc, per iteration of a loop
                                     set<_u64> bank_visit;
                                     for (int tx_i = 0; tx_i < 32; ++tx_i) {
@@ -370,14 +452,15 @@ int calc_sras_redundancy_rate() {
                                         auto m_it = stm_it->second.find(tmp_id);
                                         if (m_it != stm_it->second.end() && m_it->second.size() > i) {
 //                                            the tuple has three items now. We need the second one, addr
-                                            bank_visit.insert(get<1>(m_it->second[tx_i]));
+                                            bank_visit.insert(get<1>(m_it->second[i]));
+                                        }else{
+//                                            Not all threads in this warp works in this iteration.
+                                            this_iterations_valid_item--;
                                         }
                                     }
-//                                    How many
-                                    degree += 32 - bank_visit.size();
+//                                    How many conflicts
+                                    conflict_time += this_iterations_valid_item - bank_visit.size();
                                 }
-//                                @todo calc degree
-                                sum_degree += degree;
                             }
                         }
                     }
@@ -385,15 +468,24 @@ int calc_sras_redundancy_rate() {
             }
         }
     }
-    return sum_degree;
+    return make_pair(conflict_time, (double)conflict_time/index);
 }
 
 void calc_srv_redundancy_rate(_u64 index) {
 //    {pc:{value:{thread:num}}}
 //map<_u64, map<_u64, map<ThreadId,_u64 >>> srv_trace_map;
     for (auto stm_it = srv_trace_map.begin(); stm_it != srv_trace_map.end(); stm_it++) {
-//        It will has so much to output. Should in log file.
-        cout << stm_it->first << ":\t" << stm_it->second.size() / index << endl;
+        cout<<hex<<stm_it->first<<dec<<endl;
+        for(auto value_it = stm_it->second.begin(); value_it != stm_it->second.end(); value_it++){
+
+            _u64 cur_value_access_time = 0;
+//            There's no need to clarify warps?
+            for (auto & tid_it : value_it->second) {
+                cur_value_access_time += tid_it.second;
+            }
+            cout<<value_it->first<<":\t"<<cur_value_access_time<<"\t"<<(double)cur_value_access_time / index << endl;
+
+        }
     }
 }
 
@@ -427,25 +519,28 @@ void read_input_file(string input_file, string target_name) {
             value = stoull(sm[5], 0, 16);
 //            get_tra_trace_map(tid, addr);
 //            get_trv_trace_map(index, pc, tid, addr, value);
-            get_srag_trace_map(index, pc, tid, addr, value);
-//            get_srv_trace_map(pc, tid, addr, value);
+//            get_srag_trace_map(index, pc, tid, addr, value);
+//            get_srag_trace_map_test(index, pc, tid, addr, value);
+            get_srv_trace_map(pc, tid, addr, value);
 
             index++;
         }
     }
 //    cout << "tra rate\t" << calc_tra_redundancy_rate() << endl;
 //    cout << "trv rate\t" << calc_trv_redundancy_rate(index) << endl;
-    cout << "srag degree" << calc_srag_redundancy_rate(index) << endl;
-//    cout << "sras degree" << calc_sras_redundancy_rate()<<endl;
-//    cout << "srv rate";
-//    calc_srv_redundancy_rate(index);
-//    cout << endl;
+//    cout << "srag degree" << calc_srag_redundancy_degree(index) << endl;
+//    cout << "srag degree" << calc_srag_redundancy_degree_test(index) << endl;
+//    auto ans_t = calc_sras_redundancy_rate(index);
+//    cout << "sras conflict times:\t" << ans_t.first << endl << "sras conflict rate:\t" << ans_t.second << endl;
+    cout << "srv rate"<<endl;
+    calc_srv_redundancy_rate(index);
+    cout << endl;
 }
 
 int main() {
 
     init();
-//    read_input_file("/home/find/d/hpctoolkit-gpu-samples/cuda_vec_add/hpctoolkit-main-measurements/cubins/7137380e327b90e81e4df66b2b71c97e.trace.0","");
+//    read_input_file("/home/find/d/gpu-rodinia/cuda/streamcluster.hpc/hpctoolkit-sc_gpu-measurements/cubins/a7995a7dc4d642e13fdca830f16fc248.trace.0","");
     read_input_file(
             "/home/find/d/hpctoolkit-gpu-samples/cuda_vec_add.2/trace",
             "");
