@@ -50,7 +50,7 @@ double calc_trv_redundancy_rate(_u64 line_num);
 // Spatial Redundancy Address Global Memory
 void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value);
 
-double calc_srag_redundancy_rate();
+double calc_srag_redundancy_rate(_u64 index);
 
 // Spatial Redundancy Address Shared memory
 void get_sras_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value);
@@ -67,7 +67,7 @@ void calc_srv_redundancy_rate(_u64 index);
 map<ThreadId, list<_u64 >> tra_list;
 // trace_map: {addr1 : [rd1, rd2,], }
 map<_u64, vector<int >> tra_trace_map;
-// Temporal Redundancy-Value dict_queue:{thread: {addr1:[(read, val1)],,}}
+// Temporal Redundancy-Value dict_queue:{thread: {addr1: val1,}}
 map<ThreadId, map<_u64, _u64 >> trv_map_read;
 map<ThreadId, map<_u64, _u64 >> trv_map_write;
 // save every dead read and write 's index of input file.
@@ -76,6 +76,7 @@ vector<_u64> dead_write_index;
 long long dead_read_num, dead_write_num;
 //Spatial Redundancy Address Global memory
 //@todo At this time, we don't know every variable's addr range, so we regard all addr as global or shared
+// {pc: {tid: [(index, addr, value), ]}}
 map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>> srag_trace_map;
 //{pc:{value:{thread:num}}}
 map<_u64, map<_u64, map<ThreadId, _u64 >>> srv_trace_map;
@@ -285,11 +286,12 @@ double calc_tra_redundancy_rate() {
 
 double calc_trv_redundancy_rate(_u64 line_num) {
     if (line_num == 0) return 0;
+    cout << "dead_read_num\t" << dead_read_num << endl;
     return (double) dead_read_num / line_num;
 }
 
-double calc_srag_redundancy_rate() {
-    double avg_degree = 0;
+double calc_srag_redundancy_rate(_u64 index) {
+    _u64 all_transactions = 0;
     map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>>::iterator stm_it;
     int bz, by, bx, tz, ty, tx;
     for (stm_it = srag_trace_map.begin(); stm_it != srag_trace_map.end(); stm_it++) {
@@ -299,8 +301,6 @@ double calc_srag_redundancy_rate() {
                     for (tz = 0; tz <= threadid_max.tz; ++tz) {
                         for (ty = 0; ty <= threadid_max.ty; ++ty) {
                             for (tx = 0; tx <= threadid_max.tx; tx += 32) {
-
-//                              The max number of remain items in threads' vectors. At this moment, every pc only has one access per thread. So actually, remain_items seems equal to 1.
                                 int remain_items = 0;
                                 for (int tx_i = 0; tx_i < 32; ++tx_i) {
                                     ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
@@ -310,23 +310,22 @@ double calc_srag_redundancy_rate() {
                                         remain_items = max(remain_items, (int) m_it->second.size());
                                     }
                                 }
-                                if (remain_items > 1) { cout << "remain_items is " << remain_items << endl; }
-                                int degree = 0;
+//                                if (remain_items > 1) { cout << "remain_items is " << remain_items << endl; }
                                 for (int i = 0; i < remain_items; ++i) {
 //                                    per warp, per pc, per iteration of a loop
                                     set<_u64> warp_unique_cache_lines;
                                     for (int tx_i = 0; tx_i < 32; ++tx_i) {
                                         ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
                                         auto m_it = stm_it->second.find(tmp_id);
-                                        if (m_it != stm_it->second.end() && m_it->second.size() > i) {
+                                        if (m_it != stm_it->second.end() && m_it->second.size() > tx_i) {
 //                                            the tuple has three items now. We need the second one, addr
-                                            warp_unique_cache_lines.insert(get<1>(m_it->second[tx_i]) >> 6);
+//                                      Every cache line is 32bytes now.
+                                            int x = get<1>(m_it->second[tx_i]) >> 5;
+                                            warp_unique_cache_lines.insert(get<1>(m_it->second[tx_i]) >> 5);
                                         }
                                     }
-                                    degree += warp_unique_cache_lines.size();
+                                    all_transactions += warp_unique_cache_lines.size();
                                 }
-//                                @todo calc degree
-
                             }
                         }
                     }
@@ -334,7 +333,8 @@ double calc_srag_redundancy_rate() {
             }
         }
     }
-    return avg_degree;
+    double perfect_transaction = index * 4.0 / 32;
+    return all_transactions / perfect_transaction;
 }
 
 
@@ -408,7 +408,7 @@ void read_input_file(string input_file, string target_name) {
     while (getline(fin, line)) {
         in_target_kernel = true;
         if (in_target_kernel) {
-            index++;
+
             smatch sm;
             regex_match(line, sm, line_read_re);
             if (sm.size() == 0) {
@@ -425,15 +425,17 @@ void read_input_file(string input_file, string target_name) {
             threadid_max = get_max_threadId(tid, threadid_max);
             addr = stoull(sm[4], 0, 16);
             value = stoull(sm[5], 0, 16);
-            get_tra_trace_map(tid, addr);
+//            get_tra_trace_map(tid, addr);
 //            get_trv_trace_map(index, pc, tid, addr, value);
-//            get_srag_trace_map(index, pc, tid, addr, value);
+            get_srag_trace_map(index, pc, tid, addr, value);
 //            get_srv_trace_map(pc, tid, addr, value);
+
+            index++;
         }
     }
-    cout << "tra rate\t" << calc_tra_redundancy_rate() << endl;
-//    cout << "trv rate" << calc_trv_redundancy_rate(index) << endl;
-//    cout << "srag degree" << calc_srag_redundancy_rate()<<endl;
+//    cout << "tra rate\t" << calc_tra_redundancy_rate() << endl;
+//    cout << "trv rate\t" << calc_trv_redundancy_rate(index) << endl;
+    cout << "srag degree" << calc_srag_redundancy_rate(index) << endl;
 //    cout << "sras degree" << calc_sras_redundancy_rate()<<endl;
 //    cout << "srv rate";
 //    calc_srv_redundancy_rate(index);
