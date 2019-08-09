@@ -8,6 +8,7 @@
 #include <numeric>
 #include <tuple>
 #include <algorithm>
+#include "cxxopts.hpp"
 
 using std::set;
 using std::regex;
@@ -30,6 +31,7 @@ using std::find_if;
 using std::make_pair;
 using std::hex;
 using std::dec;
+using cxxopts::Options;
 
 void init();
 
@@ -95,10 +97,13 @@ regex tid_re("(\\d+),(\\d+),(\\d+)");
 // the sizes of thread block and grid
 ThreadId threadid_max;
 
+Options options("CUDA_RedShow", "A test suit for hpctoolkit santizer");
 
 void init() {
     dead_read_num = 0;
     dead_write_num = 0;
+    options.add_options()
+            ("i,input", "Input trace file",cxxopts::value<std::string>());
 }
 
 ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max) {
@@ -453,7 +458,7 @@ pair<_u64, double> calc_sras_redundancy_rate(_u64 index) {
                                         if (m_it != stm_it->second.end() && m_it->second.size() > i) {
 //                                            the tuple has three items now. We need the second one, addr
                                             bank_visit.insert(get<1>(m_it->second[i]));
-                                        }else{
+                                        } else {
 //                                            Not all threads in this warp works in this iteration.
                                             this_iterations_valid_item--;
                                         }
@@ -468,22 +473,23 @@ pair<_u64, double> calc_sras_redundancy_rate(_u64 index) {
             }
         }
     }
-    return make_pair(conflict_time, (double)conflict_time/index);
+    return make_pair(conflict_time, (double) conflict_time / index);
 }
 
 void calc_srv_redundancy_rate(_u64 index) {
 //    {pc:{value:{thread:num}}}
 //map<_u64, map<_u64, map<ThreadId,_u64 >>> srv_trace_map;
     for (auto stm_it = srv_trace_map.begin(); stm_it != srv_trace_map.end(); stm_it++) {
-        cout<<hex<<stm_it->first<<dec<<endl;
-        for(auto value_it = stm_it->second.begin(); value_it != stm_it->second.end(); value_it++){
+        cout << "PC:\t" << hex << stm_it->first << dec << endl;
+        for (auto value_it = stm_it->second.begin(); value_it != stm_it->second.end(); value_it++) {
 
             _u64 cur_value_access_time = 0;
 //            There's no need to clarify warps?
-            for (auto & tid_it : value_it->second) {
+            for (auto &tid_it : value_it->second) {
                 cur_value_access_time += tid_it.second;
             }
-            cout<<value_it->first<<":\t"<<cur_value_access_time<<"\t"<<(double)cur_value_access_time / index << endl;
+            cout << value_it->first << ":\t" << cur_value_access_time << "\t" << (double) cur_value_access_time / index
+                 << endl;
 
         }
     }
@@ -532,19 +538,15 @@ void read_input_file(string input_file, string target_name) {
 //    cout << "srag degree" << calc_srag_redundancy_degree_test(index) << endl;
 //    auto ans_t = calc_sras_redundancy_rate(index);
 //    cout << "sras conflict times:\t" << ans_t.first << endl << "sras conflict rate:\t" << ans_t.second << endl;
-    cout << "srv rate"<<endl;
+    cout << "srv rate" << endl;
     calc_srv_redundancy_rate(index);
     cout << endl;
 }
 
-int main() {
+int main(int argc, char* argv[]) {
 
     init();
-//    read_input_file("/home/find/d/gpu-rodinia/cuda/streamcluster.hpc/hpctoolkit-sc_gpu-measurements/cubins/a7995a7dc4d642e13fdca830f16fc248.trace.0","");
-    read_input_file(
-            "/home/find/d/hpctoolkit-gpu-samples/cuda_vec_add.2/trace",
-            "");
-//    read_input_file("/home/find/Downloads/a.txt", "");
-//    std::cout << "Hello, World!" << std::endl;
+    auto result = options.parse(argc, argv);
+    read_input_file( result["input"].as<string>(),"");
     return 0;
 }
