@@ -44,7 +44,7 @@ ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max);
 // Temporal Redundancy-Address
 void get_tra_trace_map(ThreadId tid, _u64 addr);
 
-double calc_tra_redundancy_rate();
+double calc_tra_redundancy_rate(_u64 index);
 
 // Temporal Redundancy-Value
 //@todo At this time, the hpctoolkit's log doesn't have access type, so we just regard all access as read.
@@ -57,7 +57,7 @@ void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value
 
 void get_srag_trace_map_test(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value);
 
-double calc_srag_redundancy_degree(_u64 index);
+void calc_srag_redundancy_degree(_u64 index);
 
 double calc_srag_redundancy_degree_test(_u64 index);
 
@@ -91,12 +91,12 @@ map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>> srag_trace_map;
 map<_u64, map<ThreadId, set<_u64>>> srag_trace_map_test;
 //{pc:{value:{thread:num}}}
 map<_u64, map<_u64, map<ThreadId, _u64 >>> srv_trace_map;
-
+// Final histogram of global memory access distribution. index i means there is i+1 unique cache lines.
+_u64 srag_distribution[32];
 regex line_read_re("0x(.+?)\\|\\((.+?)\\)\\|\\((.+?)\\)\\|0x(.+?)\\|0x(.+)");
 regex tid_re("(\\d+),(\\d+),(\\d+)");
 // the sizes of thread block and grid
 ThreadId threadid_max;
-
 Options options("CUDA_RedShow", "A test suit for hpctoolkit santizer");
 
 void init() {
@@ -104,6 +104,7 @@ void init() {
     dead_write_num = 0;
     options.add_options()
             ("i,input", "Input trace file",cxxopts::value<std::string>());
+    memset(srag_distribution, 0, sizeof(srag_distribution) * 32);
 }
 
 ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max) {
@@ -304,7 +305,7 @@ void get_srv_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
 
 }
 
-double calc_tra_redundancy_rate() {
+double calc_tra_redundancy_rate(_u64 index) {
     double tra_rate = 0;
     long long r_sum = 0;
 //    How many reuse distance has recorded.
@@ -317,8 +318,9 @@ double calc_tra_redundancy_rate() {
         r_sum += accumulate(ttm_it->second.begin(), ttm_it->second.end(), 0);
         r_num += ttm_it->second.size();
     }
-    tra_rate = thread_nums == 0 ? 0 : r_sum * 1.0 / thread_nums;
-//    cout << r_sum << endl;
+    tra_rate = thread_nums == 0 ? 0 : (double)r_sum / thread_nums;
+    cout <<"reuse distance sum:\t"<< r_sum << endl;
+    cout <<"reuse time rate:\t"<< (double)r_num / index <<endl;
 //    cout << tra_rate << endl;
     return tra_rate;
 
@@ -330,8 +332,8 @@ double calc_trv_redundancy_rate(_u64 line_num) {
     return (double) dead_read_num / line_num;
 }
 
-double calc_srag_redundancy_degree(_u64 index) {
-    _u64 all_transactions = 0;
+void calc_srag_redundancy_degree(_u64 index) {
+//    _u64 all_transactions = 0;
     map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>>::iterator stm_it;
     int bz, by, bx, tz, ty, tx;
     for (stm_it = srag_trace_map.begin(); stm_it != srag_trace_map.end(); stm_it++) {
@@ -364,7 +366,13 @@ double calc_srag_redundancy_degree(_u64 index) {
                                             warp_unique_cache_lines.insert(get<1>(m_it->second[tx_i]) >> 5);
                                         }
                                     }
-                                    all_transactions += warp_unique_cache_lines.size();
+//                                    all_transactions += warp_unique_cache_lines.size();
+                                    int cur_warp_unique_cache_line_size = warp_unique_cache_lines.size();
+                                    if (cur_warp_unique_cache_line_size > 32 || cur_warp_unique_cache_line_size <=0){
+                                        cout<<"Error: There is a warp access illegal unique cache line size "<< cur_warp_unique_cache_line_size<<endl;
+                                    }else{
+                                        srag_distribution[cur_warp_unique_cache_line_size - 1]++;
+                                    }
                                 }
                             }
                         }
@@ -373,8 +381,8 @@ double calc_srag_redundancy_degree(_u64 index) {
             }
         }
     }
-    double perfect_transaction = index * 4.0 / 32;
-    return all_transactions / perfect_transaction;
+//    double perfect_transaction = index  / 8;
+//    return all_transactions / perfect_transaction;
 }
 
 
@@ -523,24 +531,32 @@ void read_input_file(string input_file, string target_name) {
             threadid_max = get_max_threadId(tid, threadid_max);
             addr = stoull(sm[4], 0, 16);
             value = stoull(sm[5], 0, 16);
-//            get_tra_trace_map(tid, addr);
-//            get_trv_trace_map(index, pc, tid, addr, value);
-//            get_srag_trace_map(index, pc, tid, addr, value);
+            get_tra_trace_map(tid, addr);
+            get_trv_trace_map(index, pc, tid, addr, value);
+            get_srag_trace_map(index, pc, tid, addr, value);
 //            get_srag_trace_map_test(index, pc, tid, addr, value);
-            get_srv_trace_map(pc, tid, addr, value);
+//            get_srv_trace_map(pc, tid, addr, value);
 
             index++;
         }
     }
-//    cout << "tra rate\t" << calc_tra_redundancy_rate() << endl;
-//    cout << "trv rate\t" << calc_trv_redundancy_rate(index) << endl;
-//    cout << "srag degree" << calc_srag_redundancy_degree(index) << endl;
-//    cout << "srag degree" << calc_srag_redundancy_degree_test(index) << endl;
+    cout << "tra rate\t" << calc_tra_redundancy_rate(index) << endl;
+    cout << "trv rate\t" << calc_trv_redundancy_rate(index) << endl;
+    calc_srag_redundancy_degree(index);
+    cout << "srag degree:";
+    for (int i = 0; i < 32; ++i) {
+        if (i % 4 == 0){
+            cout<<endl;
+        }
+        cout<<i+1<<": "<<srag_distribution[i]<<'\t';
+    }
+////    cout << "srag degree" << calc_srag_redundancy_degree_test(index) << endl;
 //    auto ans_t = calc_sras_redundancy_rate(index);
 //    cout << "sras conflict times:\t" << ans_t.first << endl << "sras conflict rate:\t" << ans_t.second << endl;
-    cout << "srv rate" << endl;
-    calc_srv_redundancy_rate(index);
-    cout << endl;
+
+//    cout << "srv rate" << endl;
+//    calc_srv_redundancy_rate(index);
+//    cout << endl;
 }
 
 int main(int argc, char* argv[]) {
