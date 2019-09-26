@@ -98,12 +98,19 @@ regex tid_re("(\\d+),(\\d+),(\\d+)");
 // the sizes of thread block and grid
 ThreadId threadid_max;
 Options options("CUDA_RedShow", "A test suit for hpctoolkit santizer");
+// a new category
+// I think pc is not used at this time.
+// vertical redundancy:{thread: {pc: {value:times}}}
+//map<ThreadId, map<_u64, map<_u64, _u64 >>> vr_trace_map;
+// vertical redundancy:{thread: {value:times}}
+map<ThreadId, map<_u64, _u64 >> vr_trace_map;
+
 
 void init() {
     dead_read_num = 0;
     dead_write_num = 0;
     options.add_options()
-            ("i,input", "Input trace file",cxxopts::value<std::string>());
+            ("i,input", "Input trace file", cxxopts::value<std::string>());
     memset(srag_distribution, 0, sizeof(srag_distribution) * 32);
 }
 
@@ -274,7 +281,43 @@ void get_sras_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value
     }
 
 }
+// commented by FindHao. This function is for the vertical red. We first talk about it in 9.20.
+//void get_vr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
+//    auto vrtm_it = vr_trace_map.find(tid);
+//    if (vrtm_it == vr_trace_map.end()) {
+//        map<_u64, map<_u64, _u64 >> tmp = {{pc, map<_u64, _u64>{pair<_u64, _u64>(value, 1)}}};
+//        vr_trace_map.insert(pair<ThreadId, map<_u64, map<_u64, _u64>>>(tid, tmp));
+//    } else {
+////        m_it is {pc:{value:number}}
+//        auto m_it = vrtm_it->second.find(pc);
+//        if (m_it == vrtm_it->second.end()) {
+//            map<_u64, _u64> tmp_1 = {pair<_u64, _u64>(value, 1)};
+//            vrtm_it->second.insert(pair<_u64, map<_u64, _u64>>(pc, tmp_1));
+//        } else {
+//            auto v_it = m_it->second.find(value);
+//            if (v_it == m_it->second.end()) {
+//                m_it->second.insert(pair<_u64, _u64>(value, 1));
+//            } else {
+//                m_it->second[value] += 1;
+//            }
+//        }
+//    }
+//}
 
+void get_vr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
+    auto vrtm_it = vr_trace_map.find(tid);
+    if (vrtm_it == vr_trace_map.end()) {
+        map<_u64, _u64> tmp_1 = {pair<_u64, _u64>(value, 1)};
+        vr_trace_map.insert(pair<ThreadId,map<_u64, _u64>>(tid, tmp_1));
+    } else {
+            auto v_it = vrtm_it->second.find(value);
+            if (v_it == vrtm_it->second.end()) {
+                vrtm_it->second.insert(pair<_u64, _u64>(value, 1));
+            } else {
+                vrtm_it->second[value] += 1;
+            }
+    }
+}
 
 void get_srv_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
     auto stm_it = srv_trace_map.find(pc);
@@ -318,9 +361,9 @@ double calc_tra_redundancy_rate(_u64 index) {
         r_sum += accumulate(ttm_it->second.begin(), ttm_it->second.end(), 0);
         r_num += ttm_it->second.size();
     }
-    tra_rate = thread_nums == 0 ? 0 : (double)r_sum / thread_nums;
-    cout <<"reuse distance sum:\t"<< r_sum << endl;
-    cout <<"reuse time rate:\t"<< (double)r_num / index <<endl;
+    tra_rate = thread_nums == 0 ? 0 : (double) r_sum / thread_nums;
+    cout << "reuse distance sum:\t" << r_sum << endl;
+    cout << "reuse time rate:\t" << (double) r_num / index << endl;
 //    cout << tra_rate << endl;
     return tra_rate;
 
@@ -368,9 +411,10 @@ void calc_srag_redundancy_degree(_u64 index) {
                                     }
 //                                    all_transactions += warp_unique_cache_lines.size();
                                     int cur_warp_unique_cache_line_size = warp_unique_cache_lines.size();
-                                    if (cur_warp_unique_cache_line_size > 32 || cur_warp_unique_cache_line_size <=0){
-                                        cout<<"Error: There is a warp access illegal unique cache line size "<< cur_warp_unique_cache_line_size<<endl;
-                                    }else{
+                                    if (cur_warp_unique_cache_line_size > 32 || cur_warp_unique_cache_line_size <= 0) {
+                                        cout << "Error: There is a warp access illegal unique cache line size "
+                                             << cur_warp_unique_cache_line_size << endl;
+                                    } else {
                                         srag_distribution[cur_warp_unique_cache_line_size - 1]++;
                                     }
                                 }
@@ -503,6 +547,24 @@ void calc_srv_redundancy_rate(_u64 index) {
     }
 }
 
+void calc_vr_redundancy_rate(_u64 index){
+    map<ThreadId, _u64 > thread_max_red_rate;
+    _u64 sum_all_max_red = 0;
+    // vertical redundancy:{thread: {pc: {value:times}}}
+//    map<ThreadId, map<_u64, map<_u64, _u64 >>> vr_trace_map;
+    for (auto thread_it = vr_trace_map.begin(); thread_it != vr_trace_map.end(); ++thread_it) {
+        _u64 tmp_max = 0;
+        for (auto value_it = thread_it->second.begin(); value_it != thread_it->second.end(); ++value_it) {
+            if(value_it->second > tmp_max){
+                tmp_max = value_it->second;
+//                also record the value?
+            }
+        }
+        thread_max_red_rate.insert(pair<ThreadId, _u64 >(thread_it->first, tmp_max));
+        sum_all_max_red += tmp_max;
+    }
+    cout<< "average redundancy rate:\t"<<sum_all_max_red / index<<endl;
+}
 
 //read input file and get every line
 void read_input_file(string input_file, string target_name) {
@@ -545,10 +607,10 @@ void read_input_file(string input_file, string target_name) {
     calc_srag_redundancy_degree(index);
     cout << "srag degree:";
     for (int i = 0; i < 32; ++i) {
-        if (i % 4 == 0){
-            cout<<endl;
+        if (i % 4 == 0) {
+            cout << endl;
         }
-        cout<<i+1<<": "<<srag_distribution[i]<<'\t';
+        cout << i + 1 << ": " << srag_distribution[i] << '\t';
     }
 ////    cout << "srag degree" << calc_srag_redundancy_degree_test(index) << endl;
 //    auto ans_t = calc_sras_redundancy_rate(index);
@@ -559,10 +621,10 @@ void read_input_file(string input_file, string target_name) {
 //    cout << endl;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
 
     init();
     auto result = options.parse(argc, argv);
-    read_input_file( result["input"].as<string>(),"");
+    read_input_file(result["input"].as<string>(), "");
     return 0;
 }
