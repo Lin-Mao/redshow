@@ -141,12 +141,4 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
-将删除 .gitignore
-将删除 .idea/
-将删除 CMakeLists.txt
-将删除 cmake-build-debug/
-将删除 cmake-build-release/
-将删除 common_lib.cpp
-将删除 common_lib.h
-将删除 main.cpp
 .idea/*
