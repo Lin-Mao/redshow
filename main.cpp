@@ -71,7 +71,12 @@ void get_srv_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value);
 
 void calc_srv_redundancy_rate(_u64 index);
 
+// Vertical Redundancy
+void get_vr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value);
 
+void calc_vr_redundancy_rate(_u64 index);
+
+// This block is the data definitions
 // Every thread has a ordered set to save the read addresses.
 map<ThreadId, list<_u64 >> tra_list;
 // trace_map: {addr1 : [rd1, rd2,], }
@@ -93,7 +98,7 @@ map<_u64, map<ThreadId, set<_u64>>> srag_trace_map_test;
 map<_u64, map<_u64, map<ThreadId, _u64 >>> srv_trace_map;
 // Final histogram of global memory access distribution. index i means there is i+1 unique cache lines.
 _u64 srag_distribution[32];
-regex line_read_re("0x(.+?)\\|\\((.+?)\\)\\|\\((.+?)\\)\\|0x(.+?)\\|0x(.+)");
+regex line_read_re("0x(.+?)\\|\\((.+?)\\)\\|\\((.+?)\\)\\|0x(.+?)\\|0x(.+)\\|(.+)");
 regex tid_re("(\\d+),(\\d+),(\\d+)");
 // the sizes of thread block and grid
 ThreadId threadid_max;
@@ -106,12 +111,17 @@ Options options("CUDA_RedShow", "A test suit for hpctoolkit santizer");
 map<ThreadId, map<_u64, _u64 >> vr_trace_map;
 
 
+ostream &operator<<(ostream &out, const ThreadId &A) {
+    out << "(" << A.bx << "," << A.by << "," << A.bz << ")(" << A.tx << "," << A.ty << "," << A.tz << ")";
+    return out;
+}
+
 void init() {
     dead_read_num = 0;
     dead_write_num = 0;
     options.add_options()
             ("i,input", "Input trace file", cxxopts::value<std::string>());
-    memset(srag_distribution, 0, sizeof(srag_distribution) * 32);
+    memset(srag_distribution, 0, sizeof(_u64) * 32);
 }
 
 ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max) {
@@ -308,14 +318,14 @@ void get_vr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
     auto vrtm_it = vr_trace_map.find(tid);
     if (vrtm_it == vr_trace_map.end()) {
         map<_u64, _u64> tmp_1 = {pair<_u64, _u64>(value, 1)};
-        vr_trace_map.insert(pair<ThreadId,map<_u64, _u64>>(tid, tmp_1));
+        vr_trace_map.insert(pair<ThreadId, map<_u64, _u64>>(tid, tmp_1));
     } else {
-            auto v_it = vrtm_it->second.find(value);
-            if (v_it == vrtm_it->second.end()) {
-                vrtm_it->second.insert(pair<_u64, _u64>(value, 1));
-            } else {
-                vrtm_it->second[value] += 1;
-            }
+        auto v_it = vrtm_it->second.find(value);
+        if (v_it == vrtm_it->second.end()) {
+            vrtm_it->second.insert(pair<_u64, _u64>(value, 1));
+        } else {
+            vrtm_it->second[value] += 1;
+        }
     }
 }
 
@@ -547,23 +557,28 @@ void calc_srv_redundancy_rate(_u64 index) {
     }
 }
 
-void calc_vr_redundancy_rate(_u64 index){
-    map<ThreadId, _u64 > thread_max_red_rate;
+void calc_vr_redundancy_rate(_u64 index) {
+    map<ThreadId, _u64> thread_max_red_rate;
     _u64 sum_all_max_red = 0;
     // vertical redundancy:{thread: {pc: {value:times}}}
 //    map<ThreadId, map<_u64, map<_u64, _u64 >>> vr_trace_map;
     for (auto thread_it = vr_trace_map.begin(); thread_it != vr_trace_map.end(); ++thread_it) {
         _u64 tmp_max = 0;
         for (auto value_it = thread_it->second.begin(); value_it != thread_it->second.end(); ++value_it) {
-            if(value_it->second > tmp_max){
+//            If there's no one is over 1, not need to record.
+            if (value_it->second > tmp_max && value_it->second > 1) {
                 tmp_max = value_it->second;
 //                also record the value?
             }
         }
-        thread_max_red_rate.insert(pair<ThreadId, _u64 >(thread_it->first, tmp_max));
-        sum_all_max_red += tmp_max;
+        if(tmp_max > 0){
+            thread_max_red_rate.insert(pair<ThreadId, _u64>(thread_it->first, tmp_max));
+            sum_all_max_red += tmp_max;
+            cout << "thread";
+            cout << thread_it->first << " redundancy " << tmp_max << endl;
+        }
     }
-    cout<< "average redundancy rate:\t"<<sum_all_max_red / index<<endl;
+    cout << "average redundancy rate:\t" << sum_all_max_red * 1.0 / index << endl;
 }
 
 //read input file and get every line
@@ -585,6 +600,7 @@ void read_input_file(string input_file, string target_name) {
             }
 
             _u64 pc, addr, value;
+            int access_type;
             pc = stoull(sm[1], 0, 16);
             ThreadId tid = transform_tid(sm[2], sm[3]);
             if (tid.bx == -1 || tid.by == -1 || tid.bz == -1 || tid.tx == -1 || tid.ty == -1 | tid.tz == -1) {
@@ -593,25 +609,26 @@ void read_input_file(string input_file, string target_name) {
             threadid_max = get_max_threadId(tid, threadid_max);
             addr = stoull(sm[4], 0, 16);
             value = stoull(sm[5], 0, 16);
-            get_tra_trace_map(tid, addr);
-            get_trv_trace_map(index, pc, tid, addr, value);
-            get_srag_trace_map(index, pc, tid, addr, value);
+            access_type = stoi(sm[6], 0, 16);
+//            get_tra_trace_map(tid, addr);
+//            get_trv_trace_map(index, pc, tid, addr, value);
+//            get_srag_trace_map(index, pc, tid, addr, value);
 //            get_srag_trace_map_test(index, pc, tid, addr, value);
 //            get_srv_trace_map(pc, tid, addr, value);
-
+            get_vr_trace_map(pc, tid, addr, value);
             index++;
         }
     }
-    cout << "tra rate\t" << calc_tra_redundancy_rate(index) << endl;
-    cout << "trv rate\t" << calc_trv_redundancy_rate(index) << endl;
-    calc_srag_redundancy_degree(index);
-    cout << "srag degree:";
-    for (int i = 0; i < 32; ++i) {
-        if (i % 4 == 0) {
-            cout << endl;
-        }
-        cout << i + 1 << ": " << srag_distribution[i] << '\t';
-    }
+//    cout << "tra rate\t" << calc_tra_redundancy_rate(index) << endl;
+//    cout << "trv rate\t" << calc_trv_redundancy_rate(index) << endl;
+//    calc_srag_redundancy_degree(index);
+//    cout << "srag degree:";
+//    for (int i = 0; i < 32; ++i) {
+//        if (i % 4 == 0) {
+//            cout << endl;
+//        }
+//        cout << i + 1 << ": " << srag_distribution[i] << '\t';
+//    }
 ////    cout << "srag degree" << calc_srag_redundancy_degree_test(index) << endl;
 //    auto ans_t = calc_sras_redundancy_rate(index);
 //    cout << "sras conflict times:\t" << ans_t.first << endl << "sras conflict rate:\t" << ans_t.second << endl;
@@ -619,6 +636,8 @@ void read_input_file(string input_file, string target_name) {
 //    cout << "srv rate" << endl;
 //    calc_srv_redundancy_rate(index);
 //    cout << endl;
+
+    calc_vr_redundancy_rate(index);
 }
 
 int main(int argc, char *argv[]) {

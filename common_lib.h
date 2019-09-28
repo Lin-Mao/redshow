@@ -8,12 +8,20 @@
 #include <string>
 #include <regex>
 
+
+
+// namespace
+using std::ifstream;
+using std::string;
+using std::regex;
+using std::ostream;
 typedef unsigned char _u8;
 typedef unsigned int _u32;
 typedef unsigned long long _u64;
 
 
-struct ThreadId {
+class ThreadId {
+public:
     int bx;
     int by;
     int bz;
@@ -24,19 +32,14 @@ struct ThreadId {
     bool operator<(const ThreadId &o) const {
         return bz < o.bz || by < o.by || bx < o.bx || tz < o.tz || ty < o.ty || tx < o.tx;
     }
+
     bool operator==(const ThreadId &o) const {
-        return bz == o.bz && by == o.by && bx == o.bx && tz  == o.tz && ty == o.ty && tx == o.tx;
+        return bz == o.bz && by == o.by && bx == o.bx && tz == o.tz && ty == o.ty && tx == o.tx;
     }
 };
 
 
 
-
-
-// namespace
-using std::ifstream;
-using std::string;
-using std::regex;
 
 
 class Variable {
