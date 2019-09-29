@@ -76,6 +76,8 @@ void get_vr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value);
 
 void calc_vr_redundancy_rate(_u64 index);
 
+int get_cur_addr_belong(_u64 addr);
+
 // This block is the data definitions
 // Every thread has a ordered set to save the read addresses.
 map<ThreadId, list<_u64 >> tra_list;
@@ -98,8 +100,7 @@ map<_u64, map<ThreadId, set<_u64>>> srag_trace_map_test;
 map<_u64, map<_u64, map<ThreadId, _u64 >>> srv_trace_map;
 // Final histogram of global memory access distribution. index i means there is i+1 unique cache lines.
 _u64 srag_distribution[32];
-regex line_read_re("0x(.+?)\\|\\((.+?)\\)\\|\\((.+?)\\)\\|0x(.+?)\\|0x(.+)\\|(.+)");
-regex tid_re("(\\d+),(\\d+),(\\d+)");
+
 // the sizes of thread block and grid
 ThreadId threadid_max;
 Options options("CUDA_RedShow", "A test suit for hpctoolkit santizer");
@@ -109,7 +110,19 @@ Options options("CUDA_RedShow", "A test suit for hpctoolkit santizer");
 //map<ThreadId, map<_u64, map<_u64, _u64 >>> vr_trace_map;
 // vertical redundancy:{thread: {value:times}}
 map<ThreadId, map<_u64, _u64 >> vr_trace_map;
+// horizontal redundancy
+// every array's memory start addr and size
+vector<tuple<_u64, int>> vars_mem_block;
+//{var:{value:num}}
+map<int, map<_u64, _u64>> hr_trace_map;
+// to get the number of pcs
+set<_u64 > pcs;
 
+regex line_read_re("0x(.+?)\\|\\((.+?)\\)\\|\\((.+?)\\)\\|0x(.+?)\\|0x(.+)\\|(.+)");
+regex tid_re("(\\d+),(\\d+),(\\d+)");
+//Allocate memory address 0x7fe39b600000, size 40
+//used to filter memory allocation information
+regex log_read_re("Allocate memory address 0x(.+), size (\\d+)");
 
 ostream &operator<<(ostream &out, const ThreadId &A) {
     out << "(" << A.bx << "," << A.by << "," << A.bz << ")(" << A.tx << "," << A.ty << "," << A.tz << ")";
@@ -121,6 +134,9 @@ void init() {
     dead_write_num = 0;
     options.add_options()
             ("i,input", "Input trace file", cxxopts::value<std::string>());
+    options.add_options()
+            ("l,log", "Input log file", cxxopts::value<std::string>());
+
     memset(srag_distribution, 0, sizeof(_u64) * 32);
 }
 
@@ -358,6 +374,52 @@ void get_srv_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
 
 }
 
+void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
+    int belong = get_cur_addr_belong(addr);
+    switch (belong) {
+        case -1 :
+            cout << "an addr not found which array it belongs to" << endl;
+            return;
+        case -2:
+            cout << "an addr found over 1 array it belongs to" << endl;
+            return;
+    }
+    pcs.insert(pc);
+//   //{var:{value:num}} map<int, map<_u64, _u64>> hr_trace_map;
+    auto hr_it = hr_trace_map.find(belong);
+    if (hr_it == hr_trace_map.end()) {
+        map<_u64, _u64> tmp_1 = {pair<_u64, _u64>(value, 1)};
+        hr_trace_map.insert(pair<int, map<_u64, _u64 >>(belong, tmp_1));
+    } else {
+        auto value_it = hr_it->second.find(value);
+        if (value_it == hr_it->second.end()) {
+            hr_it->second.insert(pair<_u64, _u64>(value, 1));
+        } else {
+            hr_it->second[value] += 1;
+        }
+    }
+}
+
+/**e.g. a[100] belongs to array a
+ * @return -1 not found
+ * @return -2 find over 1 arrars it belongs*/
+int get_cur_addr_belong(_u64 addr) {
+    using std::get;
+    int belong = -1;
+    for (auto it = vars_mem_block.begin(); it != vars_mem_block.end(); ++it) {
+        if (addr >= get<0>(*it) && addr < (get<0>(*it) + get<1>(*it))) {
+            if (belong != -1) {
+//                cout<<"Error:\tAn addr belongs to over 1 array"<<endl;
+                return -2;
+            } else {
+                belong = it - vars_mem_block.begin();
+            }
+        }
+    }
+    return belong;
+}
+
+
 double calc_tra_redundancy_rate(_u64 index) {
     double tra_rate = 0;
     long long r_sum = 0;
@@ -571,7 +633,7 @@ void calc_vr_redundancy_rate(_u64 index) {
 //                also record the value?
             }
         }
-        if(tmp_max > 0){
+        if (tmp_max > 0) {
             thread_max_red_rate.insert(pair<ThreadId, _u64>(thread_it->first, tmp_max));
             sum_all_max_red += tmp_max;
             cout << "thread";
@@ -579,6 +641,37 @@ void calc_vr_redundancy_rate(_u64 index) {
         }
     }
     cout << "average redundancy rate:\t" << sum_all_max_red * 1.0 / index << endl;
+}
+void calc_hr_red_rate(){
+    _u64 pc_nums = pcs.size();
+    //{var:{value:num}}
+//map<int, map<_u64, _u64>> hr_trace_map;
+    for (auto var_it = hr_trace_map.begin(); var_it != hr_trace_map.end(); ++var_it) {
+
+        for (auto value_it = var_it->second.begin(); value_it != var_it->second.end(); ++value_it) {
+
+        }
+
+    }
+}
+
+/** Get the memory malloc information from hpctoolkit log file. At this moment, we only consider one CPU thread.
+ * And the size is the number of bytes of the memory block. @todo check the item size in arrays. e.g. double type has 8 bytes while int only have 4 bytes.
+ * */
+void read_log_file(string input_file) {
+    ifstream fin(input_file.c_str());
+    std::istreambuf_iterator<char> beg(fin), end;
+    string strdata(beg, end);
+    fin.close();
+    smatch sm;
+    _u64 addr;
+    int var_size;
+    while (regex_search(strdata, sm, log_read_re)) {
+        addr = stoull(sm[1], 0, 16);
+        var_size = stoi(sm[2], 0, 10);
+        vars_mem_block.push_back(pair<_u64, int>(addr, var_size));
+        strdata = sm.suffix().str();
+    }
 }
 
 //read input file and get every line
@@ -644,6 +737,7 @@ int main(int argc, char *argv[]) {
 
     init();
     auto result = options.parse(argc, argv);
+    read_log_file(result["log"].as<string>());
     read_input_file(result["input"].as<string>(), "");
     return 0;
 }
