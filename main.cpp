@@ -644,14 +644,21 @@ void calc_vr_redundancy_rate(_u64 index) {
 }
 void calc_hr_red_rate(){
     _u64 pc_nums = pcs.size();
-    //{var:{value:num}}
+    //{array:{value:num}}
 //map<int, map<_u64, _u64>> hr_trace_map;
     for (auto var_it = hr_trace_map.begin(); var_it != hr_trace_map.end(); ++var_it) {
-
+        _u64 max_acc_times = 0, max_acc_value=0;
+        _u64 sum_times = 0;
         for (auto value_it = var_it->second.begin(); value_it != var_it->second.end(); ++value_it) {
-
+            if ( value_it->second > max_acc_times ){
+                max_acc_times = value_it->second;
+                max_acc_value = value_it->first;
+            }
+            sum_times+=value_it->second;
         }
-
+//        @todo output the distribution
+        cout<<"In array "<<var_it->first<<", access value "<<std::hex<<max_acc_value<<" "<<max_acc_times<<" times"<<endl;
+        cout<<"rate:" <<max_acc_times*1.0/sum_times<<endl;
     }
 }
 
@@ -708,7 +715,8 @@ void read_input_file(string input_file, string target_name) {
 //            get_srag_trace_map(index, pc, tid, addr, value);
 //            get_srag_trace_map_test(index, pc, tid, addr, value);
 //            get_srv_trace_map(pc, tid, addr, value);
-            get_vr_trace_map(pc, tid, addr, value);
+//            get_vr_trace_map(pc, tid, addr, value);
+            get_hr_trace_map(pc, tid, addr, value);
             index++;
         }
     }
@@ -730,7 +738,8 @@ void read_input_file(string input_file, string target_name) {
 //    calc_srv_redundancy_rate(index);
 //    cout << endl;
 
-    calc_vr_redundancy_rate(index);
+//    calc_vr_redundancy_rate(index);
+    calc_hr_red_rate();
 }
 
 int main(int argc, char *argv[]) {
