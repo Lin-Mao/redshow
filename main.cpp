@@ -32,6 +32,7 @@ using std::make_pair;
 using std::hex;
 using std::dec;
 using cxxopts::Options;
+using std::make_tuple;
 
 void init();
 
@@ -78,6 +79,11 @@ void calc_vr_redundancy_rate(_u64 index);
 
 int get_cur_addr_belong(_u64 addr);
 
+// dead copy means copy the array but some part of this array doesn't use
+void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value);
+
+void filter_dead_copy();
+
 // This block is the data definitions
 // Every thread has a ordered set to save the read addresses.
 map<ThreadId, list<_u64 >> tra_list;
@@ -116,7 +122,10 @@ vector<tuple<_u64, int>> vars_mem_block;
 //{var:{value:num}}
 map<int, map<_u64, _u64>> hr_trace_map;
 // to get the number of pcs
-set<_u64 > pcs;
+set<_u64> pcs;
+//at this time, I use vector as the main format to store tracemap, but if we can get an input of array size, it can be changed to normal array.
+// {var:{index1,index2}}
+map<int, set<_u64 >> dc_trace_map;
 
 regex line_read_re("0x(.+?)\\|\\((.+?)\\)\\|\\((.+?)\\)\\|0x(.+?)\\|0x(.+)\\|(.+)");
 regex tid_re("(\\d+),(\\d+),(\\d+)");
@@ -378,10 +387,10 @@ void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
     int belong = get_cur_addr_belong(addr);
     switch (belong) {
         case -1 :
-            cout << "an addr not found which array it belongs to" << endl;
+            cout<<"addr "<<hex<<addr<<dec<< " not found which array it belongs to" << endl;
             return;
         case -2:
-            cout << "an addr found over 1 array it belongs to" << endl;
+            cout<<"addr "<<hex<<addr<<dec<< " found over 1 array it belongs to" << endl;
             return;
     }
     pcs.insert(pc);
@@ -419,6 +428,61 @@ int get_cur_addr_belong(_u64 addr) {
     return belong;
 }
 
+/**e.g. a[100] belongs to array a
+ * @return (-1,0) not found
+ * @return (-2,0) find over 1 arrars it belongs
+ * @return (X,Y) the addr belongs to array X, and it's index is Y
+ * We assume the unit of array is 4bytes at this moment
+ * */
+tuple<int, _u64> get_cur_addr_belong_index(_u64 addr) {
+    using std::get;
+    int belong = -1;
+//    initialize it to -1 to make it a larger number
+    _u64 index = -1;
+    for (auto it = vars_mem_block.begin(); it != vars_mem_block.end(); ++it) {
+        if (addr >= get<0>(*it) && addr < (get<0>(*it) + get<1>(*it))) {
+            if (belong != -1) {
+//                cout<<"Error:\tAn addr belongs to over 1 array"<<endl;
+                return make_tuple(-2, 0);
+            } else {
+                belong = it - vars_mem_block.begin();
+                index = (addr - get<0>(*it)) / 4;
+            }
+        }
+    }
+    return make_tuple(belong, index);
+}
+
+void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
+    auto belongs = get_cur_addr_belong_index(addr);
+    int belong = get<0>(belongs);
+    _u64 index = get<1>(belongs);
+    switch (belong) {
+        case -1 :
+            cout<<"addr "<<hex<<addr<<dec<< " not found which array it belongs to" << endl;
+            return;
+        case -2:
+            cout<<"addr "<<hex<<addr<<dec<< " found over 1 array it belongs to" << endl;
+            return;
+    }
+    // {var:{index1,index2}}
+    auto dc_it = dc_trace_map.find(belong);
+    if (dc_it == dc_trace_map.end()) {
+        set<_u64> tmp_1;
+        tmp_1.insert(index);
+        dc_trace_map.insert(pair<int, set<_u64> >(belong, tmp_1));
+    } else {
+        dc_it->second.insert(index);
+    }
+}
+
+void filter_dead_copy() {
+    // {var:{index1,index2}}
+    for (auto dc_it = dc_trace_map.begin(); dc_it != dc_trace_map.end(); ++dc_it) {
+        cout<<"The array "<<dc_it->first<<" use rate: "<<dc_it->second.size()*1.0<<" / "<<(*dc_it->second.rbegin() + 1)
+        <<" = "<<dc_it->second.size()*1.0/(*dc_it->second.rbegin() + 1)<<endl;
+    }
+}
 
 double calc_tra_redundancy_rate(_u64 index) {
     double tra_rate = 0;
@@ -642,23 +706,25 @@ void calc_vr_redundancy_rate(_u64 index) {
     }
     cout << "average redundancy rate:\t" << sum_all_max_red * 1.0 / index << endl;
 }
-void calc_hr_red_rate(){
+
+void calc_hr_red_rate() {
     _u64 pc_nums = pcs.size();
     //{array:{value:num}}
 //map<int, map<_u64, _u64>> hr_trace_map;
     for (auto var_it = hr_trace_map.begin(); var_it != hr_trace_map.end(); ++var_it) {
-        _u64 max_acc_times = 0, max_acc_value=0;
+        _u64 max_acc_times = 0, max_acc_value = 0;
         _u64 sum_times = 0;
         for (auto value_it = var_it->second.begin(); value_it != var_it->second.end(); ++value_it) {
-            if ( value_it->second > max_acc_times ){
+            if (value_it->second > max_acc_times) {
                 max_acc_times = value_it->second;
                 max_acc_value = value_it->first;
             }
-            sum_times+=value_it->second;
+            sum_times += value_it->second;
         }
 //        @todo output the distribution
-        cout<<"In array "<<var_it->first<<", access value "<<std::hex<<max_acc_value<<" "<<max_acc_times<<" times"<<endl;
-        cout<<"rate:" <<max_acc_times*1.0/sum_times<<endl;
+        cout << "In array " << var_it->first << ", access value " << hex << max_acc_value << " " <<dec<< max_acc_times
+             << " times" << endl;
+        cout << "rate:" << max_acc_times * 1.0 / sum_times << endl;
     }
 }
 
@@ -678,6 +744,8 @@ void read_log_file(string input_file) {
         var_size = stoi(sm[2], 0, 10);
         vars_mem_block.push_back(pair<_u64, int>(addr, var_size));
         strdata = sm.suffix().str();
+
+        cout<<"Memory alloc at "<<hex<<addr<<" size "<<dec<<var_size<<endl;
     }
 }
 
@@ -717,6 +785,7 @@ void read_input_file(string input_file, string target_name) {
 //            get_srv_trace_map(pc, tid, addr, value);
 //            get_vr_trace_map(pc, tid, addr, value);
             get_hr_trace_map(pc, tid, addr, value);
+//            get_dc_trace_map(pc, tid, addr, value);
             index++;
         }
     }
@@ -740,6 +809,7 @@ void read_input_file(string input_file, string target_name) {
 
 //    calc_vr_redundancy_rate(index);
     calc_hr_red_rate();
+//    filter_dead_copy();
 }
 
 int main(int argc, char *argv[]) {
