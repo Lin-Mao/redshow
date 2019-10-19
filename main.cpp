@@ -84,6 +84,8 @@ void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value);
 
 void filter_dead_copy();
 
+void analysis_hr_red_result();
+
 // This block is the data definitions
 // Every thread has a ordered set to save the read addresses.
 map<ThreadId, list<_u64 >> tra_list;
@@ -387,10 +389,10 @@ void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
     int belong = get_cur_addr_belong(addr);
     switch (belong) {
         case -1 :
-            cout<<"addr "<<hex<<addr<<dec<< " not found which array it belongs to" << endl;
+            cout << "addr " << hex << addr << dec << " not found which array it belongs to" << endl;
             return;
         case -2:
-            cout<<"addr "<<hex<<addr<<dec<< " found over 1 array it belongs to" << endl;
+            cout << "addr " << hex << addr << dec << " found over 1 array it belongs to" << endl;
             return;
     }
     pcs.insert(pc);
@@ -459,10 +461,10 @@ void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
     _u64 index = get<1>(belongs);
     switch (belong) {
         case -1 :
-            cout<<"addr "<<hex<<addr<<dec<< " not found which array it belongs to" << endl;
+            cout << "addr " << hex << addr << dec << " not found which array it belongs to" << endl;
             return;
         case -2:
-            cout<<"addr "<<hex<<addr<<dec<< " found over 1 array it belongs to" << endl;
+            cout << "addr " << hex << addr << dec << " found over 1 array it belongs to" << endl;
             return;
     }
     // {var:{index1,index2}}
@@ -479,8 +481,9 @@ void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
 void filter_dead_copy() {
     // {var:{index1,index2}}
     for (auto dc_it = dc_trace_map.begin(); dc_it != dc_trace_map.end(); ++dc_it) {
-        cout<<"The array "<<dc_it->first<<" use rate: "<<dc_it->second.size()*1.0<<" / "<<(*dc_it->second.rbegin() + 1)
-        <<" = "<<dc_it->second.size()*1.0/(*dc_it->second.rbegin() + 1)<<endl;
+        cout << "The array " << dc_it->first << " use rate: " << dc_it->second.size() * 1.0 << " / "
+             << (*dc_it->second.rbegin() + 1)
+             << " = " << dc_it->second.size() * 1.0 / (*dc_it->second.rbegin() + 1) << endl;
     }
 }
 
@@ -711,20 +714,80 @@ void calc_hr_red_rate() {
     _u64 pc_nums = pcs.size();
     //{array:{value:num}}
 //map<int, map<_u64, _u64>> hr_trace_map;
-    for (auto var_it = hr_trace_map.begin(); var_it != hr_trace_map.end(); ++var_it) {
+    for (auto &var_it : hr_trace_map) {
         _u64 max_acc_times = 0, max_acc_value = 0;
         _u64 sum_times = 0;
-        for (auto value_it = var_it->second.begin(); value_it != var_it->second.end(); ++value_it) {
-            if (value_it->second > max_acc_times) {
-                max_acc_times = value_it->second;
-                max_acc_value = value_it->first;
+        for (auto &value_it : var_it.second) {
+            if (value_it.second > max_acc_times) {
+                max_acc_times = value_it.second;
+                max_acc_value = value_it.first;
             }
-            sum_times += value_it->second;
+            sum_times += value_it.second;
         }
 //        @todo output the distribution
-        cout << "In array " << var_it->first << ", access value " << hex << max_acc_value << " " <<dec<< max_acc_times
+        cout << "In array " << var_it.first << ", access value " << hex << max_acc_value << " " << dec << max_acc_times
              << " times" << endl;
         cout << "rate:" << max_acc_times * 1.0 / sum_times << endl;
+    }
+}
+
+void analysis_hr_red_result() {
+    char types[12] = {1,0,0,0,0,1,1,1,1,1,1,1,};
+
+    for (auto &var_it : hr_trace_map) {
+        _u64 max_acc_times = 0, max_acc_value = 0;
+        _u64 sum_times = 0;
+        float min_acc_value_f = 1000000.0;
+        float max_acc_value_f = 0.0;
+        int min_acc_value_i = INT32_MAX;
+        int max_acc_value_i = INT32_MIN;
+
+        std::ofstream out("array" + std::to_string(var_it.first) + ".csv");
+        if(types[var_it.first] == 1){
+            for (auto &value_it : var_it.second) {
+                float temp_value = store2float(value_it.first);
+                for (int i = 0; i < value_it.second; ++i) {
+                    out<<temp_value<<",";
+                }
+//                out<<temp_value<<","<<value_it.second<<endl;
+                if (temp_value > max_acc_value_f) {
+//                max_acc_times = ;
+                    max_acc_value_f = temp_value;
+                } else {
+                    if (temp_value < min_acc_value_f) {
+                        min_acc_value_f = temp_value;
+                    }
+                }
+//            sum_times += value_it.second;
+            }
+        }else{
+            for (auto &value_it : var_it.second) {
+                int temp_value = store2int(value_it.first);
+                for (int i = 0; i < value_it.second; ++i) {
+                    out<<temp_value<<",";
+                }
+//                out<<temp_value<<","<<value_it.second<<endl;
+                if (temp_value > max_acc_value_i) {
+//                max_acc_times = ;
+                    max_acc_value_i = temp_value;
+                } else {
+                    if (temp_value < min_acc_value_i) {
+                        min_acc_value_i = temp_value;
+                    }
+                }
+//            sum_times += value_it.second;
+            }
+
+        }
+        out.close();
+        if(types[var_it.first] == 1) {
+            cout << "in array " << var_it.first << " value float range: [ " << min_acc_value_f << " , " << max_acc_value_f
+                 << " ] " << endl;
+        }else{
+            cout << "in array " << var_it.first << " value int range: [ " << min_acc_value_i << " , " << max_acc_value_i
+                 << " ] " << endl;
+        }
+
     }
 }
 
@@ -745,7 +808,7 @@ void read_log_file(string input_file) {
         vars_mem_block.push_back(pair<_u64, int>(addr, var_size));
         strdata = sm.suffix().str();
 
-        cout<<"Memory alloc at "<<hex<<addr<<" size "<<dec<<var_size<<endl;
+        cout << "Memory alloc at " << hex << addr << " size " << dec << var_size << endl;
     }
 }
 
@@ -808,8 +871,9 @@ void read_input_file(string input_file, string target_name) {
 //    cout << endl;
 
 //    calc_vr_redundancy_rate(index);
-    calc_hr_red_rate();
+//    calc_hr_red_rate();
 //    filter_dead_copy();
+    analysis_hr_red_result();
 }
 
 int main(int argc, char *argv[]) {

@@ -51,5 +51,20 @@ public:
     int size_per_unit;
 };
 
+// convert an hex value to float
+inline float store2float(_u64 a){
+    _u32 c = 0;
+    c= ((a&0xffu)<<24 )|((a&0xff00u)<<8) | ((a&0xff0000u)>>8) | ((a&0xff000000u)>>24);
+    float b;
+//    @todo Need to fix the data width.
+    memcpy(&b, &c, sizeof(b));
+    return b;
+}
 
+inline int store2int(_u64 a){
+    int c = 0;
+    c= ((a&0xffu)<<24 )
+            |((a&0xff00)<<8) | ((a&0xff0000)>>8) | ((a&0xff000000)>>24);
+    return c;
+}
 #endif //CUDA_REDSHOW_COMMON_LIB
