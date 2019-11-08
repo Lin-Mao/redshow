@@ -33,7 +33,8 @@ using std::hex;
 using std::dec;
 using cxxopts::Options;
 using std::make_tuple;
-
+using std::ofstream;
+using std::to_string;
 void init();
 
 ThreadId transform_tid(string bid, string tid);
@@ -43,7 +44,7 @@ void read_input_file(string input_file, string target_name);
 ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max);
 
 // Temporal Redundancy-Address
-void get_tra_trace_map(ThreadId tid, _u64 addr);
+void get_tra_trace_map(ThreadId tid, _u64 addr, int acc_type, int belong);
 
 double calc_tra_redundancy_rate(_u64 index);
 
@@ -91,6 +92,9 @@ void analysis_hr_red_result();
 map<ThreadId, list<_u64 >> tra_list;
 // trace_map: {addr1 : [rd1, rd2,], }
 map<_u64, vector<int >> tra_trace_map;
+// {var:{rd1: 100, rd2:100}}.
+// I'm not sure whether it is good to use the second int as key . Will the rd are over than int_max?
+map<int, map<int, _u64 >> tra_rd_dist;
 // Temporal Redundancy-Value dict_queue:{thread: {addr1: val1,}}
 map<ThreadId, map<_u64, _u64 >> trv_map_read;
 map<ThreadId, map<_u64, _u64 >> trv_map_write;
@@ -183,8 +187,11 @@ ThreadId transform_tid(string s_bid, string s_tid) {
     return tid;
 }
 
-
-void get_tra_trace_map(ThreadId tid, _u64 addr) {
+/**This function can calculate the reuse distance of every addr.
+ * @arg acc_type : If the operation of this addr is write, the current reuse distance counter of this addr will be clear. 1 is read and 2 is write
+ * @arg belong : It is the index of the array current addr belonging to.
+ * I'm not sure whether we should change int to int8.*/
+void get_tra_trace_map(ThreadId tid, _u64 addr, int acc_type, int belong) {
     map<ThreadId, list<_u64 >>::iterator tl_it;
     tl_it = tra_list.find(tid);
 //  A new thread occurs. We didn't see this thread before.
@@ -193,29 +200,42 @@ void get_tra_trace_map(ThreadId tid, _u64 addr) {
         tmp.push_back(addr);
         tra_list.insert(pair<ThreadId, list<_u64>>(tid, tmp));
     } else {
-//        This thread has his list.
-//        save the reuse distance
+//        This thread has a list to save the reuse distances
         list<_u64>::iterator l_it;
         l_it = find(tl_it->second.begin(), tl_it->second.end(), addr);
-        int tmp_rd = 0;
+        int tmp_rd = -1;
+
 //        if the addr is in thread's set, calc the rd and insert the rd into trace_map
         if (l_it != tl_it->second.end()) {
-            tmp_rd = distance(l_it, tl_it->second.end()) - 1;
-
-            auto ttm_it = tra_trace_map.find(addr);
-            if (ttm_it == tra_trace_map.end()) {
-                vector<int> tmp_vector;
-                tmp_vector.push_back(tmp_rd);
-                tra_trace_map.insert(pair<_u64, vector<int>>(addr, tmp_vector));
-            } else {
-
-                ttm_it->second.push_back(tmp_rd);
+            if(acc_type == MEM_READ){
+                tmp_rd = distance(l_it, tl_it->second.end()) - 1;
+                auto ttm_it = tra_trace_map.find(addr);
+                if (ttm_it == tra_trace_map.end()) {
+                    vector<int> tmp_vector;
+                    tmp_vector.push_back(tmp_rd);
+                    tra_trace_map.insert(pair<_u64, vector<int>>(addr, tmp_vector));
+                } else {
+                    ttm_it->second.push_back(tmp_rd);
+                }
+//                 update the log of rd distributions
+                auto rd_it = tra_rd_dist.find(tmp_rd);
+                if(rd_it == tra_rd_dist.end()){
+                    map<int, _u64 > map1 = {{tmp_rd,1},};
+                    tra_rd_dist[belong] = map1;
+                }else{
+                    _u64 rd_times = rd_it->second[tmp_rd];
+                    rd_it->second[tmp_rd] = rd_times+1;
+                }
             }
-            //                @todo if tmp_rd == 0 and item is in list, it's useless work to reinsert the item
-//            remove the pre addr from the set
-            tl_it->second.remove(addr);
+//            no matter read or write, we need to remove the addr from thread's list and append new addr(same addr) in the tail of the list.
+            if(tmp_rd != 0){
+                tl_it->second.remove(addr);
+            }
+//            Should I check the value not 1,2?
         }
-        tl_it->second.push_back(addr);
+        if(tmp_rd != 0){
+            tl_it->second.push_back(addr);
+        }
     }
 }
 
@@ -234,7 +254,7 @@ void get_trv_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value)
         if (m_it == tmr_it->second.end()) {
             tmr_it->second.insert(pair<_u64, _u64>(addr, value));
         } else {
-//            check whether it is redundancy
+//            check whether it is redundant.
             if (value == m_it->second) {
                 dead_read_num++;
                 dead_read_index.push_back(index);
@@ -413,7 +433,8 @@ void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
 
 /**e.g. a[100] belongs to array a
  * @return -1 not found
- * @return -2 find over 1 arrars it belongs*/
+ * @return -2 find over 1 arrars it belongs
+ * */
 int get_cur_addr_belong(_u64 addr) {
     using std::get;
     int belong = -1;
@@ -433,7 +454,7 @@ int get_cur_addr_belong(_u64 addr) {
 /**e.g. a[100] belongs to array a
  * @return (-1,0) not found
  * @return (-2,0) find over 1 arrars it belongs
- * @return (X,Y) the addr belongs to array X, and it's index is Y
+ * @return (X,Y) the addr belongs to array X, and its index is Y
  * We assume the unit of array is 4bytes at this moment
  * */
 tuple<int, _u64> get_cur_addr_belong_index(_u64 addr) {
@@ -448,6 +469,7 @@ tuple<int, _u64> get_cur_addr_belong_index(_u64 addr) {
                 return make_tuple(-2, 0);
             } else {
                 belong = it - vars_mem_block.begin();
+//                @todo We assume the unit of array is 4bytes at this moment
                 index = (addr - get<0>(*it)) / 4;
             }
         }
@@ -504,6 +526,19 @@ double calc_tra_redundancy_rate(_u64 index) {
     cout << "reuse distance sum:\t" << r_sum << endl;
     cout << "reuse time rate:\t" << (double) r_num / index << endl;
 //    cout << tra_rate << endl;
+// write the reuse distance histogram to csv files.
+//    ofstream out("tra_all.csv");
+    for (int i = 0; i < 12; ++i) {
+        ofstream out("tra_"+ to_string(i)+".csv");
+//        for (auto tra_it: tra_rd_dist) {
+//
+//        }
+        auto tmp_rd_dist = tra_rd_dist[i];
+        for(auto every_rd:tmp_rd_dist){
+            out<<every_rd.first<<","<<every_rd.second<<endl;
+        }
+        out.close();
+    }
     return tra_rate;
 
 }
@@ -742,7 +777,7 @@ void analysis_hr_red_result() {
         int min_acc_value_i = INT32_MAX;
         int max_acc_value_i = INT32_MIN;
 
-        std::ofstream out("array" + std::to_string(var_it.first) + ".csv");
+        ofstream out("array" + to_string(var_it.first) + ".csv");
         if(types[var_it.first] == 1){
             for (auto &value_it : var_it.second) {
                 float temp_value = store2float(value_it.first);
@@ -802,12 +837,13 @@ void read_log_file(string input_file) {
     smatch sm;
     _u64 addr;
     int var_size;
+    int i=0;
     while (regex_search(strdata, sm, log_read_re)) {
         addr = stoull(sm[1], 0, 16);
         var_size = stoi(sm[2], 0, 10);
-        vars_mem_block.push_back(pair<_u64, int>(addr, var_size));
+        vars_mem_block.emplace_back(pair<_u64, int>(addr, var_size));
         strdata = sm.suffix().str();
-
+//        init arrays' index to avoid the empty check
         cout << "Memory alloc at " << hex << addr << " size " << dec << var_size << endl;
     }
 }
@@ -833,26 +869,41 @@ void read_input_file(string input_file, string target_name) {
             _u64 pc, addr, value;
             int access_type;
             pc = stoull(sm[1], 0, 16);
+            addr = stoull(sm[4], 0, 16);
             ThreadId tid = transform_tid(sm[2], sm[3]);
+            threadid_max = get_max_threadId(tid, threadid_max);
             if (tid.bx == -1 || tid.by == -1 || tid.bz == -1 || tid.tx == -1 || tid.ty == -1 | tid.tz == -1) {
                 cout << "Can not filter threadid from " << line << endl;
             }
-            threadid_max = get_max_threadId(tid, threadid_max);
-            addr = stoull(sm[4], 0, 16);
-            value = stoull(sm[5], 0, 16);
-            access_type = stoi(sm[6], 0, 16);
-//            get_tra_trace_map(tid, addr);
+//            Should I put the belongs function here?
+            auto belongs = get_cur_addr_belong_index(addr);
+            int belong = get<0>(belongs);
+            _u64 offset = get<1>(belongs);
+            switch (belong) {
+                case -1 :
+                    cout << "addr " << hex << addr << dec << " not found which array it belongs to" << endl;
+                    break;
+                case -2:
+                    cout << "addr " << hex << addr << dec << " found over 1 array it belongs to" << endl;
+                    break;
+                default:
+                    value = stoull(sm[5], 0, 16);
+                    access_type = stoi(sm[6], 0, 16);
+                    get_tra_trace_map(tid, addr, access_type, belong);
 //            get_trv_trace_map(index, pc, tid, addr, value);
 //            get_srag_trace_map(index, pc, tid, addr, value);
 //            get_srag_trace_map_test(index, pc, tid, addr, value);
 //            get_srv_trace_map(pc, tid, addr, value);
 //            get_vr_trace_map(pc, tid, addr, value);
-            get_hr_trace_map(pc, tid, addr, value);
+//            get_hr_trace_map(pc, tid, addr, value);
 //            get_dc_trace_map(pc, tid, addr, value);
+
+            }
             index++;
+
         }
     }
-//    cout << "tra rate\t" << calc_tra_redundancy_rate(index) << endl;
+    cout << "tra rate\t" << calc_tra_redundancy_rate(index) << endl;
 //    cout << "trv rate\t" << calc_trv_redundancy_rate(index) << endl;
 //    calc_srag_redundancy_degree(index);
 //    cout << "srag degree:";
@@ -873,7 +924,7 @@ void read_input_file(string input_file, string target_name) {
 //    calc_vr_redundancy_rate(index);
 //    calc_hr_red_rate();
 //    filter_dead_copy();
-    analysis_hr_red_result();
+//    analysis_hr_red_result();
 }
 
 int main(int argc, char *argv[]) {

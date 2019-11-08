@@ -18,6 +18,8 @@ using std::ostream;
 typedef unsigned char _u8;
 typedef unsigned int _u32;
 typedef unsigned long long _u64;
+#define MEM_WRITE 2
+#define MEM_READ 1
 
 
 class ThreadId {
