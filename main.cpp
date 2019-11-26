@@ -50,12 +50,10 @@ void get_tra_trace_map(ThreadId tid, _u64 addr, int acc_type, int belong);
 double calc_tra_redundancy_rate(_u64 index);
 
 // Temporal Redundancy-Value
-void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value,
-                         BasicType acc_type);
+void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value);
 
 // detect silent write and dead write
-void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value,
-                         BasicType acc_type);
+void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value);
 
 double calc_trv_redundancy_rate(_u64 line_num);
 
@@ -79,7 +77,8 @@ void get_srv_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value);
 void calc_srv_redundancy_rate(_u64 index);
 
 // Vertical Redundancy
-void get_vr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value);
+void get_vr_trace_map(_u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value,
+                      BasicType acc_type);
 
 void calc_vr_redundancy_rate(_u64 index);
 
@@ -130,7 +129,7 @@ Options options("CUDA_RedShow", "A test suit for hpctoolkit santizer");
 // vertical redundancy:{thread: {pc: {value:times}}}
 //map<ThreadId, map<_u64, map<_u64, _u64 >>> vr_trace_map;
 // vertical redundancy:{thread: {value:times}}
-map<ThreadId, map<_u64, _u64 >> vr_trace_map;
+map<ThreadId, map<tuple<long long, long long>, _u64 >> vr_trace_map;
 // horizontal redundancy
 // every array's memory start addr and size
 vector<tuple<_u64, int>> vars_mem_block;
@@ -139,7 +138,9 @@ vector<tuple<_u64, int>> vars_mem_block;
 // 先这样写死，后面再改成上面的vector形式
 BasicType vars_type[12] = {F32, S32, S32, S32, S32, F32, F32, F32, F32, F32, F32, F32};
 //{var:{value:num}}
-map<int, map<_u64, _u64>> hr_trace_map;
+map<int, map<tuple<long long, long long>, _u64>> hr_trace_map;
+// {pc: { var:{value: num} }}
+map<_u64 , map<int, map<tuple<long long, long long>, _u64 >>> hr_trace_map_pc_dist;
 // to get the number of pcs
 set<_u64> pcs;
 //at this time, I use vector as the main format to store tracemap, but if we can get an input of array size, it can be changed to normal array.
@@ -256,8 +257,7 @@ void get_tra_trace_map(ThreadId tid, _u64 addr, int acc_type, int belong) {
 }
 
 /**@arg index: It is used to mark the silent load offset in the trace file. It is also used to mark the last read which is used to */
-void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value,
-                         BasicType acc_type) {
+void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value) {
     auto tmr_it = trv_map_read.find(tid);
     map<_u64, tuple<long long, long long, _u64 >> record;
     record.insert(
@@ -281,8 +281,7 @@ void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<lon
 }
 
 /**@arg index: It is used to mark the silent write and dead write offset in the trace file. */
-void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value,
-                         BasicType acc_type) {
+void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value) {
     auto tmw_it = trv_map_write.find(tid);
     map<_u64, tuple<long long, long long, _u64 >> record;
     record.insert(
@@ -319,7 +318,7 @@ void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<lon
 
 /**@arg: index, if there are loops in original code, every pc will own lot of access in same thread. The index is similar to timestamp to clarify which iteration the current access in.*/
 void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value) {
-//    tuple: <_u64, _u64, _u64>(index, addr, value)
+//    stm_it->second is a tuple: <_u64, _u64, _u64>(index, addr, value)
     map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>>::iterator stm_it;
     stm_it = srag_trace_map.find(pc);
     if (stm_it == srag_trace_map.end()) {
@@ -341,7 +340,6 @@ void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value
 
 }
 
-// For every thread, it just accesses one addr per pc?
 void get_srag_trace_map_test(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value) {
 //    tuple: <_u64, _u64, _u64>(index, addr, value)
     map<_u64, map<ThreadId, set<_u64 >>>::iterator stm_it;
@@ -413,15 +411,16 @@ void get_sras_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value
 //    }
 //}
 
-void get_vr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
+void get_vr_trace_map(_u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value,
+                      BasicType acc_type) {
     auto vrtm_it = vr_trace_map.find(tid);
     if (vrtm_it == vr_trace_map.end()) {
-        map<_u64, _u64> tmp_1 = {pair<_u64, _u64>(value, 1)};
-        vr_trace_map.insert(pair<ThreadId, map<_u64, _u64>>(tid, tmp_1));
+        map<tuple<long long, long long>, _u64 > tmp_1 = {pair<tuple<long long, long long>, _u64>(value, 1)};
+        vr_trace_map.insert(pair<ThreadId, map<tuple<long long, long long>, _u64>>(tid, tmp_1));
     } else {
         auto v_it = vrtm_it->second.find(value);
         if (v_it == vrtm_it->second.end()) {
-            vrtm_it->second.insert(pair<_u64, _u64>(value, 1));
+            vrtm_it->second.insert(pair<tuple<long long, long long>, _u64>(value, 1));
         } else {
             vrtm_it->second[value] += 1;
         }
@@ -457,30 +456,13 @@ void get_srv_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
 
 }
 
-void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
-    int belong = get_cur_addr_belong(addr);
-    switch (belong) {
-        case -1 :
-            cout << "addr " << hex << addr << dec << " not found which array it belongs to" << endl;
-            return;
-        case -2:
-            cout << "addr " << hex << addr << dec << " found over 1 array it belongs to" << endl;
-            return;
-    }
+void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value, int belong) {
     pcs.insert(pc);
 //   //{var:{value:num}} map<int, map<_u64, _u64>> hr_trace_map;
-    auto hr_it = hr_trace_map.find(belong);
-    if (hr_it == hr_trace_map.end()) {
-        map<_u64, _u64> tmp_1 = {pair<_u64, _u64>(value, 1)};
-        hr_trace_map.insert(pair<int, map<_u64, _u64 >>(belong, tmp_1));
-    } else {
-        auto value_it = hr_it->second.find(value);
-        if (value_it == hr_it->second.end()) {
-            hr_it->second.insert(pair<_u64, _u64>(value, 1));
-        } else {
-            hr_it->second[value] += 1;
-        }
-    }
+    hr_trace_map[belong][value] += 1;
+//  {pc: { var:{value: num} }}
+    auto hrpc_it1 = hr_trace_map_pc_dist.find(pc);
+    hr_trace_map_pc_dist[pc][belong][value] += 1;
 }
 
 /**e.g. a[100] belongs to array a
@@ -777,26 +759,26 @@ void calc_srv_redundancy_rate(_u64 index) {
         }
     }
 }
-
+/** This function can give us the representative value of every thread*/
 void calc_vr_redundancy_rate(_u64 index) {
     map<ThreadId, _u64> thread_max_red_rate;
     _u64 sum_all_max_red = 0;
     // vertical redundancy:{thread: {pc: {value:times}}}
 //    map<ThreadId, map<_u64, map<_u64, _u64 >>> vr_trace_map;
-    for (auto thread_it = vr_trace_map.begin(); thread_it != vr_trace_map.end(); ++thread_it) {
+    for (auto & thread_it : vr_trace_map) {
         _u64 tmp_max = 0;
-        for (auto value_it = thread_it->second.begin(); value_it != thread_it->second.end(); ++value_it) {
+        for (auto & value_it : thread_it.second) {
 //            If there's no one is over 1, not need to record.
-            if (value_it->second > tmp_max && value_it->second > 1) {
-                tmp_max = value_it->second;
+            if (value_it.second > tmp_max && value_it.second > 1) {
+                tmp_max = value_it.second;
 //                also record the value?
             }
         }
         if (tmp_max > 0) {
-            thread_max_red_rate.insert(pair<ThreadId, _u64>(thread_it->first, tmp_max));
+            thread_max_red_rate.insert(pair<ThreadId, _u64>(thread_it.first, tmp_max));
             sum_all_max_red += tmp_max;
             cout << "thread";
-            cout << thread_it->first << " redundancy " << tmp_max << endl;
+            cout << thread_it.first << " redundancy " << tmp_max << endl;
         }
     }
     cout << "average redundancy rate:\t" << sum_all_max_red * 1.0 / index << endl;
@@ -807,7 +789,8 @@ void calc_hr_red_rate() {
     //{array:{value:num}}
 //map<int, map<_u64, _u64>> hr_trace_map;
     for (auto &var_it : hr_trace_map) {
-        _u64 max_acc_times = 0, max_acc_value = 0;
+        _u64 max_acc_times = 0;
+        tuple<long long, long long>max_acc_value;
         _u64 sum_times = 0;
         for (auto &value_it : var_it.second) {
             if (value_it.second > max_acc_times) {
@@ -817,7 +800,7 @@ void calc_hr_red_rate() {
             sum_times += value_it.second;
         }
 //        @todo output the distribution
-        cout << "In array " << var_it.first << ", access value " << hex << max_acc_value << " " << dec << max_acc_times
+        cout << "In array " << var_it.first << ", access value " << hex << get<0>(max_acc_value)<<"."<<get<1>(max_acc_value) << " " << dec << max_acc_times
              << " times" << endl;
         cout << "rate:" << max_acc_times * 1.0 / sum_times << endl;
     }
@@ -934,7 +917,6 @@ void read_input_file(string input_file, string target_name) {
             if (tid.bx == -1 || tid.by == -1 || tid.bz == -1 || tid.tx == -1 || tid.ty == -1 | tid.tz == -1) {
                 cout << "Can not filter threadid from " << line << endl;
             }
-//            Should I put the belongs function here?
             auto belongs = get_cur_addr_belong_index(addr);
             int belong = get<0>(belongs);
             _u64 offset = get<1>(belongs);
@@ -970,16 +952,16 @@ void read_input_file(string input_file, string target_name) {
                     }
                     access_type = stoi(sm[6], 0, 16);
 //                    get_tra_trace_map(tid, addr, access_type, belong);
-                    if (access_type == MEM_READ) {
-                        get_trv_r_trace_map(index, pc, tid, addr, value_split, vars_type[belong]);
-                    } else {
-
-                    }
+//                    if (access_type == MEM_READ) {
+//                        get_trv_r_trace_map(index, pc, tid, addr, value_split);
+//                    } else {
+//                        get_trv_w_trace_map(index, pc, tid, addr, value_split);
+//                    }
 //            get_srag_trace_map(index, pc, tid, addr, value);
 //            get_srag_trace_map_test(index, pc, tid, addr, value);
 //            get_srv_trace_map(pc, tid, addr, value);
-//            get_vr_trace_map(pc, tid, addr, value);
-//            get_hr_trace_map(pc, tid, addr, value);
+//                    get_vr_trace_map(pc, tid, addr, value_split, vars_type[belong]);
+            get_hr_trace_map(pc, tid, addr, value_split, belong);
 //            get_dc_trace_map(pc, tid, addr, value);
 
             }
@@ -989,7 +971,7 @@ void read_input_file(string input_file, string target_name) {
     }
 //    cout << "tra rate\t" << calc_tra_redundancy_rate(index) << endl;
 
-    calc_trv_redundancy_rate(index);
+//    calc_trv_redundancy_rate(index);
 //    calc_srag_redundancy_degree(index);
 //    cout << "srag degree:";
 //    for (int i = 0; i < 32; ++i) {
