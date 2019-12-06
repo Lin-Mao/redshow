@@ -135,12 +135,12 @@ map<ThreadId, map<tuple<long long, long long>, _u64 >> vr_trace_map;
 vector<tuple<_u64, int>> vars_mem_block;
 // the values' type of every array
 //vector<BasicType> vars_type;
-// 先这样写死，后面再改成上面的vector形式
+//@todo It's for test. We still need to figure out how to get the types of arrays
 BasicType vars_type[12] = {F32, S32, S32, S32, S32, F32, F32, F32, F32, F32, F32, F32};
 //{var:{value:num}}
 map<int, map<tuple<long long, long long>, _u64>> hr_trace_map;
 // {pc: { var:{value: num} }}
-map<_u64 , map<int, map<tuple<long long, long long>, _u64 >>> hr_trace_map_pc_dist;
+map<_u64, map<int, map<tuple<long long, long long>, _u64 >>> hr_trace_map_pc_dist;
 // to get the number of pcs
 set<_u64> pcs;
 //at this time, I use vector as the main format to store tracemap, but if we can get an input of array size, it can be changed to normal array.
@@ -415,7 +415,7 @@ void get_vr_trace_map(_u64 pc, ThreadId tid, _u64 addr, tuple<long long, long lo
                       BasicType acc_type) {
     auto vrtm_it = vr_trace_map.find(tid);
     if (vrtm_it == vr_trace_map.end()) {
-        map<tuple<long long, long long>, _u64 > tmp_1 = {pair<tuple<long long, long long>, _u64>(value, 1)};
+        map<tuple<long long, long long>, _u64> tmp_1 = {pair<tuple<long long, long long>, _u64>(value, 1)};
         vr_trace_map.insert(pair<ThreadId, map<tuple<long long, long long>, _u64>>(tid, tmp_1));
     } else {
         auto v_it = vrtm_it->second.find(value);
@@ -744,9 +744,9 @@ pair<_u64, double> calc_sras_redundancy_rate(_u64 index) {
 void calc_srv_redundancy_rate(_u64 index) {
 //    {pc:{value:{thread:num}}}
 //map<_u64, map<_u64, map<ThreadId,_u64 >>> srv_trace_map;
-    for (auto stm_it = srv_trace_map.begin(); stm_it != srv_trace_map.end(); stm_it++) {
-        cout << "PC:\t" << hex << stm_it->first << dec << endl;
-        for (auto value_it = stm_it->second.begin(); value_it != stm_it->second.end(); value_it++) {
+    for (auto &stm_it : srv_trace_map) {
+        cout << "PC:\t" << hex << stm_it.first << dec << endl;
+        for (auto value_it = stm_it.second.begin(); value_it != stm_it.second.end(); value_it++) {
 
             _u64 cur_value_access_time = 0;
 //            There's no need to clarify warps?
@@ -759,15 +759,16 @@ void calc_srv_redundancy_rate(_u64 index) {
         }
     }
 }
+
 /** This function can give us the representative value of every thread*/
 void calc_vr_redundancy_rate(_u64 index) {
     map<ThreadId, _u64> thread_max_red_rate;
     _u64 sum_all_max_red = 0;
     // vertical redundancy:{thread: {pc: {value:times}}}
 //    map<ThreadId, map<_u64, map<_u64, _u64 >>> vr_trace_map;
-    for (auto & thread_it : vr_trace_map) {
+    for (auto &thread_it : vr_trace_map) {
         _u64 tmp_max = 0;
-        for (auto & value_it : thread_it.second) {
+        for (auto &value_it : thread_it.second) {
 //            If there's no one is over 1, not need to record.
             if (value_it.second > tmp_max && value_it.second > 1) {
                 tmp_max = value_it.second;
@@ -787,10 +788,10 @@ void calc_vr_redundancy_rate(_u64 index) {
 void calc_hr_red_rate() {
     _u64 pc_nums = pcs.size();
     //{array:{value:num}}
-//map<int, map<_u64, _u64>> hr_trace_map;
+//    map<int, map<tuple<long long, long long>, _u64>> hr_trace_map;
     for (auto &var_it : hr_trace_map) {
         _u64 max_acc_times = 0;
-        tuple<long long, long long>max_acc_value;
+        tuple<long long, long long> max_acc_value;
         _u64 sum_times = 0;
         for (auto &value_it : var_it.second) {
             if (value_it.second > max_acc_times) {
@@ -799,17 +800,21 @@ void calc_hr_red_rate() {
             }
             sum_times += value_it.second;
         }
-//        @todo output the distribution
-        cout << "In array " << var_it.first << ", access value " << hex << get<0>(max_acc_value)<<"."<<get<1>(max_acc_value) << " " << dec << max_acc_times
-             << " times" << endl;
+        cout << "In array " << var_it.first << ", access value " << get<0>(max_acc_value) << "."
+             << get<1>(max_acc_value) << " " << max_acc_times << " times" << endl;
         cout << "rate:" << max_acc_times * 1.0 / sum_times << endl;
+//        write value distribution to log files
+        ofstream out("hr_" + to_string(var_it.first) + ".csv");
+        for (auto &item : var_it.second) {
+            out << get<0>(item.first) << "." << get<1>(item.first) << "," << item.second << endl;
+        }
+        out.close();
     }
 }
 
 void analysis_hr_red_result() {
 //    0: int 1: float
-    char types[12] = {1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1,};
-
+//    map<int, map<tuple<long long, long long>, _u64>> hr_trace_map;
     for (auto &var_it : hr_trace_map) {
         _u64 max_acc_times = 0, max_acc_value = 0;
         _u64 sum_times = 0;
@@ -819,52 +824,10 @@ void analysis_hr_red_result() {
         int max_acc_value_i = INT32_MIN;
 
         ofstream out("array" + to_string(var_it.first) + ".csv");
-        if (types[var_it.first] == 1) {
-            for (auto &value_it : var_it.second) {
-                float temp_value = store2float(value_it.first);
-                for (int i = 0; i < value_it.second; ++i) {
-                    out << temp_value << ",";
-                }
-//                out<<temp_value<<","<<value_it.second<<endl;
-                if (temp_value > max_acc_value_f) {
-//                max_acc_times = ;
-                    max_acc_value_f = temp_value;
-                } else {
-                    if (temp_value < min_acc_value_f) {
-                        min_acc_value_f = temp_value;
-                    }
-                }
-//            sum_times += value_it.second;
-            }
-        } else {
-            for (auto &value_it : var_it.second) {
-                int temp_value = store2int(value_it.first);
-                for (int i = 0; i < value_it.second; ++i) {
-                    out << temp_value << ",";
-                }
-//                out<<temp_value<<","<<value_it.second<<endl;
-                if (temp_value > max_acc_value_i) {
-//                max_acc_times = ;
-                    max_acc_value_i = temp_value;
-                } else {
-                    if (temp_value < min_acc_value_i) {
-                        min_acc_value_i = temp_value;
-                    }
-                }
-//            sum_times += value_it.second;
-            }
-
+        for (auto &value_it:var_it.second) {
+//              @todo output format should follow the var types
+            out << get<0>(value_it.first) << "." << get<1>(value_it.first) << "," << value_it.second << endl;
         }
-        out.close();
-        if (types[var_it.first] == 1) {
-            cout << "in array " << var_it.first << " value float range: [ " << min_acc_value_f << " , "
-                 << max_acc_value_f
-                 << " ] " << endl;
-        } else {
-            cout << "in array " << var_it.first << " value int range: [ " << min_acc_value_i << " , " << max_acc_value_i
-                 << " ] " << endl;
-        }
-
     }
 }
 
@@ -928,11 +891,12 @@ void read_input_file(string input_file, string target_name) {
                     cout << "addr " << hex << addr << dec << " found over 1 array it belongs to" << endl;
                     break;
                 default:
+
                     value = stoull(sm[5], 0, 16);
                     tuple<long long, long long> value_split;
                     switch (vars_type[belong]) {
                         case F32:
-                            value_split = float2tuple(value, valid_float_digits);
+                            value_split = float2tuple(store2float(value), valid_float_digits);
                             break;
                         case S32:
                             value_split = make_tuple(value, 0);
@@ -961,7 +925,7 @@ void read_input_file(string input_file, string target_name) {
 //            get_srag_trace_map_test(index, pc, tid, addr, value);
 //            get_srv_trace_map(pc, tid, addr, value);
 //                    get_vr_trace_map(pc, tid, addr, value_split, vars_type[belong]);
-            get_hr_trace_map(pc, tid, addr, value_split, belong);
+                    get_hr_trace_map(pc, tid, addr, value_split, belong);
 //            get_dc_trace_map(pc, tid, addr, value);
 
             }
