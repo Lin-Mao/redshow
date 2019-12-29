@@ -53,16 +53,18 @@ map<_u64, vector<int >> tra_trace_map;
 // {var:{rd1: 100, rd2:100}}.
 // I'm not sure whether it is good to use the second int as key . Will the rd is over than int_max?
 map<int, map<int, _u64 >> tra_rd_dist;
-// Temporal Redundancy-Value dict_queue:{thread: {addr1: <val1, index>,}}
-// The last index variable is used to mark the offset in trace file which is used to detect dead store.
-// If val1 is float, it's better to use two numbers to represent the value. One is the integer part and the other one in decimal part
-// This map records a thread's last access.
-map<ThreadId, map<_u64, tuple<long long, long long, _u64>>> trv_map_read;
-map<ThreadId, map<_u64, tuple<long long, long long, _u64>>> trv_map_write;
-// save every dead read and write 's index of input file.
-vector<_u64> silent_load_index;
-vector<_u64> silent_write_index;
-vector<_u64> dead_write_index;
+/**
+Temporal Redundancy-Value dict_queue:{thread: {addr1: <value, pc, index>,}}
+The last index variable is used to mark the offset in trace file which is used to detect dead store.
+If val1 is float, it's better to use two numbers to represent the value. One is the integer part and the other one in decimal part
+This map records a thread's last access.
+*/
+map<ThreadId, map<_u64, tuple<tuple<long long ,long long>, _u64, _u64>>> trv_map_read;
+map<ThreadId, map<_u64, tuple<tuple<long long, long long>, _u64, _u64>>> trv_map_write;
+// save every pair: <pc1, pc2, addr, value>
+vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> silent_load_pairs;
+vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> silent_write_pairs;
+vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> dead_write_pairs;
 long long silent_load_num, dead_write_num, silent_write_num;
 //Spatial Redundancy Address Global memory
 // {pc: {tid: [(index, addr, value), ]}}
@@ -716,11 +718,11 @@ void read_input_file(string input_file, string target_name) {
                 get_tra_trace_map(tid, addr, access_type, belong, tra_list, tra_trace_map, tra_rd_dist);
                 if (access_type == MEM_READ) {
                     get_trv_r_trace_map(index, pc, tid, addr, value_split, trv_map_read, silent_load_num,
-                                        silent_load_index);
+                                        silent_load_pairs);
                 } else {
                     get_trv_w_trace_map(index, pc, tid, addr, value_split, trv_map_write,
-                                        silent_write_num, silent_write_index,
-                                        trv_map_read, dead_write_num, dead_write_index);
+                                        silent_write_num, silent_write_pairs,
+                                        trv_map_read, dead_write_num, dead_write_pairs);
                 }
 //            get_srag_trace_map(index, pc, tid, addr, value);
 //            get_srag_trace_map_test(index, pc, tid, addr, value);

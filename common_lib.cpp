@@ -84,24 +84,26 @@ double show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<
 
 /**@arg index: It is used to mark the silent load offset in the trace file. It is also used to mark the last read which is used to */
 void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> &value,
-                         map<ThreadId, map<_u64, tuple<long long, long long, _u64>>> &trv_map_read,
-                         long long &silent_load_num, vector<_u64> &silent_load_index) {
+                         map<ThreadId, map<_u64, tuple<tuple<long long ,long long>, _u64, _u64>>> &trv_map_read,
+                         long long &silent_load_num,
+                         vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &silent_load_pairs) {
     auto tmr_it = trv_map_read.find(tid);
     map<_u64, tuple<long long, long long, _u64 >> record;
-    record.insert(
-            pair<_u64, tuple<long long, long long, _u64 >>(addr, make_tuple(get<0>(value), get<1>(value), index)));
+//    record current operation.
+    record[addr] = make_tuple(get<0>(value), get<1>(value), pc);
 //    The trv_map_read doesn't have the thread's record
     if (tmr_it == trv_map_read.end()) {
-        trv_map_read.insert(pair<ThreadId, map<_u64, tuple<long long, long long, _u64 >>>(tid, record));
+        trv_map_read[tid] = record;
     } else {
         auto m_it = tmr_it->second.find(addr);
 //      The trv_map_read's thread record doesn't have the current addr record.
+//      m_it format: <value_high, value_low, last_pc>
         if (m_it == tmr_it->second.end()) {
-            tmr_it->second.insert(pair<_u64, tuple<long long, long long, _u64 >>(addr, record[addr]));
+            tmr_it->second[addr] = record[addr];
         } else {
             if (equal_2_tuples(m_it->second, value)) {
                 silent_load_num++;
-                silent_load_index.push_back(index);
+                silent_load_pairs.emplace_back(get<2>(m_it->second), pc, addr, value);
             }
             m_it->second = record[addr];
         }
@@ -110,36 +112,39 @@ void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<lon
 
 /**@arg index: It is used to mark the silent write and dead write offset in the trace file. */
 void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value,
-                         map<ThreadId, map<_u64, tuple<long long, long long, _u64>>> &trv_map_write,
-                         long long &silent_write_num, vector<_u64> &silent_write_index,
-                         map<ThreadId, map<_u64, tuple<long long, long long, _u64>>> &trv_map_read,
-                         long long &dead_write_num, vector<_u64> dead_write_index) {
+                         map<ThreadId, map<_u64, tuple<tuple<long long, long long>, _u64, _u64>>> &trv_map_write,
+                         long long &silent_write_num,
+                         vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &silent_write_pairs,
+                         map<ThreadId, map<_u64, tuple<tuple<long long, long long>, _u64, _u64>>> &trv_map_read,
+                         long long &dead_write_num,
+                         vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &dead_write_pairs) {
     auto tmw_it = trv_map_write.find(tid);
-    map<_u64, tuple<long long, long long, _u64 >> record;
-    record.insert(
-            pair<_u64, tuple<long long, long long, _u64 >>(addr, make_tuple(get<0>(value), get<1>(value), index)));
+//    <addr, <<value_high, value_low>, pc, index>
+    map<_u64, tuple<tuple<long long, long long>, _u64, _u64 >> record;
+    record[addr] = make_tuple(value, pc, index);
     if (tmw_it == trv_map_write.end()) {
-        trv_map_write.insert(pair<ThreadId, map<_u64, tuple<long long, long long, _u64 >>>(tid, record));
+        trv_map_write[tid] = record;
     } else {
+
         auto m_it = tmw_it->second.find(addr);
         if (m_it == tmw_it->second.end()) {
-            tmw_it->second.insert(pair<_u64, tuple<long long, long long, _u64 >>(addr, record[addr]));
+            tmw_it->second[addr] = record[addr];
         } else {
-            if (equal_2_tuples(m_it->second, value)) {
+            if (get<0>(m_it->second) == value) {
                 silent_write_num++;
-                silent_write_index.push_back(index);
+                silent_write_pairs.emplace_back(get<1>(m_it->second), pc, addr, value);
             }
 //            check the last read about this <thread, addr>
             auto tmr_it = trv_map_read.find(tid);
             if (tmr_it != trv_map_read.end()) {
                 auto m_it2 = tmr_it->second.find(addr);
                 if (m_it2 != tmr_it->second.end()) {
-//                    tuple<long long, long long, _u64 > the last one is index of this read.
+//                    tuple < tuple<long long, long long>, _u64 , _u64> the last one is index of this read.
                     auto r_value = m_it2->second;
 //                  the last read of this addr is earlier than last write.
                     if (get<2>(r_value) < get<2>(m_it->second)) {
                         dead_write_num++;
-                        dead_write_index.push_back(index);
+                        dead_write_pairs.emplace_back(get<1>(m_it->second), pc, addr, value);
                     }
                 }
             }

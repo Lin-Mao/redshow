@@ -135,15 +135,19 @@ double show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<
 
 //Silent load
 void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> &value,
-                         map<ThreadId, map<_u64, tuple<long long, long long, _u64>>> &trv_map_read,
-                         long long &silent_load_num, vector<_u64> &silent_load_index);
+                         map<ThreadId, map<_u64, tuple<tuple<long long ,long long>, _u64, _u64>>> &trv_map_read,
+                         long long &silent_load_num,
+                         vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &silent_load_pairs);
 
 //dead store & silent store
 void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value,
-                         map<ThreadId, map<_u64, tuple<long long, long long, _u64>>> &trv_map_write,
-                         long long &silent_write_num, vector<_u64> &silent_write_index,
-                         map<ThreadId, map<_u64, tuple<long long, long long, _u64>>> &trv_map_read, long long&dead_write_num,
-                         vector<_u64> dead_write_index);
+                         map<ThreadId, map<_u64, tuple<tuple<long long, long long>, _u64, _u64>>> &trv_map_write,
+                         long long &silent_write_num,
+                         vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &silent_write_pairs,
+                         map<ThreadId, map<_u64, tuple<tuple<long long, long long>, _u64, _u64>>> &trv_map_read,
+                         long long &dead_write_num,
+                         vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &dead_write_pairs);
+
 // calculate the rates and write these pairs
 void calc_trv_redundancy_rate(_u64 line_num, long long &silent_load_num, long long &silent_write_num,
                               long long &dead_write_num);
