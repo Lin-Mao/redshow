@@ -63,14 +63,9 @@ double show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<
     tra_rate = thread_nums == 0 ? 0 : (double) r_sum / thread_nums;
     cout << "reuse distance sum:\t" << r_sum << endl;
     cout << "reuse time rate:\t" << (double) r_num / index << endl;
-//    cout << tra_rate << endl;
 // write the reuse distance histogram to csv files.
-//    ofstream out("tra_all.csv");
     for (int i = 0; i < tra_rd_dist.size(); ++i) {
         ofstream out("tra_" + to_string(i) + ".csv");
-//        for (auto tra_it: tra_rd_dist) {
-//
-//        }
         auto tmp_rd_dist = tra_rd_dist[i];
         for (auto every_rd:tmp_rd_dist) {
             out << every_rd.first << "," << every_rd.second << endl;
@@ -84,13 +79,13 @@ double show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<
 
 /**@arg index: It is used to mark the silent load offset in the trace file. It is also used to mark the last read which is used to */
 void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> &value,
-                         map<ThreadId, map<_u64, tuple<tuple<long long ,long long>, _u64, _u64>>> &trv_map_read,
+                         map<ThreadId, map<_u64, tuple<tuple<long long, long long>, _u64, _u64>>> &trv_map_read,
                          long long &silent_load_num,
                          vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &silent_load_pairs) {
     auto tmr_it = trv_map_read.find(tid);
-    map<_u64, tuple<long long, long long, _u64 >> record;
+    map<_u64, tuple<tuple<long long, long long>, _u64, _u64 >> record;
 //    record current operation.
-    record[addr] = make_tuple(get<0>(value), get<1>(value), pc);
+    record[addr] = make_tuple(value, pc, index);
 //    The trv_map_read doesn't have the thread's record
     if (tmr_it == trv_map_read.end()) {
         trv_map_read[tid] = record;
@@ -101,9 +96,9 @@ void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<lon
         if (m_it == tmr_it->second.end()) {
             tmr_it->second[addr] = record[addr];
         } else {
-            if (equal_2_tuples(m_it->second, value)) {
+            if (get<0>(m_it->second) == value) {
                 silent_load_num++;
-                silent_load_pairs.emplace_back(get<2>(m_it->second), pc, addr, value);
+                silent_load_pairs.emplace_back(get<1>(m_it->second), pc, addr, value);
             }
             m_it->second = record[addr];
         }
@@ -154,8 +149,12 @@ void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<lon
 }
 
 //
-void calc_trv_redundancy_rate(_u64 line_num, long long &silent_load_num, long long &silent_write_num,
-                              long long &dead_write_num) {
+void show_trv_redundancy_rate(_u64 line_num, long long &silent_load_num,
+                              vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &silent_load_pairs,
+                              long long &silent_write_num,
+                              vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &silent_write_pairs,
+                              long long &dead_write_num,
+                              vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &dead_write_pairs) {
     if (line_num == 0) {
         cout << "No memory operation found" << endl;
         return;
@@ -166,6 +165,22 @@ void calc_trv_redundancy_rate(_u64 line_num, long long &silent_load_num, long lo
     cout << "silent_write rate\t" << (double) silent_write_num / line_num;
     cout << "dead_write_num\t" << dead_write_num << endl;
     cout << "dead_write rate\t" << (double) dead_write_num / line_num;
-
-
+    ofstream out("trv_silent_load.csv");
+    for (auto item : silent_load_pairs) {
+        out << "< " << get<0>(item) << " , " << get<1>(item) << " >: " << hex << get<2>(item) << dec
+            << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
+        out.close();
+    }
+    ofstream out2("trv_silent_write.csv");
+    for (auto item : silent_write_pairs) {
+        out2 << "< " << get<0>(item) << " , " << get<1>(item) << " >: " << hex << get<2>(item) << dec
+            << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
+        out2.close();
+    }
+    ofstream out3("trv_dead_write.csv");
+    for (auto item : dead_write_pairs) {
+        out3 << "< " << get<0>(item) << " , " << get<1>(item) << " >: " << hex << get<2>(item) << dec
+            << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
+        out3.close();
+    }
 }

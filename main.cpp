@@ -59,7 +59,7 @@ The last index variable is used to mark the offset in trace file which is used t
 If val1 is float, it's better to use two numbers to represent the value. One is the integer part and the other one in decimal part
 This map records a thread's last access.
 */
-map<ThreadId, map<_u64, tuple<tuple<long long ,long long>, _u64, _u64>>> trv_map_read;
+map<ThreadId, map<_u64, tuple<tuple<long long, long long>, _u64, _u64>>> trv_map_read;
 map<ThreadId, map<_u64, tuple<tuple<long long, long long>, _u64, _u64>>> trv_map_write;
 // save every pair: <pc1, pc2, addr, value>
 vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> silent_load_pairs;
@@ -736,7 +736,8 @@ void read_input_file(string input_file, string target_name) {
     }
     cout << "tra rate\t" << show_tra_redundancy(index, threadid_max, tra_trace_map, tra_rd_dist) << endl;
 
-    calc_trv_redundancy_rate(index, silent_load_num, silent_write_num, dead_write_num);
+    show_trv_redundancy_rate(index, silent_load_num, silent_load_pairs, silent_write_num, silent_write_pairs,
+                             dead_write_num, dead_write_pairs);
 //    show_srag_redundancy(index);
 //    cout << "srag degree:";
 //    for (int i = 0; i < 32; ++i) {
