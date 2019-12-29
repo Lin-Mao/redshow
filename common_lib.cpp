@@ -174,13 +174,93 @@ void show_trv_redundancy_rate(_u64 line_num, long long &silent_load_num,
     ofstream out2("trv_silent_write.csv");
     for (auto item : silent_write_pairs) {
         out2 << "< " << get<0>(item) << " , " << get<1>(item) << " >: " << hex << get<2>(item) << dec
-            << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
+             << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
         out2.close();
     }
     ofstream out3("trv_dead_write.csv");
     for (auto item : dead_write_pairs) {
         out3 << "< " << get<0>(item) << " , " << get<1>(item) << " >: " << hex << get<2>(item) << dec
-            << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
+             << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
         out3.close();
     }
+}
+
+/**@arg: index, if there are loops in original code, every pc will own lot of access in same thread.
+ * The index is similar to timestamp to clarify which iteration the current access in.
+ * srag_trace_map: {pc: {tid: [(index, addr), ]}}*/
+void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr,
+                        map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> &srag_trace_map) {
+//    stm_it->second is a tuple: <_u64, _u64, _u64>(index, addr, value)
+    auto stm_it = srag_trace_map.find(pc);
+    if (stm_it == srag_trace_map.end()) {
+        map<ThreadId, vector<tuple<_u64, _u64>>> tmp;
+        tmp[tid] = vector<tuple<_u64, _u64>>{
+                make_tuple(index, addr)};
+        srag_trace_map[pc] = tmp;
+    } else {
+        map<ThreadId, vector<tuple<_u64, _u64 >>>::iterator m_it;
+        m_it = stm_it->second.find(tid);
+//      stm has addr key but inner doesn't have tid key
+        if (m_it == stm_it->second.end()) {
+            vector<tuple<_u64, _u64>> tmp_1 = {make_tuple(index, addr)};
+            stm_it->second[tid] = tmp_1;
+        } else {
+            m_it->second.emplace_back(make_tuple(index, addr));
+        }
+    }
+}
+
+// {pc: {tid: {addr,}, ]}}
+void show_srag_redundancy(map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> &srag_trace_map, ThreadId &threadid_max,
+                          _u64 (&srag_distribution)[WARP_SIZE]) {
+//    _u64 all_transactions = 0;
+    int bz, by, bx, tz, ty, tx;
+    for (auto stm_it:srag_trace_map) {
+        for (bz = 0; bz <= threadid_max.bz; bz++) {
+            for (by = 0; by <= threadid_max.by; ++by) {
+                for (bx = 0; bx <= threadid_max.bx; ++bx) {
+                    for (tz = 0; tz <= threadid_max.tz; ++tz) {
+                        for (ty = 0; ty <= threadid_max.ty; ++ty) {
+                            for (tx = 0; tx <= threadid_max.tx; tx += 32) {
+                                int remain_items = 0;
+//                                Find how many iterations the thread could have.
+                                for (int tx_i = 0; tx_i < 32; ++tx_i) {
+                                    ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
+//                                    m_it: map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>
+                                    auto m_it = stm_it.second.find(tmp_id);
+                                    if (m_it != stm_it.second.end()) {
+                                        remain_items = max(remain_items, (int) m_it->second.size());
+                                    }
+                                }
+                                for (int i = 0; i < remain_items; ++i) {
+//                                    per warp, per pc, per iteration of a loop
+                                    set<_u64> warp_unique_cache_lines;
+                                    for (int tx_i = 0; tx_i < 32; ++tx_i) {
+                                        ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
+                                        auto m_it = stm_it.second.find(tmp_id);
+                                        if (m_it != stm_it.second.end() && m_it->second.size() > i) {
+//                                            the tuple has three items now. We need the second one, addr
+//                                      Every cache line is 32bytes now.
+                                            int x = get<1>(m_it->second[i]) >> 5;
+                                            warp_unique_cache_lines.insert(get<1>(m_it->second[tx_i]) >> CACHE_LINE_BYTES_BIN);
+                                        }
+                                    }
+//                                    all_transactions += warp_unique_cache_lines.size();
+                                    int cur_warp_unique_cache_line_size = warp_unique_cache_lines.size();
+                                    if (cur_warp_unique_cache_line_size > 32 || cur_warp_unique_cache_line_size <= 0) {
+                                        cout << "Error: There is a warp access illegal unique cache line size "
+                                             << cur_warp_unique_cache_line_size << endl;
+                                    } else {
+                                        srag_distribution[cur_warp_unique_cache_line_size - 1]++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+//    double perfect_transaction = index  / 8;
+//    return all_transactions / perfect_transaction;
 }

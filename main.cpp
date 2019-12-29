@@ -11,8 +11,6 @@ void read_input_file(string input_file, string target_name);
 
 ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max);
 
-// Spatial Redundancy Address Global Memory
-void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value);
 
 void get_srag_trace_map_test(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value);
 
@@ -67,15 +65,14 @@ vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> silent_write_pairs;
 vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> dead_write_pairs;
 long long silent_load_num, dead_write_num, silent_write_num;
 //Spatial Redundancy Address Global memory
-// {pc: {tid: [(index, addr, value), ]}}
-//@todo We do not need value in srag.
-map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>> srag_trace_map;
-//// {pc: {tid: {addr,}, ]}}
+// {pc: {tid: [(index, addr), ]}}
+map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> srag_trace_map;
+// {pc: {tid: {addr,}, ]}}
 map<_u64, map<ThreadId, set<_u64>>> srag_trace_map_test;
 //{pc:{value:{thread:num}}}
 map<_u64, map<_u64, map<ThreadId, _u64 >>> srv_trace_map;
 // Final histogram of global memory access distribution. index i means there is i+1 unique cache lines.
-_u64 srag_distribution[32];
+_u64 srag_distribution[WARP_SIZE];
 
 // the sizes of thread block and grid
 ThreadId threadid_max;
@@ -163,30 +160,6 @@ ThreadId transform_tid(string s_bid, string s_tid) {
 }
 
 
-/**@arg: index, if there are loops in original code, every pc will own lot of access in same thread. The index is similar to timestamp to clarify which iteration the current access in.*/
-void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value) {
-//    stm_it->second is a tuple: <_u64, _u64, _u64>(index, addr, value)
-    map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>>::iterator stm_it;
-    stm_it = srag_trace_map.find(pc);
-    if (stm_it == srag_trace_map.end()) {
-        map<ThreadId, vector<tuple<_u64, _u64, _u64 >>> tmp = {{tid, vector<tuple<_u64, _u64, _u64 >>{
-                tuple<_u64, _u64, _u64>(index, addr, value)},}};
-        srag_trace_map.insert(pair<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64>>>>(pc, tmp));
-    } else {
-        map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>::iterator m_it;
-        m_it = stm_it->second.find(tid);
-//      stm has addr key but inner doesn't have tid key
-        if (m_it == stm_it->second.end()) {
-            vector<tuple<_u64, _u64, _u64 >> tmp_1 = {tuple<_u64, _u64, _u64>(index, addr, value)};
-            stm_it->second.insert(pair<ThreadId, vector<tuple<_u64, _u64, _u64 >>>(tid, tmp_1));
-        } else {
-            m_it->second.emplace_back(tuple<_u64, _u64, _u64>(index, addr, value));
-        }
-
-    }
-
-}
-
 void get_srag_trace_map_test(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value) {
 //    tuple: <_u64, _u64, _u64>(index, addr, value)
     map<_u64, map<ThreadId, set<_u64 >>>::iterator stm_it;
@@ -212,29 +185,29 @@ void get_srag_trace_map_test(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 
     }
 
 }
-
-void get_sras_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value) {
-//    tuple: <_u64, _u64, _u64>(index, addr, value)
-    map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>>::iterator stm_it;
-    stm_it = srag_trace_map.find(pc);
-    if (stm_it == srag_trace_map.end()) {
-        map<ThreadId, vector<tuple<_u64, _u64, _u64 >>> tmp = {{tid, vector<tuple<_u64, _u64, _u64 >>{
-                tuple<_u64, _u64, _u64>(index, addr, value)},}};
-        srag_trace_map.insert(pair<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64>>>>(pc, tmp));
-    } else {
-        map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>::iterator m_it;
-        m_it = stm_it->second.find(tid);
-//      stm has addr key but inner doesn't have tid key
-        if (m_it == stm_it->second.end()) {
-            vector<tuple<_u64, _u64, _u64 >> tmp_1 = {tuple<_u64, _u64, _u64>(index, addr, value)};
-            stm_it->second.insert(pair<ThreadId, vector<tuple<_u64, _u64, _u64 >>>(tid, tmp_1));
-        } else {
-            m_it->second.emplace_back(tuple<_u64, _u64, _u64>(index, addr, value));
-        }
-
-    }
-
-}
+//
+//void get_sras_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value) {
+////    tuple: <_u64, _u64, _u64>(index, addr, value)
+//    map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>>::iterator stm_it;
+//    stm_it = srag_trace_map.find(pc);
+//    if (stm_it == srag_trace_map.end()) {
+//        map<ThreadId, vector<tuple<_u64, _u64, _u64 >>> tmp = {{tid, vector<tuple<_u64, _u64, _u64 >>{
+//                tuple<_u64, _u64, _u64>(index, addr, value)},}};
+//        srag_trace_map.insert(pair<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64>>>>(pc, tmp));
+//    } else {
+//        map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>::iterator m_it;
+//        m_it = stm_it->second.find(tid);
+////      stm has addr key but inner doesn't have tid key
+//        if (m_it == stm_it->second.end()) {
+//            vector<tuple<_u64, _u64, _u64 >> tmp_1 = {tuple<_u64, _u64, _u64>(index, addr, value)};
+//            stm_it->second.insert(pair<ThreadId, vector<tuple<_u64, _u64, _u64 >>>(tid, tmp_1));
+//        } else {
+//            m_it->second.emplace_back(tuple<_u64, _u64, _u64>(index, addr, value));
+//        }
+//
+//    }
+//
+//}
 // commented by FindHao. This function is for the vertical red. We first talk about it in 9.20.
 //void get_vr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
 //    auto vrtm_it = vr_trace_map.find(tid);
@@ -391,61 +364,6 @@ void filter_dead_copy() {
 }
 
 
-void show_srag_redundancy() {
-//    _u64 all_transactions = 0;
-    map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>>::iterator stm_it;
-    int bz, by, bx, tz, ty, tx;
-    for (stm_it = srag_trace_map.begin(); stm_it != srag_trace_map.end(); stm_it++) {
-        for (bz = 0; bz <= threadid_max.bz; bz++) {
-            for (by = 0; by <= threadid_max.by; ++by) {
-                for (bx = 0; bx <= threadid_max.bx; ++bx) {
-                    for (tz = 0; tz <= threadid_max.tz; ++tz) {
-                        for (ty = 0; ty <= threadid_max.ty; ++ty) {
-                            for (tx = 0; tx <= threadid_max.tx; tx += 32) {
-                                int remain_items = 0;
-                                for (int tx_i = 0; tx_i < 32; ++tx_i) {
-                                    ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
-//                                    m_it: map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>
-                                    auto m_it = stm_it->second.find(tmp_id);
-                                    if (m_it != stm_it->second.end()) {
-                                        remain_items = max(remain_items, (int) m_it->second.size());
-                                    }
-                                }
-//                                if (remain_items > 1) { cout << "remain_items is " << remain_items << endl; }
-                                for (int i = 0; i < remain_items; ++i) {
-//                                    per warp, per pc, per iteration of a loop
-                                    set<_u64> warp_unique_cache_lines;
-                                    for (int tx_i = 0; tx_i < 32; ++tx_i) {
-                                        ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
-                                        auto m_it = stm_it->second.find(tmp_id);
-                                        if (m_it != stm_it->second.end() && m_it->second.size() > i) {
-//                                            the tuple has three items now. We need the second one, addr
-//                                      Every cache line is 32bytes now.
-                                            int x = get<1>(m_it->second[i]) >> 5;
-                                            warp_unique_cache_lines.insert(get<1>(m_it->second[tx_i]) >> 5);
-                                        }
-                                    }
-//                                    all_transactions += warp_unique_cache_lines.size();
-                                    int cur_warp_unique_cache_line_size = warp_unique_cache_lines.size();
-                                    if (cur_warp_unique_cache_line_size > 32 || cur_warp_unique_cache_line_size <= 0) {
-                                        cout << "Error: There is a warp access illegal unique cache line size "
-                                             << cur_warp_unique_cache_line_size << endl;
-                                    } else {
-                                        srag_distribution[cur_warp_unique_cache_line_size - 1]++;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-//    double perfect_transaction = index  / 8;
-//    return all_transactions / perfect_transaction;
-}
-
-
 double calc_srag_redundancy_degree_test(_u64 index) {
     _u64 all_transactions = 0;
     map<_u64, map<ThreadId, set<_u64>>>::iterator stm_it;
@@ -492,57 +410,57 @@ double calc_srag_redundancy_degree_test(_u64 index) {
     double perfect_transaction = index * 4.0 / 32;
     return all_transactions / perfect_transaction;
 }
-
-pair<_u64, double> calc_sras_redundancy_rate(_u64 index) {
-    _u64 conflict_time = 0;
-    map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>>::iterator stm_it;
-    int bz, by, bx, tz, ty, tx;
-    for (stm_it = srag_trace_map.begin(); stm_it != srag_trace_map.end(); stm_it++) {
-        for (bz = 0; bz <= threadid_max.bz; bz++) {
-            for (by = 0; by <= threadid_max.by; ++by) {
-                for (bx = 0; bx <= threadid_max.bx; ++bx) {
-                    for (tz = 0; tz <= threadid_max.tz; ++tz) {
-                        for (ty = 0; ty <= threadid_max.ty; ++ty) {
-                            for (tx = 0; tx <= threadid_max.tx; tx += 32) {
-
-//                              The max number of remain items in threads' vectors. At this moment, every pc only has one access per thread. So actually, remain_items seems equal to 1.
-                                int remain_items = 0;
-                                for (int tx_i = 0; tx_i < 32; ++tx_i) {
-                                    ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
-//                                    m_it: map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>
-                                    auto m_it = stm_it->second.find(tmp_id);
-                                    if (m_it != stm_it->second.end()) {
-                                        remain_items = max(remain_items, (int) m_it->second.size());
-                                    }
-                                }
-//                                if (remain_items > 1) { cout << "remain_items is " << remain_items << endl; }
-                                for (int i = 0; i < remain_items; ++i) {
-                                    int this_iterations_valid_item = 32;
-//                                    per warp, per pc, per iteration of a loop
-                                    set<_u64> bank_visit;
-                                    for (int tx_i = 0; tx_i < 32; ++tx_i) {
-                                        ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
-                                        auto m_it = stm_it->second.find(tmp_id);
-                                        if (m_it != stm_it->second.end() && m_it->second.size() > i) {
-//                                            the tuple has three items now. We need the second one, addr
-                                            bank_visit.insert(get<1>(m_it->second[i]));
-                                        } else {
-//                                            Not all threads in this warp works in this iteration.
-                                            this_iterations_valid_item--;
-                                        }
-                                    }
-//                                    How many conflicts
-                                    conflict_time += this_iterations_valid_item - bank_visit.size();
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return make_pair(conflict_time, (double) conflict_time / index);
-}
+//
+//pair<_u64, double> calc_sras_redundancy_rate(_u64 index) {
+//    _u64 conflict_time = 0;
+//    map<_u64, map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>>::iterator stm_it;
+//    int bz, by, bx, tz, ty, tx;
+//    for (stm_it = srag_trace_map.begin(); stm_it != srag_trace_map.end(); stm_it++) {
+//        for (bz = 0; bz <= threadid_max.bz; bz++) {
+//            for (by = 0; by <= threadid_max.by; ++by) {
+//                for (bx = 0; bx <= threadid_max.bx; ++bx) {
+//                    for (tz = 0; tz <= threadid_max.tz; ++tz) {
+//                        for (ty = 0; ty <= threadid_max.ty; ++ty) {
+//                            for (tx = 0; tx <= threadid_max.tx; tx += 32) {
+//
+////                              The max number of remain items in threads' vectors. At this moment, every pc only has one access per thread. So actually, remain_items seems equal to 1.
+//                                int remain_items = 0;
+//                                for (int tx_i = 0; tx_i < 32; ++tx_i) {
+//                                    ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
+////                                    m_it: map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>
+//                                    auto m_it = stm_it->second.find(tmp_id);
+//                                    if (m_it != stm_it->second.end()) {
+//                                        remain_items = max(remain_items, (int) m_it->second.size());
+//                                    }
+//                                }
+////                                if (remain_items > 1) { cout << "remain_items is " << remain_items << endl; }
+//                                for (int i = 0; i < remain_items; ++i) {
+//                                    int this_iterations_valid_item = 32;
+////                                    per warp, per pc, per iteration of a loop
+//                                    set<_u64> bank_visit;
+//                                    for (int tx_i = 0; tx_i < 32; ++tx_i) {
+//                                        ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
+//                                        auto m_it = stm_it->second.find(tmp_id);
+//                                        if (m_it != stm_it->second.end() && m_it->second.size() > i) {
+////                                            the tuple has three items now. We need the second one, addr
+//                                            bank_visit.insert(get<1>(m_it->second[i]));
+//                                        } else {
+////                                            Not all threads in this warp works in this iteration.
+//                                            this_iterations_valid_item--;
+//                                        }
+//                                    }
+////                                    How many conflicts
+//                                    conflict_time += this_iterations_valid_item - bank_visit.size();
+//                                }
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
+//    return make_pair(conflict_time, (double) conflict_time / index);
+//}
 
 void calc_srv_redundancy_rate(_u64 index) {
 //    {pc:{value:{thread:num}}}
@@ -724,7 +642,7 @@ void read_input_file(string input_file, string target_name) {
                                         silent_write_num, silent_write_pairs,
                                         trv_map_read, dead_write_num, dead_write_pairs);
                 }
-//            get_srag_trace_map(index, pc, tid, addr, value);
+                get_srag_trace_map(index, pc, tid, addr, srag_trace_map);
 //            get_srag_trace_map_test(index, pc, tid, addr, value);
 //            get_srv_trace_map(pc, tid, addr, value);
 //                    get_vr_trace_map(pc, tid, addr, value_split, vars_type[belong]);
@@ -738,7 +656,7 @@ void read_input_file(string input_file, string target_name) {
 
     show_trv_redundancy_rate(index, silent_load_num, silent_load_pairs, silent_write_num, silent_write_pairs,
                              dead_write_num, dead_write_pairs);
-//    show_srag_redundancy(index);
+    show_srag_redundancy(srag_trace_map, threadid_max, srag_distribution);
 //    cout << "srag degree:";
 //    for (int i = 0; i < 32; ++i) {
 //        if (i % 4 == 0) {

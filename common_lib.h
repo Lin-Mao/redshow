@@ -54,6 +54,8 @@ typedef unsigned int _u32;
 typedef unsigned long long _u64;
 #define MEM_WRITE 2
 #define MEM_READ 1
+#define WARP_SIZE 32
+#define CACHE_LINE_BYTES_BIN 5
 // The values' types.
 enum BasicType {
     F32, F64, S64, U64, S32, U32, S8, U8
@@ -135,7 +137,7 @@ double show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<
 
 //Silent load
 void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> &value,
-                         map<ThreadId, map<_u64, tuple<tuple<long long ,long long>, _u64, _u64>>> &trv_map_read,
+                         map<ThreadId, map<_u64, tuple<tuple<long long, long long>, _u64, _u64>>> &trv_map_read,
                          long long &silent_load_num,
                          vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &silent_load_pairs);
 
@@ -155,7 +157,11 @@ void show_trv_redundancy_rate(_u64 line_num, long long &silent_load_num,
                               vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &silent_write_pairs,
                               long long &dead_write_num,
                               vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &dead_write_pairs);
-
+// get Spatial Redundancy Address (Memory Divergence)
+void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr,
+                        map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> &srag_trace_map);
+void show_srag_redundancy(map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> &srag_trace_map, ThreadId &threadid_max,
+                          _u64 (&srag_distribution)[WARP_SIZE]);
 #endif //CUDA_REDSHOW_COMMON_LIB
 
 
