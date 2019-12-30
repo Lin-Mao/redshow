@@ -175,7 +175,7 @@ void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple
 void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value, int belong, set<_u64> &pcs,
                       map<int, map<tuple<long long, long long>, _u64>> &hr_trace_map,
                       map<_u64, map<int, map<tuple<long long, long long>, _u64 >>> &hr_trace_map_pc_dist);
-void show_hr_redundancy(map<int, map<tuple<long long, long long>, _u64>> &hr_trace_map);
+void show_hr_redundancy(map<int, map<tuple<long long, long long>, _u64>> &hr_trace_map, set<_u64> &pcs) ;
 #endif //CUDA_REDSHOW_COMMON_LIB
 
 

@@ -311,22 +311,30 @@ void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, tuple<long long, long lo
     hr_trace_map_pc_dist[pc][belong][value] += 1;
 }
 
-void show_hr_redundancy(map<int, map<tuple<long long, long long>, _u64>> &hr_trace_map) {
-//    0: int 1: float
+void show_hr_redundancy(map<int, map<tuple<long long, long long>, _u64>> &hr_trace_map, set<_u64> &pcs) {
+    _u64 pc_nums = pcs.size();
+    //{array:{value:num}}
 //    map<int, map<tuple<long long, long long>, _u64>> hr_trace_map;
     for (auto &var_it : hr_trace_map) {
-        _u64 max_acc_times = 0, max_acc_value = 0;
+        _u64 max_acc_times = 0;
+        tuple<long long, long long> max_acc_value;
         _u64 sum_times = 0;
-        float min_acc_value_f = INT32_MAX*1.0;
-        float max_acc_value_f = 0.0;
-        int min_acc_value_i = INT32_MAX;
-        int max_acc_value_i = INT32_MIN;
-
-        ofstream out("array" + to_string(var_it.first) + ".csv");
-        for (auto &value_it:var_it.second) {
-//              @todo output format should follow the var types
-            out << get<0>(value_it.first) << "." << get<1>(value_it.first) << "," << value_it.second << endl;
+        for (auto &value_it : var_it.second) {
+            if (value_it.second > max_acc_times) {
+                max_acc_times = value_it.second;
+                max_acc_value = value_it.first;
+            }
+            sum_times += value_it.second;
         }
+        cout << "In array " << var_it.first << ", access value " << get<0>(max_acc_value) << "."
+             << get<1>(max_acc_value) << " " << max_acc_times << " times" << endl;
+        cout << "rate:" << max_acc_times * 1.0 / sum_times << endl;
+//        write value distribution to log files
+        ofstream out("hr_" + to_string(var_it.first) + ".csv");
+        for (auto &item : var_it.second) {
+            out << get<0>(item.first) << "." << get<1>(item.first) << "," << item.second << endl;
+        }
+        out.close();
     }
 }
 
@@ -378,7 +386,8 @@ tuple<int, _u64> get_cur_addr_belong_index(_u64 addr, vector<tuple<_u64, int>> &
 }
 
 // dead copy means copy the array but some part of this array doesn't use
-void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple<_u64, int>> &vars_mem_block, map<int, set<_u64 >> &dc_trace_map) {
+void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple<_u64, int>> &vars_mem_block,
+                      map<int, set<_u64 >> &dc_trace_map) {
     auto belongs = get_cur_addr_belong_index(addr, vars_mem_block);
     int belong = get<0>(belongs);
     _u64 index = get<1>(belongs);
