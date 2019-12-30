@@ -242,7 +242,8 @@ void show_srag_redundancy(map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> &s
 //                                            the tuple has three items now. We need the second one, addr
 //                                      Every cache line is 32bytes now.
                                             int x = get<1>(m_it->second[i]) >> 5;
-                                            warp_unique_cache_lines.insert(get<1>(m_it->second[tx_i]) >> CACHE_LINE_BYTES_BIN);
+                                            warp_unique_cache_lines.insert(
+                                                    get<1>(m_it->second[tx_i]) >> CACHE_LINE_BYTES_BIN);
                                         }
                                     }
 //                                    all_transactions += warp_unique_cache_lines.size();
@@ -263,4 +264,136 @@ void show_srag_redundancy(map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> &s
     }
 //    double perfect_transaction = index  / 8;
 //    return all_transactions / perfect_transaction;
+}
+
+// {thread: {array_i: {first_value, last_value} }}
+void get_srv_bs_trace_map(ThreadId tid, tuple<long long, long long> value, int belong, int offset,
+                          map<ThreadId, map<int, map<int, tuple<tuple<long long, long long>, tuple<long long, long long>>>>> &srv_bs_trace_map) {
+    auto tm_id = srv_bs_trace_map.find(tid);
+    if (tm_id == srv_bs_trace_map.end()) {
+//        array_i:
+        map<int, map<int, tuple<tuple<long long, long long>, tuple<long long, long long>>>> temp;
+//        offset:
+        map<int, tuple<tuple<long long, long long>, tuple<long long, long long>>> temp2;
+        temp2[offset] = make_tuple(value, value);
+        temp[belong] = temp2;
+        srv_bs_trace_map[tid] = temp;
+    } else {
+//        if the trace map has record, the first_value must be not empty. So we can just update last_value
+        auto belong_id = tm_id->second.find(belong);
+        if (belong_id == tm_id->second.end()) {
+//          offset:
+            map<int, tuple<tuple<long long, long long>, tuple<long long, long long>>> temp2;
+            temp2[offset] = make_tuple(value, value);
+            tm_id->second[belong] = temp2;
+        } else {
+            belong_id->second[offset] = make_tuple(get<0>(belong_id->second[offset]), value);
+        }
+    }
+}
+
+void show_srv_bs_redundancy(ThreadId &threadid_max,
+                            map<ThreadId, map<int, map<int, tuple<tuple<long long, long long>, tuple<long long, long long>>>>> &srv_bs_trace_map) {
+
+}
+
+
+void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value, int belong, set<_u64> &pcs,
+                      map<int, map<tuple<long long, long long>, _u64>> &hr_trace_map,
+                      map<_u64, map<int, map<tuple<long long, long long>, _u64 >>> &hr_trace_map_pc_dist) {
+    pcs.insert(pc);
+//   //{var:{value:num}} map<int, map<_u64, _u64>> hr_trace_map;
+    hr_trace_map[belong][value] += 1;
+//  {pc: { var:{value: num} }}
+    hr_trace_map_pc_dist[pc][belong][value] += 1;
+}
+
+void show_hr_redundancy(map<int, map<tuple<long long, long long>, _u64>> &hr_trace_map) {
+//    0: int 1: float
+//    map<int, map<tuple<long long, long long>, _u64>> hr_trace_map;
+    for (auto &var_it : hr_trace_map) {
+        _u64 max_acc_times = 0, max_acc_value = 0;
+        _u64 sum_times = 0;
+        float min_acc_value_f = INT32_MAX*1.0;
+        float max_acc_value_f = 0.0;
+        int min_acc_value_i = INT32_MAX;
+        int max_acc_value_i = INT32_MIN;
+
+        ofstream out("array" + to_string(var_it.first) + ".csv");
+        for (auto &value_it:var_it.second) {
+//              @todo output format should follow the var types
+            out << get<0>(value_it.first) << "." << get<1>(value_it.first) << "," << value_it.second << endl;
+        }
+    }
+}
+
+/**e.g. a[100] belongs to array a
+ * @return -1 not found
+ * @return -2 find over 1 arrars it belongs
+ * */
+int get_cur_addr_belong(_u64 addr, vector<tuple<_u64, int>> &vars_mem_block) {
+    using std::get;
+    int belong = -1;
+    for (auto it = vars_mem_block.begin(); it != vars_mem_block.end(); ++it) {
+        if (addr >= get<0>(*it) && addr < (get<0>(*it) + get<1>(*it))) {
+            if (belong != -1) {
+//                cout<<"Error:\tAn addr belongs to over 1 array"<<endl;
+                return -2;
+            } else {
+                belong = it - vars_mem_block.begin();
+            }
+        }
+    }
+    return belong;
+}
+
+
+/**e.g. a[100] belongs to array a
+ * @return (-1,0) not found
+ * @return (-2,0) find over 1 arrars it belongs
+ * @return (X,Y) the addr belongs to array X, and its index is Y
+ * We assume the unit of array is 4bytes at this moment
+ * */
+tuple<int, _u64> get_cur_addr_belong_index(_u64 addr, vector<tuple<_u64, int>> &vars_mem_block) {
+    using std::get;
+    int belong = -1;
+//    initialize it to -1 to make it a larger number
+    _u64 index = -1;
+    for (auto it = vars_mem_block.begin(); it != vars_mem_block.end(); ++it) {
+        if (addr >= get<0>(*it) && addr < (get<0>(*it) + get<1>(*it))) {
+            if (belong != -1) {
+//                cout<<"Error:\tAn addr belongs to over 1 array"<<endl;
+                return make_tuple(-2, 0);
+            } else {
+                belong = it - vars_mem_block.begin();
+//                @todo We assume the unit of array is 4bytes at this moment
+                index = (addr - get<0>(*it)) / 4;
+            }
+        }
+    }
+    return make_tuple(belong, index);
+}
+
+
+void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple<_u64, int>> &vars_mem_block, map<int, set<_u64 >> &dc_trace_map) {
+    auto belongs = get_cur_addr_belong_index(addr, vars_mem_block);
+    int belong = get<0>(belongs);
+    _u64 index = get<1>(belongs);
+    switch (belong) {
+        case -1 :
+            cout << "addr " << hex << addr << dec << " not found which array it belongs to" << endl;
+            return;
+        case -2:
+            cout << "addr " << hex << addr << dec << " found over 1 array it belongs to" << endl;
+            return;
+    }
+    // {var:{index1,index2}}
+    auto dc_it = dc_trace_map.find(belong);
+    if (dc_it == dc_trace_map.end()) {
+        set<_u64> tmp_1;
+        tmp_1.insert(index);
+        dc_trace_map.insert(pair<int, set<_u64> >(belong, tmp_1));
+    } else {
+        dc_it->second.insert(index);
+    }
 }

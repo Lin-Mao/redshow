@@ -162,6 +162,18 @@ void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr,
                         map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> &srag_trace_map);
 void show_srag_redundancy(map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> &srag_trace_map, ThreadId &threadid_max,
                           _u64 (&srag_distribution)[WARP_SIZE]);
+void get_srv_ws_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value, int belong,
+                          map<ThreadId, map<int, tuple<tuple<long long, long long>, tuple<long long, long long>>>> &srv_bs_trace_map);
+
+tuple<int, _u64> get_cur_addr_belong_index(_u64 addr, vector<tuple<_u64, int>> &vars_mem_block);
+int get_cur_addr_belong(_u64 addr, vector<tuple<_u64, int>> &vars_mem_block);
+void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple<_u64, int>> &vars_mem_block, map<int, set<_u64 >> &dc_trace_map);
+
+
+
+
+
+
 #endif //CUDA_REDSHOW_COMMON_LIB
 
 
