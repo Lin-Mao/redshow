@@ -7,7 +7,7 @@ void init();
 
 ThreadId transform_tid(string bid, string tid);
 
-void read_input_file(string input_file, string target_name);
+void read_input_file(const string& input_file, string target_name);
 
 ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max);
 
@@ -27,20 +27,7 @@ void get_srv_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value);
 
 void calc_srv_redundancy_rate(_u64 index);
 
-// Vertical Redundancy
-void get_vr_trace_map(_u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value,
-                      BasicType acc_type);
-
-void calc_vr_redundancy_rate(_u64 index);
-
-int get_cur_addr_belong(_u64 addr);
-
-// dead copy means copy the array but some part of this array doesn't use
-void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value);
-
 void filter_dead_copy();
-
-void show_hr_redundancy();
 
 // This block is the data definitions
 // Every thread has a ordered set to save the read addresses.
@@ -102,8 +89,8 @@ map<int, set<_u64 >> dc_trace_map;
 int valid_float_digits = 5;
 
 
-regex line_read_re("0x(.+?)\\|\\((.+?)\\)\\|\\((.+?)\\)\\|0x(.+?)\\|0x(.+)\\|(.+)");
-regex tid_re("(\\d+),(\\d+),(\\d+)");
+regex line_read_re(R"(0x(.+?)\|\((.+?)\)\|\((.+?)\)\|0x(.+?)\|0x(.+)\|(.+))");
+
 //Allocate memory address 0x7fe39b600000, size 40
 //used to filter memory allocation information
 regex log_read_re("Allocate memory address 0x(.+), size (\\d+)");
@@ -126,37 +113,8 @@ void init() {
     memset(srag_distribution, 0, sizeof(_u64) * 32);
 }
 
-ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max) {
-    threadid_max.bz = max(threadid_max.bz, a.bz);
-    threadid_max.by = max(threadid_max.by, a.by);
-    threadid_max.bx = max(threadid_max.bx, a.bx);
-    threadid_max.tz = max(threadid_max.tz, a.tz);
-    threadid_max.ty = max(threadid_max.ty, a.ty);
-    threadid_max.tx = max(threadid_max.tx, a.tx);
-    return threadid_max;
-}
 
-ThreadId transform_tid(string s_bid, string s_tid) {
-// This function will transform the raw string of bid and tid to struct ThreadId
-// @arg s_bid: (2,0,0): (bx,by,bz)
-    ThreadId tid = {-1, -1, -1, -1, -1, -1};
-    smatch sm;
-    regex_match(s_bid, sm, tid_re);
-    if (sm.empty()) {
-        return tid;
-    }
-    tid.bx = stoi(sm[1], 0, 10);
-    tid.by = stoi(sm[2], 0, 10);
-    tid.bz = stoi(sm[3], 0, 10);
-    regex_match(s_tid, sm, tid_re);
-    if (sm.empty()) {
-        return tid;
-    }
-    tid.tx = stoi(sm[1], 0, 10);
-    tid.ty = stoi(sm[2], 0, 10);
-    tid.tz = stoi(sm[3], 0, 10);
-    return tid;
-}
+
 
 
 void get_srag_trace_map_test(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value) {
@@ -276,7 +234,6 @@ void get_srv_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value) {
 }
 
 
-
 void filter_dead_copy() {
     // {var:{index1,index2}}
     for (auto dc_it = dc_trace_map.begin(); dc_it != dc_trace_map.end(); ++dc_it) {
@@ -390,14 +347,14 @@ void calc_srv_redundancy_rate(_u64 index) {
 //map<_u64, map<_u64, map<ThreadId,_u64 >>> srv_trace_map;
     for (auto &stm_it : srv_trace_map) {
         cout << "PC:\t" << hex << stm_it.first << dec << endl;
-        for (auto value_it = stm_it.second.begin(); value_it != stm_it.second.end(); value_it++) {
+        for (auto & value_it : stm_it.second) {
 
             _u64 cur_value_access_time = 0;
 //            There's no need to clarify warps?
-            for (auto &tid_it : value_it->second) {
+            for (auto &tid_it : value_it.second) {
                 cur_value_access_time += tid_it.second;
             }
-            cout << value_it->first << ":\t" << cur_value_access_time << "\t" << (double) cur_value_access_time / index
+            cout << value_it.first << ":\t" << cur_value_access_time << "\t" << (double) cur_value_access_time / index
                  << endl;
 
         }
@@ -457,11 +414,10 @@ void calc_hr_red_rate() {
 }
 
 
-
 /** Get the memory malloc information from hpctoolkit log file. At this moment, we only consider one CPU thread.
  * And the size is the number of bytes of the memory block. @todo check the item size in arrays. e.g. double type has 8 bytes while int only have 4 bytes.
  * */
-void read_log_file(string input_file) {
+void read_log_file(const string& input_file) {
     ifstream fin(input_file.c_str());
     std::istreambuf_iterator<char> beg(fin), end;
     string strdata(beg, end);
@@ -481,7 +437,7 @@ void read_log_file(string input_file) {
 }
 
 //read input file and get every line
-void read_input_file(string input_file, string target_name) {
+void read_input_file(const string& input_file) {
     ifstream fin(input_file.c_str());
     string line;
 //    just for trv's record of every redundancy
@@ -552,8 +508,8 @@ void read_input_file(string input_file, string target_name) {
 //            get_srag_trace_map_test(index, pc, tid, addr, value);
 //            get_srv_trace_map(pc, tid, addr, value);
 //                    get_vr_trace_map(pc, tid, addr, value_split, vars_type[belong]);
-//                    get_hr_trace_map(pc, tid, addr, value_split, belong);
-//            get_dc_trace_map(pc, tid, addr, value);
+                get_hr_trace_map(pc, tid, addr, value_split, belong, pcs, hr_trace_map, hr_trace_map_pc_dist);
+//                get_dc_trace_map(pc, tid, addr, value);
 
         }
         index++;
@@ -590,6 +546,6 @@ int main(int argc, char *argv[]) {
     auto result = options.parse(argc, argv);
     execute_arg = result["args"].as<vector<int>>();
     read_log_file(result["log"].as<string>());
-    read_input_file(result["input"].as<string>(), "");
+    read_input_file(result["input"].as<string>());
     return 0;
 }

@@ -60,8 +60,6 @@ typedef unsigned long long _u64;
 enum BasicType {
     F32, F64, S64, U64, S32, U32, S8, U8
 };
-
-
 class ThreadId {
 public:
     int bx;
@@ -157,23 +155,27 @@ void show_trv_redundancy_rate(_u64 line_num, long long &silent_load_num,
                               vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &silent_write_pairs,
                               long long &dead_write_num,
                               vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &dead_write_pairs);
+
 // get Spatial Redundancy Address (Memory Divergence)
 void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr,
                         map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> &srag_trace_map);
+
 void show_srag_redundancy(map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> &srag_trace_map, ThreadId &threadid_max,
                           _u64 (&srag_distribution)[WARP_SIZE]);
+
 void get_srv_ws_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value, int belong,
                           map<ThreadId, map<int, tuple<tuple<long long, long long>, tuple<long long, long long>>>> &srv_bs_trace_map);
 
 tuple<int, _u64> get_cur_addr_belong_index(_u64 addr, vector<tuple<_u64, int>> &vars_mem_block);
+
 int get_cur_addr_belong(_u64 addr, vector<tuple<_u64, int>> &vars_mem_block);
-void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple<_u64, int>> &vars_mem_block, map<int, set<_u64 >> &dc_trace_map);
 
-
-
-
-
-
+void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple<_u64, int>> &vars_mem_block,
+                      map<int, set<_u64 >> &dc_trace_map);
+void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value, int belong, set<_u64> &pcs,
+                      map<int, map<tuple<long long, long long>, _u64>> &hr_trace_map,
+                      map<_u64, map<int, map<tuple<long long, long long>, _u64 >>> &hr_trace_map_pc_dist);
+void show_hr_redundancy(map<int, map<tuple<long long, long long>, _u64>> &hr_trace_map);
 #endif //CUDA_REDSHOW_COMMON_LIB
 
 

@@ -5,6 +5,9 @@
 #include "common_lib.h"
 
 
+regex tid_re(R"((\d+),(\d+),(\d+))");
+
+
 /**This function can calculate the reuse distance of every addr.
  * @arg acc_type : If the operation of this addr is write, the current reuse distance counter of this addr will be clear. 1 is read and 2 is write
  * @arg belong : It is the index of the array current addr belonging to.
@@ -374,7 +377,7 @@ tuple<int, _u64> get_cur_addr_belong_index(_u64 addr, vector<tuple<_u64, int>> &
     return make_tuple(belong, index);
 }
 
-
+// dead copy means copy the array but some part of this array doesn't use
 void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple<_u64, int>> &vars_mem_block, map<int, set<_u64 >> &dc_trace_map) {
     auto belongs = get_cur_addr_belong_index(addr, vars_mem_block);
     int belong = get<0>(belongs);
@@ -396,4 +399,37 @@ void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple
     } else {
         dc_it->second.insert(index);
     }
+}
+
+
+ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max) {
+    threadid_max.bz = max(threadid_max.bz, a.bz);
+    threadid_max.by = max(threadid_max.by, a.by);
+    threadid_max.bx = max(threadid_max.bx, a.bx);
+    threadid_max.tz = max(threadid_max.tz, a.tz);
+    threadid_max.ty = max(threadid_max.ty, a.ty);
+    threadid_max.tx = max(threadid_max.tx, a.tx);
+    return threadid_max;
+}
+
+ThreadId transform_tid(string s_bid, string s_tid) {
+// This function will transform the raw string of bid and tid to struct ThreadId
+// @arg s_bid: (2,0,0): (bx,by,bz)
+    ThreadId tid = {-1, -1, -1, -1, -1, -1};
+    smatch sm;
+    regex_match(s_bid, sm, tid_re);
+    if (sm.empty()) {
+        return tid;
+    }
+    tid.bx = stoi(sm[1], 0, 10);
+    tid.by = stoi(sm[2], 0, 10);
+    tid.bz = stoi(sm[3], 0, 10);
+    regex_match(s_tid, sm, tid_re);
+    if (sm.empty()) {
+        return tid;
+    }
+    tid.tx = stoi(sm[1], 0, 10);
+    tid.ty = stoi(sm[2], 0, 10);
+    tid.tz = stoi(sm[3], 0, 10);
+    return tid;
 }
