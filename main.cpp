@@ -57,7 +57,7 @@ vector<tuple<_u64, int>> vars_mem_block;
 // the values' type of every array
 //vector<BasicType> vars_type;
 //@todo It's for test. We still need to figure out how to get the types of arrays
-BasicType vars_type[12] = {F32, S32, S32, S32, S32, F32, F32, F32, F32, F32, F32, F32};
+BasicType vars_type[12] = {S32, S32, S32, S32, S32, F32, F32, F32, F32, F32, F32, F32};
 //{var:{value:counter}}
 map<int, map<tuple<long long, long long>, _u64>> hr_trace_map;
 // {pc: { var:{value: counter} }}
@@ -163,7 +163,7 @@ void read_input_file(const string &input_file) {
                         value_split = float2tuple(store2float(value), valid_float_digits);
                         break;
                     case S32:
-                        value_split = make_tuple(value, 0);
+                        value_split = make_tuple(store2int(value), 0);
                         break;
                     case F64:
                         break;
@@ -179,7 +179,6 @@ void read_input_file(const string &input_file) {
                         break;
                 }
                 access_type = stoi(sm[6], 0, 16);
-
 
                 get_tra_trace_map(tid, addr, access_type, belong, tra_list, tra_trace_map, tra_rd_dist);
                 if (access_type == MEM_READ) {
@@ -200,7 +199,7 @@ void read_input_file(const string &input_file) {
         }
         index++;
     }
-    cout << "tra rate\t" << show_tra_redundancy(index, threadid_max, tra_trace_map, tra_rd_dist) << endl;
+    show_tra_redundancy(index, threadid_max, tra_trace_map, tra_rd_dist);
 
     show_trv_redundancy_rate(index, silent_load_num, silent_load_pairs, silent_write_num, silent_write_pairs,
                              dead_write_num, dead_write_pairs);

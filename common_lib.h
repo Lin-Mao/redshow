@@ -130,7 +130,7 @@ inline bool equal_2_tuples(tuple<long long, long long, _u64> a, tuple<long long,
 void get_tra_trace_map(ThreadId tid, _u64 addr, int acc_type, int belong, map<ThreadId, list<_u64 >> &tra_list,
                        map<_u64, vector<int >> &tra_trace_map, map<int, map<int, _u64 >> &tra_rd_dist);
 
-double show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<int >> &tra_trace_map,
+void show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<int >> &tra_trace_map,
                            map<int, map<int, _u64 >> &tra_rd_dist);
 
 //Silent load

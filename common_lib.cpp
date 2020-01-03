@@ -49,8 +49,8 @@ void get_tra_trace_map(ThreadId tid, _u64 addr, int acc_type, int belong, map<Th
 }
 
 
-double show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<int >> &tra_trace_map,
-                           map<int, map<int, _u64 >> &tra_rd_dist) {
+void show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<int >> &tra_trace_map,
+                         map<int, map<int, _u64 >> &tra_rd_dist) {
     double tra_rate = 0;
     long long r_sum = 0;
 //    How many reuse distance has recorded.
@@ -66,6 +66,7 @@ double show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<
     tra_rate = thread_nums == 0 ? 0 : (double) r_sum / thread_nums;
     cout << "reuse distance sum:\t" << r_sum << endl;
     cout << "reuse time rate:\t" << (double) r_num / index << endl;
+    cout << "tra rate:\t" << tra_rate << endl;
 // write the reuse distance histogram to csv files.
     for (int i = 0; i < tra_rd_dist.size(); ++i) {
         ofstream out("tra_" + to_string(i) + ".csv");
@@ -75,7 +76,6 @@ double show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<
         }
         out.close();
     }
-    return tra_rate;
 
 }
 
