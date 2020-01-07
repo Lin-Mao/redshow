@@ -27,11 +27,13 @@ typedef struct {
 /*
  * This function is used to setup specific analysis types.
  * If multiple analysis types are enabled, redshow_record_data_get returns a sequence of record_data.
- *
- * enable = 0: disable
- * enable = 1: enable
  */
-redshow_result_t redshow_analysis_enable(uint32_t enable, redshow_analysis_type_t analysis_type);
+redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type);
+
+/*
+ * This function is used to cancel specific analysis types.
+ */
+redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type);
 
 /*
  * This function is used to register a cubin module.
