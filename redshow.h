@@ -26,7 +26,7 @@ typedef struct {
 
 /*
  * This function is used to setup specific analysis types.
- * If multiple analysis are enabled, redshow_record_data_get returns multiple analysis results in record_data
+ * If multiple analysis types are enabled, redshow_record_data_get returns a sequence of record_data.
  *
  * enable = 0: disable
  * enable = 1: enable
@@ -64,10 +64,10 @@ redshow_result_t redshow_log_data_callback_register(redshow_callback_func *func)
 /*
  * Apply registered analysis to a gpu trace, analysis results are buffered.
  * redshow_callback_func is called when the analysis is done.
- * Multi-threading is enable by setting export OMP_NUM_THREADS=N
+ * Multi-threading is enable by `export OMP_NUM_THREADS=N.`
  *
  * trace_data:
- * GPU memory trace for a single kernel launch
+ * GPU memory trace for a single kernel launch.
  *
  * kernel_offset:
  * instruction_pc - kernel_offset = instruction_pc in the cubin
@@ -75,14 +75,14 @@ redshow_result_t redshow_log_data_callback_register(redshow_callback_func *func)
 redshow_result_t redshow_analyze(uint32_t module_id, uint32_t kernel_id, uint64_t kernel_offset, gpu_patch_buffer_t *trace_data);
 
 /*
- * Get previous analysis result
+ * Get previous analysis results.
  * redshow_callback_func is called when the analysis is done.
- * record_data is a sequence of analysis results end with REDSHOW_REUSE_END
+ * record_data is a sequence of analysis results end with REDSHOW_REUSE_END.
  */
 redshow_result_t redshow_record_data_get(uint32_t kernel_id, redshow_record_data_t *record_data);
 
 /*
- * Delete previous analysis result to save memory
+ * Delete previous analysis results to save memory.
  */
 redshow_result_t redshow_record_data_delete(uint32_t kernel_id);
 
