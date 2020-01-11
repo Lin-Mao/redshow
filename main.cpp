@@ -16,7 +16,7 @@ ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max);
 map<ThreadId, list<_u64 >> tra_list;
 // trace_map: {addr1 : [rd1, rd2,], }
 map<_u64, vector<int >> tra_trace_map;
-// {var:{rd1: 100, rd2:100}}.
+// {var:{rd1: 100, rd2:100}}. For different array.
 // I'm not sure whether it is good to use the second int as key . Will the rd is over than int_max?
 map<int, map<int, _u64 >> tra_rd_dist;
 /**

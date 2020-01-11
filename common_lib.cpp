@@ -65,7 +65,7 @@ void show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<in
     }
     tra_rate = thread_nums == 0 ? 0 : (double) r_sum / thread_nums;
     cout << "reuse distance sum:\t" << r_sum << endl;
-    cout << "reuse time rate:\t" << (double) r_num / index << endl;
+    cout << "reuse rate:\t" << (double) r_num / index << endl;
     cout << "tra rate:\t" << tra_rate << endl;
 // write the reuse distance histogram to csv files.
     for (int i = 0; i < tra_rd_dist.size(); ++i) {
@@ -163,29 +163,31 @@ void show_trv_redundancy_rate(_u64 line_num, long long &silent_load_num,
         return;
     }
     cout << "silent_load_num\t" << silent_load_num << endl;
-    cout << "silent_load rate\t" << (double) silent_load_num / line_num;
+    cout << "silent_load rate\t" << (double) silent_load_num / line_num << endl;
     cout << "silent_write_num\t" << silent_write_num << endl;
-    cout << "silent_write rate\t" << (double) silent_write_num / line_num;
+    cout << "silent_write rate\t" << (double) silent_write_num / line_num << endl;
     cout << "dead_write_num\t" << dead_write_num << endl;
-    cout << "dead_write rate\t" << (double) dead_write_num / line_num;
+    cout << "dead_write rate\t" << (double) dead_write_num / line_num << endl;
     ofstream out("trv_silent_load.csv");
     for (auto item : silent_load_pairs) {
-        out << "< " << get<0>(item) << " , " << get<1>(item) << " >: " << hex << get<2>(item) << dec
-            << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
-        out.close();
+//        0:pc1, 1: pc2, 2: addr,
+        out << get<0>(item) << " , " << get<1>(item) << " , " << hex << get<2>(item) << " , " << dec
+             << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
     }
+    out.close();
     ofstream out2("trv_silent_write.csv");
     for (auto item : silent_write_pairs) {
-        out2 << "< " << get<0>(item) << " , " << get<1>(item) << " >: " << hex << get<2>(item) << dec
+//        0:pc1, 1: pc2, 2: addr,
+        out2 << get<0>(item) << " , " << get<1>(item) << " , " << hex << get<2>(item) << " , " << dec
              << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
-        out2.close();
     }
+    out2.close();
     ofstream out3("trv_dead_write.csv");
     for (auto item : dead_write_pairs) {
-        out3 << "< " << get<0>(item) << " , " << get<1>(item) << " >: " << hex << get<2>(item) << dec
+        out3 << get<0>(item) << " , " << get<1>(item) << " , " << hex << get<2>(item) << " , " << dec
              << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
-        out3.close();
     }
+    out3.close();
 }
 
 /**@arg: index, if there are loops in original code, every pc will own lot of access in same thread.
@@ -327,7 +329,7 @@ void show_hr_redundancy(map<int, map<tuple<long long, long long>, _u64>> &hr_tra
             sum_times += value_it.second;
         }
         cout << "In array " << var_it.first << ", access value " << get<0>(max_acc_value) << "."
-             << get<1>(max_acc_value) << " " << max_acc_times << " times" << endl;
+             << get<1>(max_acc_value) << " " << max_acc_times << " times, ";
         cout << "rate:" << max_acc_times * 1.0 / sum_times << endl;
 //        write value distribution to log files
         ofstream out("hr_" + to_string(var_it.first) + ".csv");
