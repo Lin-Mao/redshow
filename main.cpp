@@ -57,7 +57,7 @@ vector<tuple<_u64, int>> vars_mem_block;
 // the values' type of every array
 //vector<BasicType> vars_type;
 //@todo It's for test. We still need to figure out how to get the types of arrays
-BasicType vars_type[12] = {S32, S32, S32, S32, S32, F32, F32, F32, F32, F32, F32, F32};
+BasicType vars_type[12] = {F32, F32, F32, F32, F32, F32, F32, F32, F32, F32, F32, F32};
 //{var:{value:counter}}
 map<int, map<tuple<long long, long long>, _u64>> hr_trace_map;
 // {pc: { var:{value: counter} }}
@@ -140,6 +140,7 @@ void read_input_file(const string &input_file) {
         pc = stoull(sm[1], 0, 16);
         addr = stoull(sm[4], 0, 16);
         ThreadId tid = transform_tid(sm[2], sm[3]);
+        cout<<index<<"\t"<<tid.bx<<"\n";
         threadid_max = get_max_threadId(tid, threadid_max);
         if (tid.bx == -1 || tid.by == -1 || tid.bz == -1 || tid.tx == -1 || tid.ty == -1 | tid.tz == -1) {
             cout << "Can not filter threadid from " << line << endl;
@@ -176,6 +177,7 @@ void read_input_file(const string &input_file) {
                     case S8:
                         break;
                     case U8:
+
                         break;
                 }
                 access_type = stoi(sm[6], 0, 16);
@@ -198,6 +200,10 @@ void read_input_file(const string &input_file) {
 
         }
         index++;
+
+        if(index == 95){
+            cout<<"here";
+        }
     }
     show_tra_redundancy(index, threadid_max, tra_trace_map, tra_rd_dist);
 

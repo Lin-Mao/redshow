@@ -70,11 +70,11 @@ public:
     int tz;
 
     bool operator<(const ThreadId &o) const {
-        return bz < o.bz || by < o.by || bx < o.bx || tz < o.tz || ty < o.ty || tx < o.tx;
+        return (bz < o.bz) || (by < o.by) || (bx < o.bx) || (tz < o.tz) || (ty < o.ty) || (tx < o.tx);
     }
 
     bool operator==(const ThreadId &o) const {
-        return bz == o.bz && by == o.by && bx == o.bx && tz == o.tz && ty == o.ty && tx == o.tx;
+        return (bz == o.bz) && (by == o.by) && (bx == o.bx) && (tz == o.tz) && (ty == o.ty) && (tx == o.tx);
     }
 };
 
@@ -112,6 +112,9 @@ inline int store2int(_u64 a) {
     c = ((a & 0xffu) << 24)
         | ((a & 0xff00) << 8) | ((a & 0xff0000) >> 8) | ((a & 0xff000000) >> 24);
     return c;
+}
+inline _u8 store2u8(_u64 a){
+
 }
 
 /**@arg decimal_degree: the precision of the result should be*/

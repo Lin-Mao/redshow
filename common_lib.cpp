@@ -12,9 +12,10 @@ regex tid_re(R"((\d+),(\d+),(\d+))");
  * @arg acc_type : If the operation of this addr is write, the current reuse distance counter of this addr will be clear. 1 is read and 2 is write
  * @arg belong : It is the index of the array current addr belonging to.
  * I'm not sure whether we should change int to int8.*/
-void get_tra_trace_map(ThreadId tid, _u64 addr, int acc_type, int belong, map<ThreadId, list<_u64 >> &tra_list,
+void get_tra_trace_map(const ThreadId tid, _u64 addr, int acc_type, int belong, map<ThreadId, list<_u64 >> &tra_list,
                        map<_u64, vector<int >> &tra_trace_map, map<int, map<int, _u64 >> &tra_rd_dist) {
     map<ThreadId, list<_u64 >>::iterator tl_it;
+//
     tl_it = tra_list.find(tid);
 //  A new thread occurs. We didn't see this thread before.
     if (tl_it == tra_list.end()) {
