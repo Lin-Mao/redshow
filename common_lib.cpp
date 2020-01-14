@@ -173,7 +173,7 @@ void show_trv_redundancy_rate(_u64 line_num, long long &silent_load_num,
     for (auto item : silent_load_pairs) {
 //        0:pc1, 1: pc2, 2: addr,
         out << get<0>(item) << " , " << get<1>(item) << " , " << hex << get<2>(item) << " , " << dec
-             << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
+            << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
     }
     out.close();
     ofstream out2("trv_silent_write.csv");
@@ -445,3 +445,16 @@ ThreadId transform_tid(string s_bid, string s_tid) {
     tid.tz = stoi(sm[3], 0, 10);
     return tid;
 }
+
+bool ThreadId::operator<(const ThreadId &o) const {
+    return (bz < o.bz) || (bz == o.bz && by < o.by) || (bz == o.bz && by == o.by && bx < o.bx) ||
+           (bz == o.bz && by == o.by && bx == o.bx && tz < o.tz) ||
+           (bz == o.bz && by == o.by && bx == o.bx && tz == o.tz && ty < o.ty) ||
+           (bz == o.bz && by == o.by && bx == o.bx && tz == o.tz && ty == o.ty && tx < o.tx);
+}
+
+bool ThreadId::operator==(const ThreadId &o) const {
+    return (bz == o.bz) && (by == o.by) && (bx == o.bx) && (tz == o.tz) && (ty == o.ty) && (tx == o.tx);
+}
+
+

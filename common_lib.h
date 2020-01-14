@@ -60,6 +60,7 @@ typedef unsigned long long _u64;
 enum BasicType {
     F32, F64, S64, U64, S32, U32, S8, U8
 };
+
 class ThreadId {
 public:
     int bx;
@@ -68,14 +69,9 @@ public:
     int tx;
     int ty;
     int tz;
+    bool operator<(const ThreadId &o) const ;
 
-    bool operator<(const ThreadId &o) const {
-        return (bz < o.bz) || (by < o.by) || (bx < o.bx) || (tz < o.tz) || (ty < o.ty) || (tx < o.tx);
-    }
-
-    bool operator==(const ThreadId &o) const {
-        return (bz == o.bz) && (by == o.by) && (bx == o.bx) && (tz == o.tz) && (ty == o.ty) && (tx == o.tx);
-    }
+    bool operator==(const ThreadId &o) const;
 };
 
 
@@ -113,7 +109,8 @@ inline int store2int(_u64 a) {
         | ((a & 0xff00) << 8) | ((a & 0xff0000) >> 8) | ((a & 0xff000000) >> 24);
     return c;
 }
-inline _u8 store2u8(_u64 a){
+
+inline _u8 store2u8(_u64 a) {
 
 }
 
@@ -134,7 +131,7 @@ void get_tra_trace_map(ThreadId tid, _u64 addr, int acc_type, int belong, map<Th
                        map<_u64, vector<int >> &tra_trace_map, map<int, map<int, _u64 >> &tra_rd_dist);
 
 void show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<int >> &tra_trace_map,
-                           map<int, map<int, _u64 >> &tra_rd_dist);
+                         map<int, map<int, _u64 >> &tra_rd_dist);
 
 //Silent load
 void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> &value,
@@ -175,10 +172,13 @@ int get_cur_addr_belong(_u64 addr, vector<tuple<_u64, int>> &vars_mem_block);
 
 void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple<_u64, int>> &vars_mem_block,
                       map<int, set<_u64 >> &dc_trace_map);
+
 void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value, int belong, set<_u64> &pcs,
                       map<int, map<tuple<long long, long long>, _u64>> &hr_trace_map,
                       map<_u64, map<int, map<tuple<long long, long long>, _u64 >>> &hr_trace_map_pc_dist);
-void show_hr_redundancy(map<int, map<tuple<long long, long long>, _u64>> &hr_trace_map, set<_u64> &pcs) ;
+
+void show_hr_redundancy(map<int, map<tuple<long long, long long>, _u64>> &hr_trace_map, set<_u64> &pcs);
+
 #endif //CUDA_REDSHOW_COMMON_LIB
 
 
