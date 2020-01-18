@@ -69,7 +69,8 @@ public:
     int tx;
     int ty;
     int tz;
-    bool operator<(const ThreadId &o) const ;
+
+    bool operator<(const ThreadId &o) const;
 
     bool operator==(const ThreadId &o) const;
 };
@@ -106,14 +107,23 @@ inline float store2float(_u64 a) {
 inline int store2int(_u64 a) {
     int c = 0;
     c = ((a & 0xffu) << 24)
-        | ((a & 0xff00) << 8) | ((a & 0xff0000) >> 8) | ((a & 0xff000000) >> 24);
+        | ((a & 0xff00u) << 8) | ((a & 0xff0000u) >> 8) | ((a & 0xff000000u) >> 24);
     return c;
 }
 
-inline _u8 store2u8(_u64 a) {
-
+inline _u32 store2uint(_u64 a) {
+    _u32 c = 0;
+    c = ((a & 0xffu) << 24)
+        | ((a & 0xff00u) << 8) | ((a & 0xff0000u) >> 8) | ((a & 0xff000000u) >> 24);
+    return c;
 }
 
+inline _u8 store2uchar(_u64 a){
+    return a&0xffu;
+}
+inline char store2char(_u64 a){
+    return (a&0xffu);
+}
 /**@arg decimal_degree: the precision of the result should be*/
 inline std::tuple<long long, long long> float2tuple(float a, int decimal_degree) {
     int b = int(a);

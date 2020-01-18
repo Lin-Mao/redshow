@@ -57,7 +57,7 @@ vector<tuple<_u64, int>> vars_mem_block;
 // the values' type of every array
 //vector<BasicType> vars_type;
 //@todo It's for test. We still need to figure out how to get the types of arrays
-BasicType vars_type[12] = {F32, F32, F32, F32, F32, F32, F32, F32, F32, F32, F32, F32};
+BasicType vars_type[12] = {U8, U32, U32, F32, F32, F32, F32, F32, F32, F32, F32, F32};
 //{var:{value:counter}}
 map<int, map<tuple<long long, long long>, _u64>> hr_trace_map;
 // {pc: { var:{value: counter} }}
@@ -113,12 +113,13 @@ void read_log_file(const string &input_file) {
     int var_size;
     int i = 0;
     while (regex_search(strdata, sm, log_read_re)) {
+        i++;
         addr = stoull(sm[1], 0, 16);
         var_size = stoi(sm[2], 0, 10);
         vars_mem_block.emplace_back(pair<_u64, int>(addr, var_size));
         strdata = sm.suffix().str();
 //        init arrays' index to avoid the empty check
-        cout << "Memory alloc at " << hex << addr << " size " << dec << var_size << endl;
+        cout << "Array " << i << " start at " << hex << addr << dec << " , size" << var_size << endl;
     }
 }
 
@@ -140,7 +141,6 @@ void read_input_file(const string &input_file) {
         pc = stoull(sm[1], 0, 16);
         addr = stoull(sm[4], 0, 16);
         ThreadId tid = transform_tid(sm[2], sm[3]);
-        cout<<index<<"\t"<<tid.bx<<"\n";
         threadid_max = get_max_threadId(tid, threadid_max);
         if (tid.bx == -1 || tid.by == -1 || tid.bz == -1 || tid.tx == -1 || tid.ty == -1 | tid.tz == -1) {
             cout << "Can not filter threadid from " << line << endl;
@@ -156,8 +156,12 @@ void read_input_file(const string &input_file) {
                 cout << "addr " << hex << addr << dec << " found over 1 array it belongs to" << endl;
                 break;
             default:
-
-                value = stoull(sm[5], 0, 16);
+//                @todo vectorized access
+                if (sm[5].length() > 8) {
+                    value = stoull(sm[5].str().substr(0, 8), 0, 1 - 6);
+                } else {
+                    value = stoull(sm[5], 0, 16);
+                }
                 tuple<long long, long long> value_split;
                 switch (vars_type[belong]) {
                     case F32:
@@ -173,11 +177,19 @@ void read_input_file(const string &input_file) {
                     case U64:
                         break;
                     case U32:
+                        value_split = make_tuple(store2uint(value), 0);
                         break;
                     case S8:
+                        if (sm[5].length() > 2) {
+                            cout << "a 8-bit value is more than 8-bit\t" << hex << sm[5] << dec;
+                        }
+                        value_split = make_tuple(store2char(value), 0);
                         break;
                     case U8:
-
+                        if (sm[5].length() > 2) {
+                            cout << "a unsigned 8-bit value is more than 8-bit\t" << hex << sm[5] << dec;
+                        }
+                        value_split = make_tuple(store2uchar(value), 0);
                         break;
                 }
                 access_type = stoi(sm[6], 0, 16);
@@ -201,9 +213,6 @@ void read_input_file(const string &input_file) {
         }
         index++;
 
-        if(index == 95){
-            cout<<"here";
-        }
     }
     show_tra_redundancy(index, threadid_max, tra_trace_map, tra_rd_dist);
 
