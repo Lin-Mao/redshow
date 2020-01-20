@@ -57,7 +57,7 @@ vector<tuple<_u64, int>> vars_mem_block;
 // the values' type of every array
 //vector<BasicType> vars_type;
 //@todo It's for test. We still need to figure out how to get the types of arrays
-BasicType vars_type[12] = {U8, U32, U32, F32, F32, F32, F32, F32, F32, F32, F32, F32};
+BasicType vars_type[12] = {F32, F32, F32, F32, F32, F32, F32, F32, F32, F32, F32, F32};
 //{var:{value:counter}}
 map<int, map<tuple<long long, long long>, _u64>> hr_trace_map;
 // {pc: { var:{value: counter} }}
@@ -105,6 +105,10 @@ void filter_dead_copy() {
  * */
 void read_log_file(const string &input_file) {
     ifstream fin(input_file.c_str());
+    if(fin.fail()){
+        cout<<"Error when opening file "<<input_file<<endl;
+        return;
+    }
     std::istreambuf_iterator<char> beg(fin), end;
     string strdata(beg, end);
     fin.close();
@@ -113,19 +117,23 @@ void read_log_file(const string &input_file) {
     int var_size;
     int i = 0;
     while (regex_search(strdata, sm, log_read_re)) {
-        i++;
         addr = stoull(sm[1], 0, 16);
         var_size = stoi(sm[2], 0, 10);
         vars_mem_block.emplace_back(pair<_u64, int>(addr, var_size));
         strdata = sm.suffix().str();
 //        init arrays' index to avoid the empty check
-        cout << "Array " << i << " start at " << hex << addr << dec << " , size" << var_size << endl;
+        cout << "Array " << i << " start at " << hex << addr << dec << " , size " << var_size << endl;
+        i++;
     }
 }
 
 //read input file and get every line
 void read_input_file(const string &input_file) {
     ifstream fin(input_file.c_str());
+    if(fin.fail()){
+        cout<<"Error when opening file "<<input_file<<endl;
+        return;
+    }
     string line;
 //    just for trv's record of every redundancy
     _u64 index = 0;
