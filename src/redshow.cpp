@@ -1,5 +1,5 @@
-#include "redshow.h"
-#include "instruction_stat.h"
+#include <redshow.h>
+#include <instruction_stat.h>
 
 #include <mutex>
 #include <map>
