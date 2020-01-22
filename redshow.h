@@ -1,16 +1,27 @@
 #ifndef _RED_SHOW_H_
 #define _RED_SHOW_H_
 
-#include <gpu_patch.h>
+#include <gpu-patch.h>
+
+#ifdef __cplusplus
+#define EXTERNC extern "C"
+#else
+#define EXTERNC
+#endif
 
 typedef enum {
-  REDSHOW_REUSE_END = 0
-  REDSHOW_REUSE_DISTANCE = 1,
+  REDSHOW_REUSE_END = 0,
+  REDSHOW_REUSE_DISTANCE = 1
 } redshow_analysis_type_t;
 
 typedef enum {
   REDSHOW_SUCCESS = 0,
-  REDSHOW_ERROR_NOT_IMPL = 1
+  REDSHOW_ERROR_NOT_IMPL = 1,
+  REDSHOW_ERROR_NOT_EXIST_ENTRY = 2,
+  REDSHOW_ERROR_DUPLICATE_ENTRY = 3,
+  REDSHOW_ERROR_NOT_REGISTER_CALLBACK = 4,
+  REDSHOW_ERROR_NO_SUCH_FILE = 5,
+  REDSHOW_ERROR_FAILED_ANALYZE_CUBIN = 6
 } redshow_result_t;
 
 typedef struct {
@@ -22,46 +33,64 @@ typedef struct {
   union {
     redshow_reuse_distance_t reuse_distance;
   };
-} redshow_record_data_t 
+} redshow_record_data_t;
+
+/*
+ * Configure the output analysis result directory
+ */
+EXTERNC redshow_result_t redshow_analysis_output(const char *path);
 
 /*
  * This function is used to setup specific analysis types.
- * If multiple analysis types are enabled, redshow_record_data_get returns a sequence of record_data.
+ * 
+ * Thread-Safety: NO
  */
-redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type);
+EXTERNC redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type);
 
 /*
  * This function is used to cancel specific analysis types.
+ * 
+ * Thread-Safety: NO
  */
-redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type);
+EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type);
 
 /*
  * This function is used to register a cubin module.
  * redshow analyzes a cubin module to extract CFGs and instruction statistics.
+ * 
+ * Thread-Safety: YES
  */
-redshow_result_t redshow_cubin_register(uint32_t module_id, const char *cubin, const char *path);
+EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, const char *data, const char *path);
 
 /*
  * This function is used to unregister a module.
+ * 
+ * Thread-Safety: YES
  */
-redshow_result_t redshow_cubin_unregister(uint32_t module_id);
+EXTERNC redshow_result_t redshow_cubin_unregister(uint32_t cubin_id);
 
 /*
  * This function is used to register a global memory region.
+ * 
+ * Thread-Safety: YES
  */
-redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, const char *name);
+EXTERNC redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, const char *name);
 
 /*
  * This function is used to unregister a global memory region.
+ * 
+ * Thread-Safety: YES
  */
-redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end);
+EXTERNC redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end);
 
 /*
- * Let a user handles data when a trace log is done analyzing
+ * Let a user handle data when a trace log is done analyzing
+ *
+ * Thread-Safety: NO
  */
-typedef void (*redshow_callback_func(uint32_t module_id, uint32_t kernel_id, redshow_record_data_t *record_data));
+typedef void (*redshow_log_data_callback_func)(uint32_t kernel_id, gpu_patch_buffer_t *trace_data);
 
-redshow_result_t redshow_log_data_callback_register(redshow_callback_func *func);
+EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_func func);
 
 /*
  * Apply registered analysis to a gpu trace, analysis results are buffered.
@@ -73,19 +102,9 @@ redshow_result_t redshow_log_data_callback_register(redshow_callback_func *func)
  *
  * kernel_offset:
  * instruction_pc - kernel_offset = instruction_pc in the cubin
+ * 
+ * Thread-Safety: YES
  */
-redshow_result_t redshow_analyze(uint32_t module_id, uint32_t kernel_id, uint64_t kernel_offset, gpu_patch_buffer_t *trace_data);
-
-/*
- * Get previous analysis results.
- * redshow_callback_func is called when the analysis is done.
- * record_data is a sequence of analysis results end with REDSHOW_REUSE_END.
- */
-redshow_result_t redshow_record_data_get(uint32_t kernel_id, redshow_record_data_t *record_data);
-
-/*
- * Delete previous analysis results to save memory.
- */
-redshow_result_t redshow_record_data_delete(uint32_t kernel_id);
+EXTERNC redshow_result_t redshow_analyze(uint32_t cubin_id, uint32_t kernel_id, gpu_patch_buffer_t *trace_data);
 
 #endif  // _RED_SHOW_H_
