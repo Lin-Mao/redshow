@@ -46,27 +46,30 @@ struct MemoryRange {
 };
 
 struct Memory {
+  uint64_t memory_id;
   MemoryRange memory_range;
-  std::string name;
 
   Memory() = default;
-  Memory(MemoryRange &memory_range, const char *name_) :
-    memory_range(memory_range), name(name_) {}
+  Memory(uint64_t memory_id, uint64_t start, uint64_t end) :
+    memory_id(memory_id), memory_range(start, end) {}
 };
 
-std::map<MemoryRange, Memory> memory_map;
+std::map<uint64_t, Memory> memory_map;
 std::mutex memory_map_lock;
 
 
 struct Kernel {
-  uint32_t kernel_id;
+  uint64_t kernel_id;
   uint32_t cubin_id;
+  uint32_t func_index;
+  uint64_t func_addr;
 
   Kernel() = default;
-  Kernel(uint32_t kernel_id, uint32_t cubin_id) : kernel_id(kernel_id), cubin_id(cubin_id) {}
+  Kernel(uint64_t kernel_id, uint32_t cubin_id, uint32_t func_index, uint64_t func_addr) :
+    kernel_id(kernel_id), cubin_id(cubin_id), func_index(func_index), func_addr(func_addr) {}
 };
 
-std::map<uint32_t, Kernel> kernel_map;
+std::map<uint64_t, Kernel> kernel_map;
 std::mutex kernel_map_lock;
 
 std::set<redshow_analysis_type_t> analysis_enabled;
@@ -76,7 +79,7 @@ redshow_log_data_callback_func log_data_callback = NULL;
 /*
  * Static methods
  */
-bool execute_cmd(const std::string &cmd) {
+bool cmd_exec(const std::string &cmd) {
   return system(cmd.c_str());
 }
 
@@ -92,9 +95,9 @@ redshow_result_t cubin_analyze(const char *path, std::vector<InstructionStat> &i
     // x/x.cubin
     // 012345678
     std::string cubin_name = cubin_path.substr(iter + 1, cubin_path.size() - iter);
-    execute_cmd("mkdir -p redshow/cubins");
-    execute_cmd("cp " + cubin_path + " redshow/cubins/" + cubin_name);
-    if (execute_cmd("hpcstruct redshow/cubins/" + cubin_name) != 0) {
+    cmd_exec("mkdir -p redshow/cubins");
+    cmd_exec("cp " + cubin_path + " redshow/cubins/" + cubin_name);
+    if (cmd_exec("hpcstruct redshow/cubins/" + cubin_name) != 0) {
       result = REDSHOW_ERROR_NO_SUCH_FILE;
     } else {
       if (read_instruction_stats("nvidia/" + cubin_name + ".inst", inst_stats)) {
@@ -172,14 +175,14 @@ redshow_result_t redshow_cubin_unregister(uint32_t cubin_id) {
 }
 
 
-redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, const char *name) {
+redshow_result_t redshow_memory_register(uint64_t memory_id, uint64_t start, uint64_t end) {
   redshow_result_t result;
-  MemoryRange memory_range(start, end);
 
   memory_map_lock.lock();
-  if (memory_map.find(memory_range) == memory_map.end()) {
-    Memory memory(memory_range, name);
-    memory_map[memory_range] = memory;
+  if (memory_map.find(memory_id) == memory_map.end()) {
+    memory_map[memory_id].memory_id = memory_id;
+    memory_map[memory_id].memory_range.start = start;
+    memory_map[memory_id].memory_range.end = end;
     result = REDSHOW_SUCCESS;
   } else {
     result = REDSHOW_ERROR_DUPLICATE_ENTRY;
@@ -190,13 +193,12 @@ redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, const cha
 }
 
 
-redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end) {
+redshow_result_t redshow_memory_unregister(uint64_t memory_id) {
   redshow_result_t result;
-  MemoryRange memory_range(start, end);
 
   memory_map_lock.lock();
-  if (memory_map.find(memory_range) != memory_map.end()) {
-    memory_map.erase(memory_range);
+  if (memory_map.find(memory_id) != memory_map.end()) {
+    memory_map.erase(memory_id);
     result = REDSHOW_SUCCESS;
   } else {
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
@@ -211,7 +213,8 @@ redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_fu
   log_data_callback = func;
 }
 
-redshow_result_t redshow_analyze(uint32_t cubin_id, uint32_t kernel_id, gpu_patch_buffer_t *trace_data) {
+redshow_result_t redshow_analyze(uint32_t cubin_id, uint32_t func_index,
+  uint64_t func_addr, uint64_t kernel_id, gpu_patch_buffer_t *trace_data) {
   redshow_result_t result;
 
   // Analyze trace_data
@@ -226,6 +229,8 @@ redshow_result_t redshow_analyze(uint32_t cubin_id, uint32_t kernel_id, gpu_patc
       // Allocate new record data
       kernel_map[kernel_id].kernel_id = kernel_id;
       kernel_map[kernel_id].cubin_id = cubin_id;
+      kernel_map[kernel_id].func_index = func_index;
+      kernel_map[kernel_id].func_addr = func_addr;
     }
     kernel_map_lock.unlock();
 

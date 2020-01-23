@@ -60,7 +60,7 @@ EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analys
  * 
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, const char *data, const char *path);
+EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, const char *path);
 
 /*
  * This function is used to unregister a module.
@@ -74,14 +74,14 @@ EXTERNC redshow_result_t redshow_cubin_unregister(uint32_t cubin_id);
  * 
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, const char *name);
+EXTERNC redshow_result_t redshow_memory_register(uint64_t memory_id, uint64_t start, uint64_t end);
 
 /*
  * This function is used to unregister a global memory region.
  * 
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end);
+EXTERNC redshow_result_t redshow_memory_unregister(uint64_t memory_id);
 
 /*
  * Let a user handle data when a trace log is done analyzing
@@ -97,6 +97,18 @@ EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_cal
  * redshow_callback_func is called when the analysis is done.
  * Multi-threading is enable by `export OMP_NUM_THREADS=N.`
  *
+ * cubin_id:
+ * Lookup correponding cubin
+ *
+ * kernel_id:
+ * Unique identifier for a calling context
+ *
+ * func_index:
+ * Symbol index in the cubin
+ *
+ * func_addr:
+ * Function address in memory
+ *
  * trace_data:
  * GPU memory trace for a single kernel launch.
  *
@@ -105,6 +117,7 @@ EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_cal
  * 
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_analyze(uint32_t cubin_id, uint32_t kernel_id, gpu_patch_buffer_t *trace_data);
+EXTERNC redshow_result_t redshow_analyze(uint32_t cubin_id, uint32_t func_index,
+  uint64_t func_addr, uint64_t kernel_id, gpu_patch_buffer_t *trace_data);
 
 #endif  // _RED_SHOW_H_
