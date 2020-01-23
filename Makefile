@@ -10,7 +10,7 @@ LIB_DIR := lib/
 INC_DIR := include/
 BUILD_DIR := build/
 
-LIB := $(LIB_DIR)$(PROJECT).so
+LIB := $(LIB_DIR)lib$(PROJECT).so
 
 ifdef DEBUG
 OFLAGS += -g -DDEBUG
@@ -44,10 +44,10 @@ clean:
 
 ifdef PREFIX
 install:
-	mkdir -p $(PREFIX)/$(BUILD_DIR)
+	mkdir -p $(PREFIX)/$(LIB_DIR)
 	mkdir -p $(PREFIX)/$(INC_DIR)
 	cp -rf $(LIB_DIR) $(PREFIX)
-	cp -rf $(INC_DIR)$(PROJECT).h $(PREFIX)
+	cp -rf $(INC_DIR)$(PROJECT).h $(PREFIX)/$(INC_DIR)
 endif
 
 #utils
