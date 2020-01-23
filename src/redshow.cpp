@@ -46,15 +46,15 @@ struct MemoryRange {
 };
 
 struct Memory {
-  uint64_t memory_id;
   MemoryRange memory_range;
+  uint64_t memory_id;
 
   Memory() = default;
-  Memory(uint64_t memory_id, uint64_t start, uint64_t end) :
-    memory_id(memory_id), memory_range(start, end) {}
+  Memory(MemoryRange &memory_range, uint64_t memory_id) :
+    memory_range(memory_range), memory_id(memory_id) {}
 };
 
-std::map<uint64_t, Memory> memory_map;
+std::map<MemoryRange, Memory> memory_map;
 std::mutex memory_map_lock;
 
 
@@ -175,14 +175,14 @@ redshow_result_t redshow_cubin_unregister(uint32_t cubin_id) {
 }
 
 
-redshow_result_t redshow_memory_register(uint64_t memory_id, uint64_t start, uint64_t end) {
+redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t memory_id) {
   redshow_result_t result;
+  MemoryRange memory_range(start, end);
 
   memory_map_lock.lock();
-  if (memory_map.find(memory_id) == memory_map.end()) {
-    memory_map[memory_id].memory_id = memory_id;
-    memory_map[memory_id].memory_range.start = start;
-    memory_map[memory_id].memory_range.end = end;
+  if (memory_map.find(memory_range) == memory_map.end()) {
+    memory_map[memory_range].memory_range = memory_range;
+    memory_map[memory_range].memory_id = memory_id;
     result = REDSHOW_SUCCESS;
   } else {
     result = REDSHOW_ERROR_DUPLICATE_ENTRY;
@@ -193,12 +193,13 @@ redshow_result_t redshow_memory_register(uint64_t memory_id, uint64_t start, uin
 }
 
 
-redshow_result_t redshow_memory_unregister(uint64_t memory_id) {
+redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end) {
   redshow_result_t result;
+  MemoryRange memory_range(start, end);
 
   memory_map_lock.lock();
-  if (memory_map.find(memory_id) != memory_map.end()) {
-    memory_map.erase(memory_id);
+  if (memory_map.find(memory_range) != memory_map.end()) {
+    memory_map.erase(memory_range);
     result = REDSHOW_SUCCESS;
   } else {
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;

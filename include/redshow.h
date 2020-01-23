@@ -74,14 +74,14 @@ EXTERNC redshow_result_t redshow_cubin_unregister(uint32_t cubin_id);
  * 
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_memory_register(uint64_t memory_id, uint64_t start, uint64_t end);
+EXTERNC redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t memory_id);
 
 /*
  * This function is used to unregister a global memory region.
  * 
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_memory_unregister(uint64_t memory_id);
+EXTERNC redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end);
 
 /*
  * Let a user handle data when a trace log is done analyzing
