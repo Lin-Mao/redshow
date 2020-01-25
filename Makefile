@@ -16,7 +16,7 @@ ifdef DEBUG
 OFLAGS += -g -DDEBUG
 endif
 
-CFLAGS := -std=c++11 $(OFLAGS)
+CFLAGS := -fPIC -std=c++11 $(OFLAGS)
 LDFLAGS := -lstdc++ -lboost
 SRCS := $(shell find src -maxdepth 3 -name "*.cpp")
 OBJECTS := $(addprefix $(BUILD_DIR), $(patsubst %.cpp, %.o, $(SRCS)))
