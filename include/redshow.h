@@ -88,7 +88,7 @@ EXTERNC redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end)
  *
  * Thread-Safety: NO
  */
-typedef void (*redshow_log_data_callback_func)(uint32_t kernel_id, gpu_patch_buffer_t *trace_data);
+typedef void (*redshow_log_data_callback_func)(uint64_t kernel_id, gpu_patch_buffer_t *trace_data);
 
 EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_func func);
 
