@@ -141,7 +141,8 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, const char *path) {
   redshow_result_t result;
 
   std::vector<InstructionStat> inst_stats;
-  result = cubin_analyze(path, inst_stats);
+  result = REDSHOW_SUCCESS;
+  //cubin_analyze(path, inst_stats);
 
   if (result == REDSHOW_SUCCESS) {
     cubin_map_lock.lock();

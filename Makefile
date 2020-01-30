@@ -17,7 +17,7 @@ OFLAGS += -g -DDEBUG
 endif
 
 CFLAGS := -fPIC -std=c++11 $(OFLAGS)
-LDFLAGS := -lstdc++ -lboost
+LDFLAGS := -shared -static-libstdc++
 SRCS := $(shell find src -maxdepth 3 -name "*.cpp")
 OBJECTS := $(addprefix $(BUILD_DIR), $(patsubst %.cpp, %.o, $(SRCS)))
 OBJECTS_DIR := $(sort $(addprefix $(BUILD_DIR), $(dir $(SRCS))))
@@ -34,7 +34,7 @@ $(LIB_DIR):
 	mkdir -p $@
 
 $(LIB): $(OBJECTS)
-	ar crf $@ $^ 
+	$(CC) $(LDFLAGS) -o $@ $^ 
 
 $(OBJECTS): $(BUILD_DIR)%.o : %.cpp
 	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(GPU_PATCH_DIR) -o $@ -c $<
