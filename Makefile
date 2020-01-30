@@ -23,6 +23,11 @@ OBJECTS := $(addprefix $(BUILD_DIR), $(patsubst %.cpp, %.o, $(SRCS)))
 OBJECTS_DIR := $(sort $(addprefix $(BUILD_DIR), $(dir $(SRCS))))
 
 all: dirs objects lib
+
+ifdef PREFIX
+install: all
+endif
+
 dirs: $(OBJECTS_DIR) $(LIB_DIR) $(BIN_DIR)
 objects: $(OBJECTS)
 lib: $(LIB)

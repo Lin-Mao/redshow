@@ -5,6 +5,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <iostream>
 
 #include <cstdlib>
 
@@ -76,13 +77,6 @@ std::set<redshow_analysis_type_t> analysis_enabled;
 
 redshow_log_data_callback_func log_data_callback = NULL;
 
-/*
- * Static methods
- */
-bool cmd_exec(const std::string &cmd) {
-  return system(cmd.c_str());
-}
-
 
 redshow_result_t cubin_analyze(const char *path, std::vector<InstructionStat> &inst_stats) {
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -95,16 +89,11 @@ redshow_result_t cubin_analyze(const char *path, std::vector<InstructionStat> &i
     // x/x.cubin
     // 012345678
     std::string cubin_name = cubin_path.substr(iter + 1, cubin_path.size() - iter);
-    cmd_exec("mkdir -p redshow/cubins");
-    cmd_exec("cp " + cubin_path + " redshow/cubins/" + cubin_name);
-    if (cmd_exec("hpcstruct redshow/cubins/" + cubin_name) != 0) {
-      result = REDSHOW_ERROR_NO_SUCH_FILE;
+    // instructions are analyzed before hpcrun
+    if (read_instruction_stats("redshow/structs/nvidia/" + cubin_name + ".inst", inst_stats)) {
+      result = REDSHOW_SUCCESS;
     } else {
-      if (read_instruction_stats("nvidia/" + cubin_name + ".inst", inst_stats)) {
-        result = REDSHOW_SUCCESS;
-      } else {
-        result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
-      }
+      result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
     }
   }
   
@@ -141,8 +130,7 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, const char *path) {
   redshow_result_t result;
 
   std::vector<InstructionStat> inst_stats;
-  result = REDSHOW_SUCCESS;
-  //cubin_analyze(path, inst_stats);
+  result = cubin_analyze(path, inst_stats);
 
   if (result == REDSHOW_SUCCESS) {
     cubin_map_lock.lock();
