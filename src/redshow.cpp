@@ -9,6 +9,14 @@
 
 #include <cstdlib>
 
+#define DEBUG 1
+
+#ifdef DEBUG
+#define PRINT(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define PRINT(...)
+#endif
+
 /*
  * Global data structures
  */
@@ -110,23 +118,33 @@ redshow_result_t trace_analyze(gpu_patch_buffer_t *trace_data) {
  */
 
 redshow_result_t redshow_analysis_output(const char *path) {
+  PRINT("\nredshow->Enter redshow_analysis_output\npath: %s\n", path);
+
   return REDSHOW_SUCCESS;
 };
 
 
 redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) {
+  PRINT("\nredshow->Enter redshow_analysis_enable\nanalysis_type: %u\n", analysis_type);
+
   analysis_enabled.insert(analysis_type);
+
   return REDSHOW_SUCCESS;
 }
 
 
 redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type) {
+  PRINT("\nredshow->Enter redshow_analysis_disable\nanalysis_type: %u\n", analysis_type);
+
   analysis_enabled.erase(analysis_type);
+
   return REDSHOW_SUCCESS;
 }
 
 
 redshow_result_t redshow_cubin_register(uint32_t cubin_id, const char *path) {
+  PRINT("\nredshow->Enter redshow_cubin_register\ncubin_id: %u\npath: %s\n", cubin_id, path);
+
   redshow_result_t result;
 
   std::vector<InstructionStat> inst_stats;
@@ -149,6 +167,8 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, const char *path) {
 
 
 redshow_result_t redshow_cubin_unregister(uint32_t cubin_id) {
+  PRINT("\nredshow->Enter redshow_cubin_unregister\ncubin_id: %u\n", cubin_id);
+
   redshow_result_t result;
 
   cubin_map_lock.lock();
@@ -165,6 +185,8 @@ redshow_result_t redshow_cubin_unregister(uint32_t cubin_id) {
 
 
 redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t memory_id) {
+  PRINT("\nredshow->Enter redshow_memory_register\nstart: %p\nend: %p\nmemory_id: %lu\n", start, end, memory_id);
+
   redshow_result_t result;
   MemoryRange memory_range(start, end);
 
@@ -183,6 +205,8 @@ redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t 
 
 
 redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end) {
+  PRINT("\nredshow->Enter redshow_memory_unregister\nstart: %p\nend: %p\n", start, end);
+
   redshow_result_t result;
   MemoryRange memory_range(start, end);
 
@@ -205,6 +229,9 @@ redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_fu
 
 redshow_result_t redshow_analyze(uint32_t cubin_id, uint32_t func_index,
   uint64_t func_addr, uint64_t kernel_id, gpu_patch_buffer_t *trace_data) {
+  PRINT("\nredshow->Enter redshow_analyze\ncubin_id: %u\nfunc_index: %u\nfunc_addr: %p\nkernel_id: %lu\ntrace_data: %p\n",
+    cubin_id, func_index, func_addr, kernel_id, trace_data);
+
   redshow_result_t result;
 
   // Analyze trace_data
