@@ -89,6 +89,9 @@ AccessType load_data_type(unsigned int pc, InstructionGraph &inst_graph) {
       access_type.vec_size = 32;
     } else if (inst.op.find("16") != std::string::npos) {
       access_type.vec_size = 16;
+    } else {
+      // default 32
+      access_type.vec_size = 32;
     }
   }
 
@@ -122,6 +125,9 @@ AccessType store_data_type(unsigned int pc, InstructionGraph &inst_graph) {
       access_type.vec_size = 32;
     } else if (inst.op.find("16") != std::string::npos) {
       access_type.vec_size = 16;
+    } else {
+      // default 32
+      access_type.vec_size = 32;
     }
   }
 
