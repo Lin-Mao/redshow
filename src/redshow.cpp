@@ -1,5 +1,5 @@
 #include <redshow.h>
-#include <instruction_stat.h>
+#include <instruction.h>
 
 #include <mutex>
 #include <map>
@@ -24,12 +24,12 @@
 struct Cubin {
   uint32_t cubin_id;
   std::string path;
-  std::vector<InstructionStat> inst_stats;
+  InstructionGraph inst_graph;
 
   Cubin() = default;
   Cubin(uint32_t cubin_id, const char *path_,
-        std::vector<InstructionStat> &inst_stats) : 
-        cubin_id(cubin_id), path(path_), inst_stats(inst_stats) {}
+        InstructionGraph &inst_graph) : 
+        cubin_id(cubin_id), path(path_), inst_graph(inst_graph) {}
 };
 
 std::map<uint32_t, Cubin> cubin_map;
@@ -86,7 +86,7 @@ std::set<redshow_analysis_type_t> analysis_enabled;
 redshow_log_data_callback_func log_data_callback = NULL;
 
 
-redshow_result_t cubin_analyze(const char *path, std::vector<InstructionStat> &inst_stats) {
+redshow_result_t cubin_analyze(const char *path, InstructionGraph &inst_graph) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
   std::string cubin_path = std::string(path);
@@ -98,7 +98,7 @@ redshow_result_t cubin_analyze(const char *path, std::vector<InstructionStat> &i
     // 012345678
     std::string cubin_name = cubin_path.substr(iter + 1, cubin_path.size() - iter);
     // instructions are analyzed before hpcrun
-    if (read_instruction_stats("redshow/structs/nvidia/" + cubin_name + ".inst", inst_stats)) {
+    if (parse_instruction_graph("redshow/structs/nvidia/" + cubin_name + ".inst", inst_graph)) {
       result = REDSHOW_SUCCESS;
     } else {
       result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
@@ -147,15 +147,15 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, const char *path) {
 
   redshow_result_t result;
 
-  std::vector<InstructionStat> inst_stats;
-  result = cubin_analyze(path, inst_stats);
+  InstructionGraph inst_graph;
+  result = cubin_analyze(path, inst_graph);
 
   if (result == REDSHOW_SUCCESS) {
     cubin_map_lock.lock();
     if (cubin_map.find(cubin_id) == cubin_map.end()) {
       cubin_map[cubin_id].cubin_id = cubin_id;
       cubin_map[cubin_id].path = path;
-      cubin_map[cubin_id].inst_stats = inst_stats;
+      cubin_map[cubin_id].inst_graph = inst_graph;
     } else {
       result = REDSHOW_ERROR_DUPLICATE_ENTRY;
     }

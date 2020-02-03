@@ -102,21 +102,19 @@ EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_cal
  * cubin_id:
  * Lookup correponding cubin
  *
- * kernel_id:
- * Unique identifier for a calling context
- *
  * func_index:
  * Symbol index in the cubin
  *
  * func_addr:
  * Function address in memory
+ * instruction_pc - func_addr = instruction_pc in the cubin
+ *
+ * kernel_id:
+ * Unique identifier for a calling context
  *
  * trace_data:
  * GPU memory trace for a single kernel launch.
  *
- * kernel_offset:
- * instruction_pc - kernel_offset = instruction_pc in the cubin
- * 
  * Thread-Safety: YES
  */
 EXTERNC redshow_result_t redshow_analyze(uint32_t cubin_id, uint32_t func_index,
