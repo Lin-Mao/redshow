@@ -143,7 +143,7 @@ redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type)
 }
 
 
-redshow_result_t redshow_cubin_register(uint32_t cubin_id, const char *path) {
+redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *symbol_addrs, const char *path) {
   PRINT("\nredshow->Enter redshow_cubin_register\ncubin_id: %u\npath: %s\n", cubin_id, path);
 
   redshow_result_t result;
@@ -153,6 +153,10 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, const char *path) {
   result = cubin_analyze(path, symbols, inst_graph);
 
   if (result == REDSHOW_SUCCESS) {
+    // Assign symbol address
+    for (auto &symbol : symbols) {
+      symbol.address = symbol_addrs[symbol.index];
+    }
     cubin_map_lock.lock();
     if (cubin_map.find(cubin_id) == cubin_map.end()) {
       cubin_map[cubin_id].cubin_id = cubin_id;

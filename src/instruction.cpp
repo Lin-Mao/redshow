@@ -18,8 +18,8 @@ bool parse_instructions(const std::string &file_path,
   // Read instructions
   for (auto &ptree_function : root) {
     int function_index = ptree_function.second.get<int>("index", 0); 
-    int function_address = ptree_function.second.get<int>("address", 0); 
-    symbols.emplace_back(Symbol(function_index, function_address));
+    int cubin_offset = ptree_function.second.get<int>("address", 0); 
+    symbols.emplace_back(Symbol(function_index, cubin_offset));
 
     auto &ptree_blocks = ptree_function.second.get_child("blocks");
     for (auto &ptree_block : ptree_blocks) {

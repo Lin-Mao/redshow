@@ -9,10 +9,11 @@
 
 struct Symbol {
   uint32_t index;
+  uint64_t cubin_offset;
   uint64_t address;
 
-  Symbol(uint32_t index, uint64_t address) :
-    index(index), address(address) {}
+  Symbol(uint32_t index, uint64_t cubin_offset) :
+    index(index), cubin_offset(cubin_offset) {}
 
   Symbol() {}
 
