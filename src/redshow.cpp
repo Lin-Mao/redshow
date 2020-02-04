@@ -24,6 +24,7 @@
 struct Cubin {
   uint32_t cubin_id;
   std::string path;
+  std::vector<Symbol> symbols;
   InstructionGraph inst_graph;
 
   Cubin() = default;
@@ -86,7 +87,7 @@ std::set<redshow_analysis_type_t> analysis_enabled;
 redshow_log_data_callback_func log_data_callback = NULL;
 
 
-redshow_result_t cubin_analyze(const char *path, InstructionGraph &inst_graph) {
+redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
   std::string cubin_path = std::string(path);
@@ -98,7 +99,7 @@ redshow_result_t cubin_analyze(const char *path, InstructionGraph &inst_graph) {
     // 012345678
     std::string cubin_name = cubin_path.substr(iter + 1, cubin_path.size() - iter);
     // instructions are analyzed before hpcrun
-    if (parse_instruction_graph("redshow/structs/nvidia/" + cubin_name + ".inst", inst_graph)) {
+    if (parse_instructions("redshow/structs/nvidia/" + cubin_name + ".inst", symbols, inst_graph)) {
       result = REDSHOW_SUCCESS;
     } else {
       result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
@@ -148,7 +149,8 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, const char *path) {
   redshow_result_t result;
 
   InstructionGraph inst_graph;
-  result = cubin_analyze(path, inst_graph);
+  std::vector<Symbol> symbols;
+  result = cubin_analyze(path, symbols, inst_graph);
 
   if (result == REDSHOW_SUCCESS) {
     cubin_map_lock.lock();
@@ -156,6 +158,7 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, const char *path) {
       cubin_map[cubin_id].cubin_id = cubin_id;
       cubin_map[cubin_id].path = path;
       cubin_map[cubin_id].inst_graph = inst_graph;
+      cubin_map[cubin_id].symbols = symbols;
     } else {
       result = REDSHOW_ERROR_DUPLICATE_ENTRY;
     }
@@ -227,10 +230,10 @@ redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_fu
   log_data_callback = func;
 }
 
-redshow_result_t redshow_analyze(uint32_t cubin_id, uint32_t func_index,
-  uint64_t func_addr, uint64_t kernel_id, gpu_patch_buffer_t *trace_data) {
-  PRINT("\nredshow->Enter redshow_analyze\ncubin_id: %u\nfunc_index: %u\nfunc_addr: %p\nkernel_id: %lu\ntrace_data: %p\n",
-    cubin_id, func_index, func_addr, kernel_id, trace_data);
+
+redshow_result_t redshow_analyze(uint32_t cubin_id, uint64_t kernel_id, gpu_patch_buffer_t *trace_data) {
+  PRINT("\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %lu\ntrace_data: %p\n",
+    cubin_id, kernel_id, trace_data);
 
   redshow_result_t result;
 
@@ -246,8 +249,6 @@ redshow_result_t redshow_analyze(uint32_t cubin_id, uint32_t func_index,
       // Allocate new record data
       kernel_map[kernel_id].kernel_id = kernel_id;
       kernel_map[kernel_id].cubin_id = cubin_id;
-      kernel_map[kernel_id].func_index = func_index;
-      kernel_map[kernel_id].func_addr = func_addr;
     }
     kernel_map_lock.unlock();
 

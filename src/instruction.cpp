@@ -1,17 +1,26 @@
 #include "instruction.h"
+#include "redshow.h"
+
+#include <algorithm>
+#include <vector>
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/lexical_cast.hpp>
 
 
-bool parse_instruction_graph(const std::string &file_path, InstructionGraph &inst_graph) {
+bool parse_instructions(const std::string &file_path,
+  std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
   boost::property_tree::ptree root;
 
   boost::property_tree::read_json(file_path, root);
 
   // Read instructions
   for (auto &ptree_function : root) {
+    int function_index = ptree_function.second.get<int>("index", 0); 
+    int function_address = ptree_function.second.get<int>("address", 0); 
+    symbols.emplace_back(Symbol(function_index, function_address));
+
     auto &ptree_blocks = ptree_function.second.get_child("blocks");
     for (auto &ptree_block : ptree_blocks) {
       auto &ptree_insts = ptree_block.second.get_child("insts");
@@ -45,6 +54,9 @@ bool parse_instruction_graph(const std::string &file_path, InstructionGraph &ins
       }
     }
   }
+  
+  // Sort symbols
+  std::sort(symbols.begin(), symbols.end());
 
   // Build a instruction dependency graph
   for (auto iter = inst_graph.nodes_begin(); iter != inst_graph.nodes_end(); ++iter) {
@@ -73,25 +85,27 @@ AccessType load_data_type(unsigned int pc, InstructionGraph &inst_graph) {
     if (inst.op.find("FLOAT") != std::string::npos) {
       access_type.type = AccessType::FLOAT;
     } else if (inst.op.find("INTEGER")) {
-      access_type.type = AccessType::INTEGER;
+      access_type.type = AccessType::SIGNED_INTEGER;
     } 
     // TODO(Keren): complete mufu
     //else if (inst.op.find("MUFU")) {
     //}
     else {
       // default integer
-      access_type.type = AccessType::INTEGER;
+      access_type.type = AccessType::SIGNED_INTEGER;
     }
 
     if (inst.op.find("64") != std::string::npos) {
-      access_type.vec_size = 64;
+      access_type.unit_size = 64;
     } else if (inst.op.find("32") != std::string::npos) {
-      access_type.vec_size = 32;
+      access_type.unit_size = 32;
     } else if (inst.op.find("16") != std::string::npos) {
-      access_type.vec_size = 16;
+      access_type.unit_size = 16;
+    } else if (inst.op.find("8") != std::string::npos) {
+      access_type.unit_size = 8;
     } else {
       // default 32
-      access_type.vec_size = 32;
+      access_type.unit_size = 32;
     }
   }
 
@@ -109,25 +123,27 @@ AccessType store_data_type(unsigned int pc, InstructionGraph &inst_graph) {
     if (inst.op.find("FLOAT") != std::string::npos) {
       access_type.type = AccessType::FLOAT;
     } else if (inst.op.find("INTEGER")) {
-      access_type.type = AccessType::INTEGER;
+      access_type.type = AccessType::SIGNED_INTEGER;
     } 
     // TODO(Keren): complete mufu
     //else if (inst.op.find("MUFU")) {
     //}
     else {
       // default integer
-      access_type.type = AccessType::INTEGER;
+      access_type.type = AccessType::SIGNED_INTEGER;
     }
 
     if (inst.op.find("64") != std::string::npos) {
-      access_type.vec_size = 64;
+      access_type.unit_size = 64;
     } else if (inst.op.find("32") != std::string::npos) {
-      access_type.vec_size = 32;
+      access_type.unit_size = 32;
     } else if (inst.op.find("16") != std::string::npos) {
-      access_type.vec_size = 16;
+      access_type.unit_size = 16;
+    } else if (inst.op.find("8") != std::string::npos) {
+      access_type.unit_size = 8;
     } else {
       // default 32
-      access_type.vec_size = 32;
+      access_type.unit_size = 32;
     }
   }
 

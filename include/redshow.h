@@ -59,6 +59,19 @@ EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analys
 /*
  * This function is used to register a cubin module.
  * redshow analyzes a cubin module to extract CFGs and instruction statistics.
+ *
+ * cubin_id:
+ * Unique identifier for cubins
+ *
+ * cubin_offset:
+ * hpcrun cubin offset
+ *
+ * nsymbols:
+ * Number of symbols in cubin
+ *
+ * symbols:
+ * An array of symbol start addresses in memory.
+ * Use 0 for non-function symbols
  * 
  * Thread-Safety: YES
  */
@@ -99,15 +112,11 @@ EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_cal
  * redshow_callback_func is called when the analysis is done.
  * Multi-threading is enable by `export OMP_NUM_THREADS=N.`
  *
+ * First use binary search to find an enclosed region of function addresses
+ * instruction_offset = instruction_pc - function_address
+ *
  * cubin_id:
  * Lookup correponding cubin
- *
- * func_index:
- * Symbol index in the cubin
- *
- * func_addr:
- * Function address in memory
- * instruction_pc - func_addr = instruction_pc in the cubin
  *
  * kernel_id:
  * Unique identifier for a calling context
@@ -117,7 +126,6 @@ EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_cal
  *
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_analyze(uint32_t cubin_id, uint32_t func_index,
-  uint64_t func_addr, uint64_t kernel_id, gpu_patch_buffer_t *trace_data);
+EXTERNC redshow_result_t redshow_analyze(uint32_t cubin_id, uint64_t kernel_id, gpu_patch_buffer_t *trace_data);
 
 #endif  // _RED_SHOW_H_

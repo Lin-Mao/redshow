@@ -6,6 +6,21 @@
 #include <string>
 #include <vector>
 
+
+struct Symbol {
+  uint32_t index;
+  uint64_t address;
+
+  Symbol(uint32_t index, uint64_t address) :
+    index(index), address(address) {}
+
+  Symbol() {}
+
+  bool operator < (const Symbol &other) const {
+    return this->index < other.index;
+  }
+};
+
 /*
  * A copy-paste struct from hpctoolkit
  */
@@ -88,12 +103,13 @@ class InstructionGraph {
 struct AccessType {
   enum DataType {
     UNKNOWN = 0,
-    INTEGER = 1,
-    FLOAT = 2
+    SIGNED_INTEGER = 1,
+    UNSIGNED_INTEGER = 2,
+    FLOAT = 3
   };
 
-  // 16, 32, 64
-  size_t vec_size;
+  // 8, 16, 32, 64
+  size_t unit_size;
   DataType type; 
 };
 
@@ -101,7 +117,7 @@ struct AccessType {
 /*
  * A function modified from hpctoolkit
  */
-bool parse_instruction_graph(const std::string &file_path, InstructionGraph &graph);
+bool parse_instructions(const std::string &file_path, std::vector<Symbol> &symbols, InstructionGraph &graph);
 
 AccessType load_data_type(unsigned int pc, InstructionGraph &graph);
 
