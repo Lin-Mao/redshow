@@ -85,24 +85,15 @@ public:
     int size_per_unit;
 };
 
-// double type has a precision of 53bits (about 16 decimal digits). 10^16 is bigger than INT_MAX.
-inline long long pow10(int b) {
-    long long r = 1;
-    for (int i = 0; i < b; ++i) {
-        r *= 10;
-    }
-    return r;
+
+inline _u8 store2uchar(_u64 a) {
+    return a & 0xffu;
 }
 
-// convert an hex value to float
-inline float store2float(_u64 a) {
-    _u32 c = 0;
-    c = ((a & 0xffu) << 24) | ((a & 0xff00u) << 8) | ((a & 0xff0000u) >> 8) | ((a & 0xff000000u) >> 24);
-    float b;
-//    @todo Need to fix the data width.
-    memcpy(&b, &c, sizeof(b));
-    return b;
+inline char store2char(_u64 a) {
+    return (a & 0xffu);
 }
+
 
 inline int store2int(_u64 a) {
     int c = 0;
@@ -118,18 +109,36 @@ inline _u32 store2uint(_u64 a) {
     return c;
 }
 
-inline _u8 store2uchar(_u64 a){
-    return a&0xffu;
+// convert an hex value to float. Use decimal_degree_f32 to control precision
+inline float store2float(_u64 a, int decimal_degree_f32) {
+    _u32 c = store2uint(a);
+    _u32 mask = 0xffffffff;
+    for (int i = 0; i < 23 - decimal_degree_f32; ++i) {
+        mask<<=1;
+    }
+    c &= mask;
+    float b;
+    memcpy(&b, &c, sizeof(b));
+    return b;
 }
-inline char store2char(_u64 a){
-    return (a&0xffu);
+// Mainly change the expression from big endian to little endian.
+inline _u64 store2u64(_u64 a) {
+    _u64 c = 0;
+    c = ((a & 0xffu) << 56) | ((a & 0xff00u) << 40) | ((a & 0xff0000u) << 24) | ((a & 0xff000000u) << 8) |
+        ((a & 0xff00000000u) >> 8) | ((a & 0xff0000000000u) >> 24) | ((a & 0xff000000000000u) >> 40) |
+        ((a & 0xff00000000000000u) >> 56);
+    return c;
 }
-/**@arg decimal_degree: the precision of the result should be*/
-inline std::tuple<long long, long long> float2tuple(float a, int decimal_degree) {
-    int b = int(a);
-    int c = (int) ((a - b) * pow10(decimal_degree));
-    return std::make_tuple(b, c);
+
+inline double store2double(_u64 a, int decimal_degree_f64){
+    _u64 c = store2u64(a);
+    _u64 mask = 0xffffffffffffffff;
+    for (int i = 0; i < 52 - decimal_degree_f64; ++i) {
+        mask<<=1;
+    }
+    c = c&mask;
 }
+
 
 inline bool equal_2_tuples(tuple<long long, long long, _u64> a, tuple<long long, long long> b) {
     return get<0>(a) == get<0>(b) && get<1>(a) == get<1>(b);

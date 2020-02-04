@@ -57,7 +57,7 @@ vector<tuple<_u64, int>> vars_mem_block;
 // the values' type of every array
 //vector<BasicType> vars_type;
 //@todo It's for test. We still need to figure out how to get the types of arrays
-BasicType vars_type[12] = {F32, F32, F32, F32, F32, F32, F32, F32, F32, F32, F32, F32};
+BasicType vars_type[12] = {F32, S32, F32, F32,F32,F32,F32, F32, F32, F32, F32, F32};
 //{var:{value:counter}}
 map<int, map<tuple<long long, long long>, _u64>> hr_trace_map;
 // {pc: { var:{value: counter} }}
@@ -67,8 +67,9 @@ set<_u64> pcs;
 //at this time, I use vector as the main format to store tracemap, but if we can get an input of array size, it can be changed to normal array.
 // {var:{index1,index2}}
 map<int, set<_u64 >> dc_trace_map;
-// We will ignore the digits after this index in decimal part.
-int valid_float_digits = 5;
+// We will change the bits after this index to 0. F32:23, F64:52
+int valid_float_digits = 18;
+int valid_double_digits = 40;
 
 regex line_read_re(R"(0x(.+?)\|\((.+?)\)\|\((.+?)\)\|0x(.+?)\|0x(.+)\|(.+))");
 
@@ -98,7 +99,6 @@ void filter_dead_copy() {
              << " = " << dc_it->second.size() * 1.0 / (*dc_it->second.rbegin() + 1) << endl;
     }
 }
-
 
 /** Get the memory malloc information from hpctoolkit log file. At this moment, we only consider one CPU thread.
  * And the size is the number of bytes of the memory block. @todo check the item size in arrays. e.g. double type has 8 bytes while int only have 4 bytes.
@@ -173,7 +173,7 @@ void read_input_file(const string &input_file) {
                 tuple<long long, long long> value_split;
                 switch (vars_type[belong]) {
                     case F32:
-                        value_split = float2tuple(store2float(value), valid_float_digits);
+                         value_split = float2tuple(store2float(value), valid_float_digits);
                         break;
                     case S32:
                         value_split = make_tuple(store2int(value), 0);

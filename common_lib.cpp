@@ -343,7 +343,7 @@ void show_hr_redundancy(map<int, map<tuple<long long, long long>, _u64>> &hr_tra
 
 /**e.g. a[100] belongs to array a
  * @return -1 not found
- * @return -2 find over 1 arrars it belongs
+ * @return -2 find over 1 array it belongs
  * */
 int get_cur_addr_belong(_u64 addr, vector<tuple<_u64, int>> &vars_mem_block) {
     using std::get;
