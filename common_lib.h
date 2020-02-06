@@ -48,6 +48,7 @@ using std::find_if;
 using std::make_pair;
 using std::hex;
 using std::dec;
+using std::memcpy;
 
 typedef unsigned char _u8;
 typedef unsigned int _u32;
@@ -76,67 +77,48 @@ public:
 };
 
 
-class Variable {
-public:
-    long long start_addr;
-    int size;
-    int flag;
-    std::string var_name;
-    int size_per_unit;
-};
-
-
-inline _u8 store2uchar(_u64 a) {
+inline _u64 store2uchar(_u64 a) {
     return a & 0xffu;
 }
 
-inline char store2char(_u64 a) {
-    return (a & 0xffu);
-}
 
-
-inline int store2int(_u64 a) {
-    int c = 0;
-    c = ((a & 0xffu) << 24)
-        | ((a & 0xff00u) << 8) | ((a & 0xff0000u) >> 8) | ((a & 0xff000000u) >> 24);
+inline _u64 store2uint(_u64 a) {
+    _u64 c = 0;
+    c = ((a & 0xffu) << 24u)
+        | ((a & 0xff00u) << 8u) | ((a & 0xff0000u) >> 8u) | ((a & 0xff000000u) >> 24u);
     return c;
 }
 
-inline _u32 store2uint(_u64 a) {
-    _u32 c = 0;
-    c = ((a & 0xffu) << 24)
-        | ((a & 0xff00u) << 8) | ((a & 0xff0000u) >> 8) | ((a & 0xff000000u) >> 24);
-    return c;
-}
-
-// convert an hex value to float. Use decimal_degree_f32 to control precision
-inline float store2float(_u64 a, int decimal_degree_f32) {
+// convert an hex value to float format. Use decimal_degree_f32 to control precision. We still store
+inline _u64 store2float(_u64 a, int decimal_degree_f32) {
     _u32 c = store2uint(a);
     _u32 mask = 0xffffffff;
     for (int i = 0; i < 23 - decimal_degree_f32; ++i) {
-        mask<<=1;
+        mask <<= 1u;
     }
     c &= mask;
-    float b;
-    memcpy(&b, &c, sizeof(b));
+    _u64 b = 0;
+    memcpy(&b, &c, sizeof(c));
     return b;
 }
+
 // Mainly change the expression from big endian to little endian.
 inline _u64 store2u64(_u64 a) {
     _u64 c = 0;
-    c = ((a & 0xffu) << 56) | ((a & 0xff00u) << 40) | ((a & 0xff0000u) << 24) | ((a & 0xff000000u) << 8) |
-        ((a & 0xff00000000u) >> 8) | ((a & 0xff0000000000u) >> 24) | ((a & 0xff000000000000u) >> 40) |
-        ((a & 0xff00000000000000u) >> 56);
+    c = ((a & 0xffu) << 56u) | ((a & 0xff00u) << 40u) | ((a & 0xff0000u) << 24u) | ((a & 0xff000000u) << 8u) |
+        ((a & 0xff00000000u) >> 8u) | ((a & 0xff0000000000u) >> 24u) | ((a & 0xff000000000000u) >> 40u) |
+        ((a & 0xff00000000000000u) >> 56u);
     return c;
 }
 
-inline double store2double(_u64 a, int decimal_degree_f64){
+inline _u64 store2double(_u64 a, int decimal_degree_f64) {
     _u64 c = store2u64(a);
     _u64 mask = 0xffffffffffffffff;
     for (int i = 0; i < 52 - decimal_degree_f64; ++i) {
-        mask<<=1;
+        mask <<= 1u;
     }
-    c = c&mask;
+    c = c & mask;
+    return c;
 }
 
 
@@ -153,27 +135,27 @@ void show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<in
                          map<int, map<int, _u64 >> &tra_rd_dist);
 
 //Silent load
-void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> &value,
-                         map<ThreadId, map<_u64, tuple<tuple<long long, long long>, _u64, _u64>>> &trv_map_read,
+void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value,
+                         map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> &trv_map_read,
                          long long &silent_load_num,
-                         vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &silent_load_pairs);
+                         vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &silent_load_pairs, BasicType atype);
 
 //dead store & silent store
-void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value,
-                         map<ThreadId, map<_u64, tuple<tuple<long long, long long>, _u64, _u64>>> &trv_map_write,
+void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value,
+                         map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> &trv_map_write,
                          long long &silent_write_num,
-                         vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &silent_write_pairs,
-                         map<ThreadId, map<_u64, tuple<tuple<long long, long long>, _u64, _u64>>> &trv_map_read,
+                         vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &silent_write_pairs,
+                         map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> &trv_map_read,
                          long long &dead_write_num,
-                         vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &dead_write_pairs);
+                         vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &dead_write_pairs, BasicType atype);
 
 // calculate the rates and write these pairs
 void show_trv_redundancy_rate(_u64 line_num, long long &silent_load_num,
-                              vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &silent_load_pairs,
+                              vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &silent_load_pairs,
                               long long &silent_write_num,
-                              vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &silent_write_pairs,
+                              vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &silent_write_pairs,
                               long long &dead_write_num,
-                              vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> &dead_write_pairs);
+                              vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &dead_write_pairs);
 
 // get Spatial Redundancy Address (Memory Divergence)
 void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr,
@@ -192,11 +174,95 @@ int get_cur_addr_belong(_u64 addr, vector<tuple<_u64, int>> &vars_mem_block);
 void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple<_u64, int>> &vars_mem_block,
                       map<int, set<_u64 >> &dc_trace_map);
 
-void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, tuple<long long, long long> value, int belong, set<_u64> &pcs,
-                      map<int, map<tuple<long long, long long>, _u64>> &hr_trace_map,
-                      map<_u64, map<int, map<tuple<long long, long long>, _u64 >>> &hr_trace_map_pc_dist);
+void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, int belong, set<_u64> &pcs,
+                      map<int, map<_u64, _u64>> &hr_trace_map,
+                      map<_u64, map<int, map<_u64, _u64 >>> &hr_trace_map_pc_dist);
 
-void show_hr_redundancy(map<int, map<tuple<long long, long long>, _u64>> &hr_trace_map, set<_u64> &pcs);
+void show_hr_redundancy(map<int, map<_u64, _u64>> &hr_trace_map, set<_u64> &pcs, const BasicType *vars_type);
+
+inline void output_corresponding_type_value(_u64 a, BasicType atype, ofstream &out) {
+    switch (atype) {
+        case F32:
+            float b1;
+            memcpy(&b1, &a, sizeof(b1));
+            out << b1;
+            break;
+        case F64:
+            double b2;
+            memcpy(&b2, &a, sizeof(b2));
+            out << b2;
+            break;
+        case S64:
+            long long b3;
+            memcpy(&b3, &a, sizeof(b3));
+            break;
+        case U64:
+            out << a;
+            break;
+        case S32:
+            int b4;
+            memcpy(&b4, &a, sizeof(b4));
+            out << b4;
+            break;
+        case U32:
+            _u32 b5;
+            memcpy(&b5, &a, sizeof(b5));
+            out << b5;
+            break;
+        case S8:
+            char b6;
+            memcpy(&b6, &a, sizeof(b6));
+            out << b6;
+            break;
+        case U8:
+            _u8 b7;
+            memcpy(&b7, &a, sizeof(b7));
+            out << b7;
+            break;
+    }
+}
+
+inline void output_corresponding_type_value_cout(_u64 a, BasicType atype) {
+    switch (atype) {
+        case F32:
+            float b1;
+            memcpy(&b1, &a, sizeof(b1));
+            cout << b1;
+            break;
+        case F64:
+            double b2;
+            memcpy(&b2, &a, sizeof(b2));
+            cout << b2;
+            break;
+        case S64:
+            long long b3;
+            memcpy(&b3, &a, sizeof(b3));
+            break;
+        case U64:
+            cout << a;
+            break;
+        case S32:
+            int b4;
+            memcpy(&b4, &a, sizeof(b4));
+            cout << b4;
+            break;
+        case U32:
+            _u32 b5;
+            memcpy(&b5, &a, sizeof(b5));
+            cout << b5;
+            break;
+        case S8:
+            char b6;
+            memcpy(&b6, &a, sizeof(b6));
+            cout << b6;
+            break;
+        case U8:
+            _u8 b7;
+            memcpy(&b7, &a, sizeof(b7));
+            cout << b7;
+            break;
+    }
+}
 
 #endif //CUDA_REDSHOW_COMMON_LIB
 

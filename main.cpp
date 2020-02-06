@@ -25,12 +25,12 @@ The last index variable is used to mark the offset in trace file which is used t
 If val1 is float, it's better to use two numbers to represent the value. One is the integer part and the other one in decimal part
 This map records a thread's last access.
 */
-map<ThreadId, map<_u64, tuple<tuple<long long, long long>, _u64, _u64>>> trv_map_read;
-map<ThreadId, map<_u64, tuple<tuple<long long, long long>, _u64, _u64>>> trv_map_write;
-// save every pair: <pc1, pc2, addr, value>
-vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> silent_load_pairs;
-vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> silent_write_pairs;
-vector<tuple<_u64, _u64, _u64, tuple<long long, long long>>> dead_write_pairs;
+map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> trv_map_read;
+map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> trv_map_write;
+// save every pair: <pc1, pc2, addr, value, type>
+vector<tuple<_u64, _u64, _u64, _u64, BasicType>> silent_load_pairs;
+vector<tuple<_u64, _u64, _u64, _u64, BasicType>> silent_write_pairs;
+vector<tuple<_u64, _u64, _u64, _u64, BasicType>> dead_write_pairs;
 long long silent_load_num, dead_write_num, silent_write_num;
 //Spatial Redundancy Address Global memory
 // {pc: {tid: [(index, addr), ]}}
@@ -50,18 +50,26 @@ Options options("CUDA_RedShow", "A test suit for hpctoolkit santizer");
  * We should record all arrays' init state and final state of one thread.
  * srvbs: spatial redundancy value block similarity
  * {thread: {array_i: {offset: {first_value, last_value}}}}*/
-map<ThreadId, map<int, map<int, tuple<tuple<long long, long long>, tuple<long long, long long>>>>> srv_bs_trace_map;
+map<ThreadId, map<int, map<int, long long>>> srv_bs_trace_map;
 // horizontal redundancy
 // every array's memory start addr and size
 vector<tuple<_u64, int>> vars_mem_block;
 // the values' type of every array
 //vector<BasicType> vars_type;
 //@todo It's for test. We still need to figure out how to get the types of arrays
-BasicType vars_type[12] = {F32, S32, F32, F32,F32,F32,F32, F32, F32, F32, F32, F32};
+BasicType vars_type[12] = {F32, S32, F32, F32, F32, F32, F32, F32, F32, F32, F32, F32};
+map<BasicType, int> type_length = {{F32, 4},
+                                   {F64, 8},
+                                   {S64, 8},
+                                   {U64, 8},
+                                   {S32, 4},
+                                   {U32, 4},
+                                   {S8,  1},
+                                   {U8,  1}};
 //{var:{value:counter}}
-map<int, map<tuple<long long, long long>, _u64>> hr_trace_map;
+map<int, map<_u64, _u64>> hr_trace_map;
 // {pc: { var:{value: counter} }}
-map<_u64, map<int, map<tuple<long long, long long>, _u64 >>> hr_trace_map_pc_dist;
+map<_u64, map<int, map<_u64, _u64 >>> hr_trace_map_pc_dist;
 // to get the number of pcs
 set<_u64> pcs;
 //at this time, I use vector as the main format to store tracemap, but if we can get an input of array size, it can be changed to normal array.
@@ -105,8 +113,8 @@ void filter_dead_copy() {
  * */
 void read_log_file(const string &input_file) {
     ifstream fin(input_file.c_str());
-    if(fin.fail()){
-        cout<<"Error when opening file "<<input_file<<endl;
+    if (fin.fail()) {
+        cout << "Error when opening file " << input_file << endl;
         return;
     }
     std::istreambuf_iterator<char> beg(fin), end;
@@ -130,8 +138,8 @@ void read_log_file(const string &input_file) {
 //read input file and get every line
 void read_input_file(const string &input_file) {
     ifstream fin(input_file.c_str());
-    if(fin.fail()){
-        cout<<"Error when opening file "<<input_file<<endl;
+    if (fin.fail()) {
+        cout << "Error when opening file " << input_file << endl;
         return;
     }
     string line;
@@ -144,7 +152,7 @@ void read_input_file(const string &input_file) {
             cout << "This line can't match the regex:\t" << line << endl;
             continue;
         }
-        _u64 pc, addr, value;
+        _u64 pc, addr, value_hex;
         int access_type;
         pc = stoull(sm[1], 0, 16);
         addr = stoull(sm[4], 0, 16);
@@ -164,62 +172,65 @@ void read_input_file(const string &input_file) {
                 cout << "addr " << hex << addr << dec << " found over 1 array it belongs to" << endl;
                 break;
             default:
-//                @todo vectorized access
-                if (sm[5].length() > 8) {
-                    value = stoull(sm[5].str().substr(0, 8), 0, 1 - 6);
-                } else {
-                    value = stoull(sm[5], 0, 16);
-                }
-                tuple<long long, long long> value_split;
-                switch (vars_type[belong]) {
-                    case F32:
-                         value_split = float2tuple(store2float(value), valid_float_digits);
-                        break;
-                    case S32:
-                        value_split = make_tuple(store2int(value), 0);
-                        break;
-                    case F64:
-                        break;
-                    case S64:
-                        break;
-                    case U64:
-                        break;
-                    case U32:
-                        value_split = make_tuple(store2uint(value), 0);
-                        break;
-                    case S8:
-                        if (sm[5].length() > 2) {
-                            cout << "a 8-bit value is more than 8-bit\t" << hex << sm[5] << dec;
-                        }
-                        value_split = make_tuple(store2char(value), 0);
-                        break;
-                    case U8:
-                        if (sm[5].length() > 2) {
-                            cout << "a unsigned 8-bit value is more than 8-bit\t" << hex << sm[5] << dec;
-                        }
-                        value_split = make_tuple(store2uchar(value), 0);
-                        break;
-                }
-                access_type = stoi(sm[6], 0, 16);
+////                @todo vectorized access
+//                if (sm[5].length() > 8) {
+//                    value_hex = stoull(sm[5].str().substr(0, 8), 0, 1 - 6);
+//                } else {
+//                    value_hex = stoull(sm[5], 0, 16);
+//                }
+//                Should I check the divisibility of sm5.length?
+                int t_len = type_length[vars_type[belong]];
+                for (int i = 0; i < sm[5].str().length() / t_len; ++i) {
+//                    @todo check the stoull's 2th argument
+                    int left_index = i * t_len;
+                    int right_index = i * t_len + t_len - 1;
+                    value_hex = stoull(sm[5].str().substr(left_index, right_index), nullptr, 16);
+                    _u64 value = INT64_MAX;
+                    switch (vars_type[belong]) {
+                        case F32:
+                            value = store2float(value_hex, valid_float_digits);
+                            break;
+                        case S32:
+                        case U32:
+                            value = store2uint(value_hex);
+                            break;
+                        case F64:
+                            value = store2double(value_hex, valid_double_digits);
+                            break;
+                        case S64:
+                        case U64:
+                            value = store2u64(value_hex);
+                            break;
+                        case S8:
+                        case U8:
+                            value = store2uchar(value_hex);
+                            break;
+                        default:
+                            cout << "Error: There is some string can not be parsed." << line << endl;
+                    }
 
-                get_tra_trace_map(tid, addr, access_type, belong, tra_list, tra_trace_map, tra_rd_dist);
-                if (access_type == MEM_READ) {
-                    get_trv_r_trace_map(index, pc, tid, addr, value_split, trv_map_read, silent_load_num,
-                                        silent_load_pairs);
-                } else {
-                    get_trv_w_trace_map(index, pc, tid, addr, value_split, trv_map_write,
-                                        silent_write_num, silent_write_pairs,
-                                        trv_map_read, dead_write_num, dead_write_pairs);
-                }
-                get_srag_trace_map(index, pc, tid, addr, srag_trace_map);
-//            get_srag_trace_map_test(index, pc, tid, addr, value);
-//            get_srv_trace_map(pc, tid, addr, value);
+                    access_type = stoi(sm[6], 0, 16);
+
+                    get_tra_trace_map(tid, addr, access_type, belong, tra_list, tra_trace_map, tra_rd_dist);
+                    if (access_type == MEM_READ) {
+                        get_trv_r_trace_map(index, pc, tid, addr, value, trv_map_read, silent_load_num,
+                                            silent_load_pairs, vars_type[belong]);
+                    } else {
+                        get_trv_w_trace_map(index, pc, tid, addr, value, trv_map_write,
+                                            silent_write_num, silent_write_pairs,
+                                            trv_map_read, dead_write_num, dead_write_pairs, vars_type[belong]);
+                    }
+                    get_srag_trace_map(index, pc, tid, addr, srag_trace_map);
+//            get_srag_trace_map_test(index, pc, tid, addr, value_hex);
+//            get_srv_trace_map(pc, tid, addr, value_hex);
 //                    get_vr_trace_map(pc, tid, addr, value_split, vars_type[belong]);
-                get_hr_trace_map(pc, tid, addr, value_split, belong, pcs, hr_trace_map, hr_trace_map_pc_dist);
-//                get_dc_trace_map(pc, tid, addr, value);
+                    get_hr_trace_map(pc, tid, addr, value, belong, pcs, hr_trace_map, hr_trace_map_pc_dist);
+//                get_dc_trace_map(pc, tid, addr, value_hex);
+                    index++;
+                }
 
         }
-        index++;
+
 
     }
     show_tra_redundancy(index, threadid_max, tra_trace_map, tra_rd_dist);
@@ -229,7 +240,7 @@ void read_input_file(const string &input_file) {
     show_srag_redundancy(srag_trace_map, threadid_max, srag_distribution);
 //    calc_vr_redundancy_rate(index);
 //    filter_dead_copy();
-    show_hr_redundancy(hr_trace_map, pcs);
+    show_hr_redundancy(hr_trace_map, pcs, vars_type);
 }
 
 int main(int argc, char *argv[]) {
