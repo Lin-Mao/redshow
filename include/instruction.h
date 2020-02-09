@@ -4,6 +4,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <sstream>
 #include <vector>
 
 
@@ -22,6 +23,41 @@ struct Symbol {
   }
 };
 
+
+struct AccessType {
+  enum DataType {
+    UNKNOWN = 0,
+    INTEGER = 1,
+    FLOAT = 2
+  };
+
+  // 32, 64, 128
+  uint32_t vec_size;
+  // 8, 16, 32, 64
+  uint32_t unit_size;
+  DataType type; 
+
+  AccessType(uint32_t unit_size, uint32_t vec_size, DataType type) :
+    unit_size(unit_size), vec_size(vec_size), type(type) {}
+
+  AccessType() : AccessType(0, 0, UNKNOWN) {} 
+
+  std::string to_string() {
+    std::stringstream ss;
+    ss << "{";
+    if (type == UNKNOWN) {
+      ss << "UNKNOWN";
+    } else if (type == INTEGER) {
+      ss << "INTEGER";
+    } else if (type == FLOAT) {
+      ss << "FLOAT";
+    }
+    ss << ", v: " << vec_size;
+    ss << ", u: " << unit_size << "}";
+    return ss.str();
+  }
+};
+
 /*
  * A copy-paste struct from hpctoolkit
  */
@@ -33,21 +69,25 @@ struct Instruction {
   std::vector<int> dsts;  // R0-R255: only records normal registers
   std::vector<int> srcs;  // R0-R255, only records normal registers
   std::map<int, std::vector<int> > assign_pcs;
+  mutable AccessType *access_type;
 
   Instruction(const std::string &op, unsigned int pc, int predicate,
     std::vector<int> &dsts, std::vector<int> &srcs,
     std::map<int, std::vector<int> > &assign_pcs) :
     op(op), pc(pc), predicate(predicate),
-    dsts(dsts), srcs(srcs), assign_pcs(assign_pcs) {}
+    dsts(dsts), srcs(srcs), assign_pcs(assign_pcs),
+    access_type(NULL) {}
 
-  Instruction() {}
+  Instruction() : access_type(NULL) {}
 
   bool operator < (const Instruction &other) const {
     return this->pc < other.pc;
   }
 
-  bool operator == (const Instruction &other) const {
-    return this->pc == other.pc;
+  ~Instruction() {
+    if (access_type) {
+      delete access_type;
+    }
   }
 };
 
@@ -98,20 +138,6 @@ class InstructionGraph {
   NeighborNodeMap _incoming_nodes;
   NeighborNodeMap _outgoing_nodes;
   NodeMap _nodes;
-};
-
-
-struct AccessType {
-  enum DataType {
-    UNKNOWN = 0,
-    SIGNED_INTEGER = 1,
-    UNSIGNED_INTEGER = 2,
-    FLOAT = 3
-  };
-
-  // 8, 16, 32, 64
-  size_t unit_size;
-  DataType type; 
 };
 
 

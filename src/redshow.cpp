@@ -9,8 +9,6 @@
 
 #include <cstdlib>
 
-#define DEBUG 1
-
 #ifdef DEBUG
 #define PRINT(...) fprintf(stderr, __VA_ARGS__)
 #else
