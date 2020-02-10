@@ -10,8 +10,7 @@
 #endif
 
 typedef enum {
-  REDSHOW_REUSE_END = 0,
-  REDSHOW_REUSE_DISTANCE = 1
+  REDSHOW_REUSE_DISTANCE = 0
 } redshow_analysis_type_t;
 
 typedef enum {
@@ -75,7 +74,7 @@ EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analys
  * 
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *symbol_addrs, const char *path);
+EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *symbol_pcs, const char *path);
 
 /*
  * This function is used to unregister a module.

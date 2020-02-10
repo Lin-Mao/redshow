@@ -12,15 +12,20 @@
 struct Symbol {
   uint32_t index;
   uint64_t cubin_offset;
-  uint64_t address;
+  uint64_t pc;
+
+  Symbol(uint32_t index, uint64_t cubin_offset, uint64_t pc) :
+    index(index), cubin_offset(cubin_offset), pc(pc) {}
 
   Symbol(uint32_t index, uint64_t cubin_offset) :
-    index(index), cubin_offset(cubin_offset) {}
+    Symbol(index, cubin_offset, 0) {}
 
-  Symbol() {}
+  Symbol(uint64_t pc) : Symbol(0, 0, pc) {}
+
+  Symbol() : Symbol(0, 0, 0) {}
 
   bool operator < (const Symbol &other) const {
-    return this->index < other.index;
+    return this->pc > other.pc;
   }
 };
 

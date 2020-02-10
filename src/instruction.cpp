@@ -29,13 +29,13 @@ bool parse_instructions(const std::string &file_path,
   for (auto &ptree_function : root) {
     int function_index = ptree_function.second.get<int>("index", 0); 
     int cubin_offset = ptree_function.second.get<int>("address", 0); 
-    symbols.emplace_back(Symbol(function_index, cubin_offset));
+    symbols[function_index] = Symbol(function_index, cubin_offset);
 
     auto &ptree_blocks = ptree_function.second.get_child("blocks");
     for (auto &ptree_block : ptree_blocks) {
       auto &ptree_insts = ptree_block.second.get_child("insts");
       for (auto &ptree_inst : ptree_insts) {
-        int pc = ptree_inst.second.get<int>("pc", 0);
+        int pc = ptree_inst.second.get<int>("pc", 0) + cubin_offset;
         std::string op = ptree_inst.second.get<std::string>("op", "");
         int pred = ptree_inst.second.get<int>("pred", -1);
 
@@ -54,7 +54,8 @@ bool parse_instructions(const std::string &file_path,
           srcs.push_back(src);
           auto &ptree_assign_pcs = ptree_src.second.get_child("assign_pcs");
           for (auto &ptree_assign_pc : ptree_assign_pcs) {
-            int assign_pc = boost::lexical_cast<int>(ptree_assign_pc.second.data());
+            int assign_pc = boost::lexical_cast<int>(ptree_assign_pc.second.data())
+              + cubin_offset;
             assign_pcs[src].push_back(assign_pc);
           }   
         }  
@@ -64,9 +65,6 @@ bool parse_instructions(const std::string &file_path,
       }
     }
   }
-  
-  // Sort symbols
-  std::sort(symbols.begin(), symbols.end());
 
   // Build a instruction dependency graph
   for (auto iter = inst_graph.nodes_begin(); iter != inst_graph.nodes_end(); ++iter) {

@@ -1,9 +1,10 @@
 #include <redshow.h>
 #include <instruction.h>
 
+#include <algorithm>
+#include <limits>
 #include <mutex>
 #include <map>
-#include <set>
 #include <string>
 #include <iostream>
 
@@ -112,8 +113,59 @@ redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, I
 }
 
 
-redshow_result_t trace_analyze(gpu_patch_buffer_t *trace_data) {
-  return REDSHOW_SUCCESS;
+redshow_result_t trace_analyze(uint32_t cubin_id, gpu_patch_buffer_t *trace_data) {
+  redshow_result_t result = REDSHOW_SUCCESS;
+  
+  std::vector<Symbol> *symbols = NULL;
+  InstructionGraph *inst_graph = NULL; 
+  
+  cubin_map_lock.lock();
+  if (cubin_map.find(cubin_id) == cubin_map.end()) {
+    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+  } else {
+    symbols = &(cubin_map[cubin_id].symbols);
+    inst_graph = &(cubin_map[cubin_id].inst_graph);
+  }
+  cubin_map_lock.unlock();
+
+  if (result == REDSHOW_SUCCESS) {
+#ifdef DEBUG
+    // An example to demonstrate how we get information from trace
+    size_t size = trace_data->tail_index;
+    gpu_patch_record_t *records = reinterpret_cast<gpu_patch_record_t *>(trace_data->records);
+
+    for (size_t i = 0; i < size; ++i) {
+      // Iterate over each record
+      gpu_patch_record_t *record = records + i;
+      Symbol symbol(record->pc);
+     
+      auto iter = std::upper_bound(symbols->begin(), symbols->end(), symbol);
+
+      if (iter != symbols->end()) {
+        auto pc_offset = record->pc - iter->pc;
+
+        if (record->flags & GPU_PATCH_BLOCK_ENTER_FLAG) {
+          std::cout << "Enter block: " << record->flat_block_id << std::endl;
+        } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
+          std::cout << "EXIT block: " << record->flat_block_id << std::endl;
+        } else {
+          auto &inst = inst_graph->node(pc_offset + iter->cubin_offset);
+          std::cout << "Instruction: 0x" << std::hex << pc_offset << std::dec <<
+            " " << inst.op << std::endl;
+
+          for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+            if (record->active & (0x1 << j)) {
+              std::cout << "Address: 0x" << std::hex << record->address[j] << std::dec << std::endl;
+              std::cout << "Value: " << record->value[j] << std::endl;
+            }
+          }
+        }
+      }
+    }
+#endif
+  }
+
+  return result;
 }
 
 /*
@@ -145,20 +197,32 @@ redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type)
 }
 
 
-redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *symbol_addrs, const char *path) {
+redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *symbol_pcs, const char *path) {
   PRINT("\nredshow->Enter redshow_cubin_register\ncubin_id: %u\npath: %s\n", cubin_id, path);
 
   redshow_result_t result;
 
   InstructionGraph inst_graph;
-  std::vector<Symbol> symbols;
+  std::vector<Symbol> symbols(nsymbols);
   result = cubin_analyze(path, symbols, inst_graph);
 
   if (result == REDSHOW_SUCCESS) {
-    // Assign symbol address
+    // Assign symbol pc
     for (auto &symbol : symbols) {
-      symbol.address = symbol_addrs[symbol.index];
+      symbol.pc = symbol_pcs[symbol.index];
     }
+
+    // Sort symbols by pc
+    std::sort(symbols.begin(), symbols.end());
+
+#ifdef DEBUG
+    for (auto &symbol : symbols) {
+      std::cout << "Symbol index: " << symbol.index << std::endl;
+      std::cout << "Symbol cubin offset: 0x" << std::hex << symbol.cubin_offset << std::dec << std::endl;
+      std::cout << "Symbol pc: 0x" << std::hex << symbol.pc << std::dec << std::endl;
+    }
+#endif
+
     cubin_map_lock.lock();
     if (cubin_map.find(cubin_id) == cubin_map.end()) {
       cubin_map[cubin_id].cubin_id = cubin_id;
@@ -238,13 +302,13 @@ redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_fu
 
 
 redshow_result_t redshow_analyze(uint32_t cubin_id, uint64_t kernel_id, gpu_patch_buffer_t *trace_data) {
-  PRINT("\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %lu\ntrace_data: %p\n",
+  PRINT("\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %p\ntrace_data: %p\n",
     cubin_id, kernel_id, trace_data);
 
   redshow_result_t result;
 
   // Analyze trace_data
-  result = trace_analyze(trace_data);
+  result = trace_analyze(cubin_id, trace_data);
 
   if (result == REDSHOW_SUCCESS) {
     // Store trace_data
