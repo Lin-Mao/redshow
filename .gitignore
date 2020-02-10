@@ -142,3 +142,6 @@ Module.symvers
 Mkfile.old
 dkms.conf
 .idea/*
+
+# Main binary
+main

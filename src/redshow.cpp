@@ -31,8 +31,8 @@ struct Cubin {
         cubin_id(cubin_id), path(path_), inst_graph(inst_graph) {}
 };
 
-std::map<uint32_t, Cubin> cubin_map;
-std::mutex cubin_map_lock;
+static std::map<uint32_t, Cubin> cubin_map;
+static std::mutex cubin_map_lock;
 
 
 struct MemoryRange {
@@ -62,8 +62,8 @@ struct Memory {
     memory_range(memory_range), memory_id(memory_id) {}
 };
 
-std::map<MemoryRange, Memory> memory_map;
-std::mutex memory_map_lock;
+static std::map<MemoryRange, Memory> memory_map;
+static std::mutex memory_map_lock;
 
 
 struct Kernel {
@@ -77,12 +77,12 @@ struct Kernel {
     kernel_id(kernel_id), cubin_id(cubin_id), func_index(func_index), func_addr(func_addr) {}
 };
 
-std::map<uint64_t, Kernel> kernel_map;
-std::mutex kernel_map_lock;
+static std::map<uint64_t, Kernel> kernel_map;
+static std::mutex kernel_map_lock;
 
-std::set<redshow_analysis_type_t> analysis_enabled;
+static std::set<redshow_analysis_type_t> analysis_enabled;
 
-redshow_log_data_callback_func log_data_callback = NULL;
+static redshow_log_data_callback_func log_data_callback = NULL;
 
 
 redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
