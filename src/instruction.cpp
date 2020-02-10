@@ -91,23 +91,23 @@ bool parse_instructions(const std::string &file_path,
     }
   }
 
-  if (DEBUG) {
-    for (auto iter = inst_graph.nodes_begin(); iter != inst_graph.nodes_end(); ++iter) {
-      auto &inst = iter->second;
-      
-      AccessType access_type;
-      if (inst.op.find(".STORE") != std::string::npos) {
-        access_type = store_data_type(inst.pc, inst_graph);
-      } else if (inst.op.find(".LOAD") != std::string::npos) {
-        access_type = load_data_type(inst.pc, inst_graph);
-      } else {
-        continue;
-      }
+#ifdef DEBUG
+  for (auto iter = inst_graph.nodes_begin(); iter != inst_graph.nodes_end(); ++iter) {
+    auto &inst = iter->second;
 
-      std::cout << "0x" << std::hex << inst.pc << " " << inst.op << " " <<
-        std::dec << ": " << access_type.to_string() << std::endl;
+    AccessType access_type;
+    if (inst.op.find(".STORE") != std::string::npos) {
+      access_type = store_data_type(inst.pc, inst_graph);
+    } else if (inst.op.find(".LOAD") != std::string::npos) {
+      access_type = load_data_type(inst.pc, inst_graph);
+    } else {
+      continue;
     }
+
+    std::cout << "0x" << std::hex << inst.pc << " " << inst.op << " " <<
+      std::dec << ": " << access_type.to_string() << std::endl;
   }
+#endif
 
   return true;
 }
@@ -174,13 +174,13 @@ AccessType load_data_type(unsigned int pc, InstructionGraph &inst_graph) {
 
   assert(inst.op.find(".LOAD") != std::string::npos);
 
-  if (inst.access_type != NULL) {
+  if (inst.access_type.get() != NULL) {
     // If access type is cached
-    return *inst.access_type;
+    return *(inst.access_type);
   }
 
   // If access type is undetermined, allocate one
-  inst.access_type = new AccessType();
+  inst.access_type = std::make_shared<AccessType>();
 
   auto &outgoing_nodes = inst_graph.outgoing_nodes(pc);
 
@@ -196,13 +196,13 @@ AccessType store_data_type(unsigned int pc, InstructionGraph &inst_graph) {
 
   assert(inst.op.find(".STORE") != std::string::npos);
 
-  if (inst.access_type != NULL) {
+  if (inst.access_type.get() != NULL) {
     // If access type is cached
-    return *inst.access_type;
+    return *(inst.access_type);
   }
 
   // If access type is undetermined, allocate one
-  inst.access_type = new AccessType();
+  inst.access_type = std::make_shared<AccessType>();
 
   auto &incoming_nodes = inst_graph.incoming_nodes(pc);
 

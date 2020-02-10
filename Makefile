@@ -1,36 +1,42 @@
 PROJECT := redshow
+CONFIGS := Makefile.config
+
+include $(CONFIGS)
 
 .PHONY: clean all objects install
 
 CC := g++
 
-GPU_PATCH_DIR := /home/kz21/Codes/hpctoolkit-gpu-patch/include
-
 LIB_DIR := lib/
 INC_DIR := include/
 BUILD_DIR := build/
+CUR_DIR = $(shell pwd)/
 
 LIB := $(LIB_DIR)lib$(PROJECT).so
 
 ifdef DEBUG
 OFLAGS += -g -DDEBUG
+else
+OFLAGS += -O2
 endif
 
 CFLAGS := -fPIC -std=c++11 $(OFLAGS)
-LDFLAGS := -shared -static-libstdc++
+LDFLAGS := -fPIC -shared -static-libstdc++
 SRCS := $(shell find src -maxdepth 3 -name "*.cpp")
 OBJECTS := $(addprefix $(BUILD_DIR), $(patsubst %.cpp, %.o, $(SRCS)))
 OBJECTS_DIR := $(sort $(addprefix $(BUILD_DIR), $(dir $(SRCS))))
+BINS := main
 
-all: dirs objects lib
+all: dirs objects lib bins
 
 ifdef PREFIX
 install: all
 endif
 
-dirs: $(OBJECTS_DIR) $(LIB_DIR) $(BIN_DIR)
+dirs: $(OBJECTS_DIR) $(LIB_DIR)
 objects: $(OBJECTS)
 lib: $(LIB)
+bins: $(BINS)
 
 $(OBJECTS_DIR):
 	mkdir -p $@
@@ -38,16 +44,20 @@ $(OBJECTS_DIR):
 $(LIB_DIR):
 	mkdir -p $@
 
+$(BINS): % : %.cpp $(OBJECTS)
+	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ $^
+
 $(LIB): $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $^ 
 
 $(OBJECTS): $(BUILD_DIR)%.o : %.cpp
-	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(GPU_PATCH_DIR) -o $@ -c $<
+	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(GPU_PATCH_DIR)include -o $@ -c $<
 
 clean:
-	-rm -rf $(BUILD_DIR) $(LIB_DIR)
+	-rm -rf $(BUILD_DIR) $(LIB_DIR) $(BINS)
 
 ifdef PREFIX
+# Do not install main binary
 install:
 	mkdir -p $(PREFIX)/$(LIB_DIR)
 	mkdir -p $(PREFIX)/$(INC_DIR)

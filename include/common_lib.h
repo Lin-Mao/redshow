@@ -2,8 +2,8 @@
 // Created by find on 19-7-1.
 //
 
-#ifndef CUDA_REDSHOW_COMMON_LIB
-#define CUDA_REDSHOW_COMMON_LIB
+#ifndef REDSHOW_COMMON_LIB_H
+#define REDSHOW_COMMON_LIB_H
 
 #include <string>
 #include <regex>
@@ -264,6 +264,6 @@ inline void output_corresponding_type_value_cout(_u64 a, BasicType atype) {
     }
 }
 
-#endif //CUDA_REDSHOW_COMMON_LIB
+#endif  // REDSHOW_COMMON_LIB_H
 
 

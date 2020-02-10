@@ -1,7 +1,8 @@
-#ifndef _INSTRUCTION_H_
-#define _INSTRUCTION_H_
+#ifndef REDSHOW_INSTRUCTION_H
+#define REDSHOW_INSTRUCTION_H
 
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <sstream>
@@ -69,7 +70,7 @@ struct Instruction {
   std::vector<int> dsts;  // R0-R255: only records normal registers
   std::vector<int> srcs;  // R0-R255, only records normal registers
   std::map<int, std::vector<int> > assign_pcs;
-  mutable AccessType *access_type;
+  std::shared_ptr<AccessType> access_type;
 
   Instruction(const std::string &op, unsigned int pc, int predicate,
     std::vector<int> &dsts, std::vector<int> &srcs,
@@ -82,12 +83,6 @@ struct Instruction {
 
   bool operator < (const Instruction &other) const {
     return this->pc < other.pc;
-  }
-
-  ~Instruction() {
-    if (access_type) {
-      delete access_type;
-    }
   }
 };
 
@@ -150,4 +145,4 @@ AccessType load_data_type(unsigned int pc, InstructionGraph &graph);
 
 AccessType store_data_type(unsigned int pc, InstructionGraph &graph);
 
-#endif  // _INSTRUCTION_H_
+#endif  // REDSHOW_INSTRUCTION_H

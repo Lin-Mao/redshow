@@ -1,5 +1,5 @@
-#ifndef _RED_SHOW_H_
-#define _RED_SHOW_H_
+#ifndef REDSHOW_H
+#define REDSHOW_H
 
 #include <gpu-patch.h>
 
@@ -128,4 +128,4 @@ EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_cal
  */
 EXTERNC redshow_result_t redshow_analyze(uint32_t cubin_id, uint64_t kernel_id, gpu_patch_buffer_t *trace_data);
 
-#endif  // _RED_SHOW_H_
+#endif  // REDSHOW_H

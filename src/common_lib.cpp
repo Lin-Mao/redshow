@@ -4,10 +4,6 @@
 
 #include "common_lib.h"
 
-
-regex tid_re(R"((\d+),(\d+),(\d+))");
-
-
 /**This function can calculate the reuse distance of every addr.
  * @arg acc_type : If the operation of this addr is write, the current reuse distance counter of this addr will be clear. 1 is read and 2 is write
  * @arg belong : It is the index of the array current addr belonging to.
@@ -429,6 +425,8 @@ ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max) {
 ThreadId transform_tid(string s_bid, string s_tid) {
 // This function will transform the raw string of bid and tid to struct ThreadId
 // @arg s_bid: (2,0,0): (bx,by,bz)
+  regex tid_re(R"((\d+),(\d+),(\d+))");
+
     ThreadId tid = {-1, -1, -1, -1, -1, -1};
     smatch sm;
     regex_match(s_bid, sm, tid_re);

@@ -22,8 +22,8 @@ THE SOFTWARE.
 
 */
 
-#ifndef CXXOPTS_HPP_INCLUDED
-#define CXXOPTS_HPP_INCLUDED
+#ifndef REDSHOW_CXXOPTS_HPP
+#define REDSHOW_CXXOPTS_HPP
 
 #include <cstring>
 #include <cctype>
@@ -2101,4 +2101,4 @@ Options::group_help(const std::string& group) const
 
 }
 
-#endif //CXXOPTS_HPP_INCLUDED
+#endif  // REDSHOW_CXXOPTS_HPP
