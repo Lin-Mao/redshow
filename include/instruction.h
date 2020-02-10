@@ -32,7 +32,7 @@ struct AccessType {
     FLOAT = 2
   };
 
-  // 32, 64, 128
+  // 8, 16, 32, 64, 128
   uint32_t vec_size;
   // 8, 16, 32, 64
   uint32_t unit_size;

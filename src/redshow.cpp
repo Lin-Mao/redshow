@@ -96,8 +96,12 @@ redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, I
     // x/x.cubin
     // 012345678
     std::string cubin_name = cubin_path.substr(iter + 1, cubin_path.size() - iter);
+    // x/cubins/x.cubin
+    iter = cubin_path.rfind("/", iter - 1);
+    std::string dir_name = cubin_path.substr(0, iter);
+    std::cout << dir_name << std::endl;
     // instructions are analyzed before hpcrun
-    if (parse_instructions("redshow/structs/nvidia/" + cubin_name + ".inst", symbols, inst_graph)) {
+    if (parse_instructions(dir_name + "/structs/nvidia/" + cubin_name + ".inst", symbols, inst_graph)) {
       result = REDSHOW_SUCCESS;
     } else {
       result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
