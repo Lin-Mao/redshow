@@ -155,8 +155,13 @@ redshow_result_t trace_analyze(uint32_t cubin_id, gpu_patch_buffer_t *trace_data
 
           for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
             if (record->active & (0x1 << j)) {
-              std::cout << "Address: 0x" << std::hex << record->address[j] << std::dec << std::endl;
-              std::cout << "Value: " << record->value[j] << std::endl;
+              std::cout << "Address: 0x" << std::hex << record->address[j] << std::endl;
+              std::cout << "Value: 0x";
+              for (size_t k = 0; k < GPU_PATCH_MAX_ACCESS_SIZE; ++k) {
+                unsigned int c = record->value[j][k];
+                std::cout << c;
+              }
+              std::cout << std::endl;
             }
           }
         }
