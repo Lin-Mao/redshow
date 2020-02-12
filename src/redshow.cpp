@@ -16,6 +16,8 @@
 #define PRINT(...)
 #endif
 
+#define MIN2(x, y) (x > y ? y : x)
+
 /*
  * Global data structures
  */
@@ -44,13 +46,7 @@ struct MemoryRange {
   MemoryRange(uint64_t start, uint64_t end) : start(start), end(end) {}
 
   bool operator < (const MemoryRange &other) const {
-    if (start < other.start) {
-      return true;
-    } else if (start > other.start) {
-      return false;
-    } else {
-      return end < other.end;
-    } 
+    return start < other.start;
   }
 };
 
@@ -63,8 +59,9 @@ struct Memory {
     memory_range(memory_range), memory_id(memory_id) {}
 };
 
-static std::map<MemoryRange, Memory> memory_map;
-static std::mutex memory_map_lock;
+typedef std::map<MemoryRange, Memory> MemoryMap;
+static std::map<uint64_t, MemoryMap> memory_snapshot;
+static std::mutex memory_snapshot_lock;
 
 
 struct Kernel {
@@ -85,6 +82,7 @@ static std::set<redshow_analysis_type_t> analysis_enabled;
 
 static redshow_log_data_callback_func log_data_callback = NULL;
 
+static __thread uint64_t mini_host_op_id = 0;
 
 redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -113,7 +111,7 @@ redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, I
 }
 
 
-redshow_result_t trace_analyze(uint32_t cubin_id, gpu_patch_buffer_t *trace_data) {
+redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
   
   std::vector<Symbol> *symbols = NULL;
@@ -128,6 +126,19 @@ redshow_result_t trace_analyze(uint32_t cubin_id, gpu_patch_buffer_t *trace_data
   }
   cubin_map_lock.unlock();
 
+  MemoryMap *memory_map = NULL;
+
+  memory_snapshot_lock.lock();
+  auto snapshot_iter = memory_snapshot.upper_bound(host_op_id);
+  if (snapshot_iter == memory_snapshot.begin()) {
+    std::cout << "here1" << std::endl;
+    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+  } else {
+    --snapshot_iter;
+    memory_map = &(snapshot_iter->second);
+  }
+  memory_snapshot_lock.unlock();
+
   if (result == REDSHOW_SUCCESS) {
 #ifdef DEBUG
     // An example to demonstrate how we get information from trace
@@ -139,32 +150,52 @@ redshow_result_t trace_analyze(uint32_t cubin_id, gpu_patch_buffer_t *trace_data
       gpu_patch_record_t *record = records + i;
       Symbol symbol(record->pc);
      
-      auto iter = std::upper_bound(symbols->begin(), symbols->end(), symbol);
+      auto symbols_iter = std::upper_bound(symbols->begin(), symbols->end(), symbol);
 
-      if (iter != symbols->end()) {
-        auto pc_offset = record->pc - iter->pc;
+      if (symbols_iter != symbols->begin()) {
+        --symbols_iter;
+        auto pc_offset = record->pc - symbols_iter->pc;
 
         if (record->flags & GPU_PATCH_BLOCK_ENTER_FLAG) {
           std::cout << "Enter block: " << record->flat_block_id << std::endl;
         } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
           std::cout << "EXIT block: " << record->flat_block_id << std::endl;
         } else {
-          auto &inst = inst_graph->node(pc_offset + iter->cubin_offset);
+          auto &inst = inst_graph->node(pc_offset + symbols_iter->cubin_offset);
           std::cout << "Instruction: 0x" << std::hex << pc_offset << std::dec <<
             " " << inst.op << std::endl;
 
-          for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
-            if (record->active & (0x1 << j)) {
-              std::cout << "Address: 0x" << std::hex << record->address[j] << std::endl;
-              std::cout << "Value: 0x";
-              for (size_t k = 0; k < GPU_PATCH_MAX_ACCESS_SIZE; ++k) {
-                unsigned int c = record->value[j][k];
-                std::cout << c;
+          AccessType access_type;
+          if (record->flags & GPU_PATCH_READ) {
+            access_type = load_data_type(inst.pc, *inst_graph);
+          } else if (record->flags & GPU_PATCH_WRITE) {
+            access_type = store_data_type(inst.pc, *inst_graph);
+          }
+
+          if (access_type.type != AccessType::UNKNOWN) {
+            std::cout << "Access type: " << access_type.to_string() << std::endl;
+
+            for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+              if (record->active & (0x1 << j)) {
+                std::cout << "Address: 0x" << std::hex << record->address[j] << std::dec << std::endl;
+                MemoryRange memory_range(record->address[j], record->address[j]);
+                auto iter = memory_map->upper_bound(memory_range);
+                if (iter != memory_map->begin()) {
+                  --iter;
+                  std::cout << "Memory ID: " << iter->second.memory_id << std::endl;
+                }
+                std::cout << "Value: 0x" << std::hex;
+                for (size_t k = 0; k < GPU_PATCH_MAX_ACCESS_SIZE; ++k) {
+                  unsigned int c = record->value[j][k];
+                  std::cout << c;
+                }
+                std::cout << std::dec << std::endl;
               }
-              std::cout << std::endl;
             }
           }
         }
+      } else {
+        std::cout << "PC: 0x" << std::hex << record->pc << " not found" << std::endl;
       }
     }
 #endif
@@ -262,40 +293,66 @@ redshow_result_t redshow_cubin_unregister(uint32_t cubin_id) {
 }
 
 
-redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t memory_id) {
+redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t host_op_id, uint64_t memory_id) {
   PRINT("\nredshow->Enter redshow_memory_register\nstart: %p\nend: %p\nmemory_id: %lu\n", start, end, memory_id);
 
   redshow_result_t result;
+  MemoryMap memory_map;
   MemoryRange memory_range(start, end);
 
-  memory_map_lock.lock();
-  if (memory_map.find(memory_range) == memory_map.end()) {
+  memory_snapshot_lock.lock();
+  auto iter = memory_snapshot.lower_bound(host_op_id);
+  if (iter != memory_snapshot.begin()) {
+    --iter;
+    // Take a snapshot
+    memory_map = iter->second;
+    if (memory_map.find(memory_range) == memory_map.end()) {
+      memory_map[memory_range].memory_range = memory_range;
+      memory_map[memory_range].memory_id = memory_id;
+      memory_snapshot[host_op_id] = memory_map;
+      result = REDSHOW_SUCCESS;
+    } else {
+      result = REDSHOW_ERROR_DUPLICATE_ENTRY;
+    }
+  } else if (memory_snapshot.size() == 0) {
+    // First snapshot
     memory_map[memory_range].memory_range = memory_range;
     memory_map[memory_range].memory_id = memory_id;
+    memory_snapshot[host_op_id] = memory_map;
     result = REDSHOW_SUCCESS;
   } else {
-    result = REDSHOW_ERROR_DUPLICATE_ENTRY;
+    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
   }
-  memory_map_lock.unlock();
+  memory_snapshot_lock.unlock();
 
   return result;
 }
 
 
-redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end) {
+redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_t host_op_id) {
   PRINT("\nredshow->Enter redshow_memory_unregister\nstart: %p\nend: %p\n", start, end);
 
   redshow_result_t result;
+  MemoryMap memory_map;
   MemoryRange memory_range(start, end);
 
-  memory_map_lock.lock();
-  if (memory_map.find(memory_range) != memory_map.end()) {
-    memory_map.erase(memory_range);
-    result = REDSHOW_SUCCESS;
+  memory_snapshot_lock.lock();
+  auto snapshot_iter = memory_snapshot.lower_bound(host_op_id);
+  if (snapshot_iter != memory_snapshot.begin()) {
+    --snapshot_iter;
+    // Take a snapshot
+    memory_map = snapshot_iter->second;
+    auto memory_map_iter = memory_map.find(memory_range);
+    if (memory_map_iter != memory_map.end()) {
+      memory_map.erase(memory_map_iter);
+      result = REDSHOW_SUCCESS;
+    } else {
+      result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+    }
   } else {
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
   }
-  memory_map_lock.unlock();
+  memory_snapshot_lock.unlock();
 
   return result;
 }
@@ -306,14 +363,15 @@ redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_fu
 }
 
 
-redshow_result_t redshow_analyze(uint32_t cubin_id, uint64_t kernel_id, gpu_patch_buffer_t *trace_data) {
-  PRINT("\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %p\ntrace_data: %p\n",
-    cubin_id, kernel_id, trace_data);
+redshow_result_t redshow_analyze(uint32_t cubin_id, uint64_t kernel_id, uint64_t host_op_id,
+  gpu_patch_buffer_t *trace_data) {
+  PRINT("\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %p\nhost_op_id: %lu\ntrace_data: %p\n",
+    cubin_id, kernel_id, host_op_id, trace_data);
 
   redshow_result_t result;
 
   // Analyze trace_data
-  result = trace_analyze(cubin_id, trace_data);
+  result = trace_analyze(cubin_id, host_op_id, trace_data);
 
   if (result == REDSHOW_SUCCESS) {
     // Store trace_data
@@ -329,10 +387,53 @@ redshow_result_t redshow_analyze(uint32_t cubin_id, uint64_t kernel_id, gpu_patc
 
     if (log_data_callback) {
       log_data_callback(kernel_id, trace_data);
+      if (mini_host_op_id == 0) {
+        mini_host_op_id = host_op_id;
+      } else {
+        mini_host_op_id = MIN2(mini_host_op_id, host_op_id);
+      }
       result = REDSHOW_SUCCESS;
     } else {
       result = REDSHOW_ERROR_NOT_REGISTER_CALLBACK;
     }
+  }
+
+  return result;
+}
+
+
+redshow_result_t redshow_analysis_begin() {
+  PRINT("\nredshow->Enter redshow_analysis_begin\n");
+
+  mini_host_op_id = 0;
+
+  return REDSHOW_SUCCESS;
+}
+
+
+redshow_result_t redshow_analysis_end() {
+  PRINT("\nredshow->Enter redshow_analysis_end\n");
+
+  redshow_result_t result;
+
+  if (mini_host_op_id != 0) {
+    // Remove all the memory snapshots before mini_host_op_id
+    std::vector<uint64_t> ids;
+
+    memory_snapshot_lock.lock();
+    for (auto &iter : memory_snapshot) {
+      if (iter.first < mini_host_op_id) {
+        ids.push_back(iter.first);
+      }
+    }
+    for (auto &id : ids) {
+      memory_snapshot.erase(id);
+    }
+    memory_snapshot_lock.unlock();
+
+    result = REDSHOW_SUCCESS;
+  } else {
+    result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
   }
 
   return result;

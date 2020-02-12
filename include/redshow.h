@@ -20,7 +20,8 @@ typedef enum {
   REDSHOW_ERROR_DUPLICATE_ENTRY = 3,
   REDSHOW_ERROR_NOT_REGISTER_CALLBACK = 4,
   REDSHOW_ERROR_NO_SUCH_FILE = 5,
-  REDSHOW_ERROR_FAILED_ANALYZE_CUBIN = 6
+  REDSHOW_ERROR_FAILED_ANALYZE_CUBIN = 6,
+  REDSHOW_ERROR_FAILED_ANALYZE_TRACE = 7
 } redshow_result_t;
 
 typedef struct {
@@ -88,14 +89,14 @@ EXTERNC redshow_result_t redshow_cubin_unregister(uint32_t cubin_id);
  * 
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t memory_id);
+EXTERNC redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t host_op_id, uint64_t memory_id);
 
 /*
  * This function is used to unregister a global memory region.
  * 
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end);
+EXTERNC redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_t host_op_id);
 
 /*
  * Let a user handle data when a trace log is done analyzing
@@ -105,6 +106,7 @@ EXTERNC redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end)
 typedef void (*redshow_log_data_callback_func)(uint64_t kernel_id, gpu_patch_buffer_t *trace_data);
 
 EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_func func);
+
 
 /*
  * Apply registered analysis to a gpu trace, analysis results are buffered.
@@ -125,6 +127,16 @@ EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_cal
  *
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_analyze(uint32_t cubin_id, uint64_t kernel_id, gpu_patch_buffer_t *trace_data);
+EXTERNC redshow_result_t redshow_analyze(uint32_t cubin_id, uint64_t kernel_id, uint64_t host_op_id, gpu_patch_buffer_t *trace_data);
+
+/*
+ * Mark the begin of the current analysis region
+ */
+EXTERNC redshow_result_t redshow_analysis_begin();
+
+/*
+ * Mark the end of the current analysis region
+ */
+EXTERNC redshow_result_t redshow_analysis_end();
 
 #endif  // REDSHOW_H

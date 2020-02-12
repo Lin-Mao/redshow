@@ -25,7 +25,7 @@ struct Symbol {
   Symbol() : Symbol(0, 0, 0) {}
 
   bool operator < (const Symbol &other) const {
-    return this->pc > other.pc;
+    return this->pc < other.pc;
   }
 };
 
