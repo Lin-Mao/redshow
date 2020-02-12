@@ -145,3 +145,4 @@ dkms.conf
 
 # Main binary
 main
+build/

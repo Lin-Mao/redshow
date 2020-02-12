@@ -61,7 +61,9 @@ typedef unsigned long long _u64;
 enum BasicType {
     F32, F64, S64, U64, S32, U32, S8, U8
 };
-
+// We will change the bits after this index to 0. F32:23, F64:52
+const int valid_float_digits = 18;
+const int valid_double_digits = 40;
 class ThreadId {
 public:
     int bx;
@@ -263,7 +265,9 @@ inline void output_corresponding_type_value_cout(_u64 a, BasicType atype) {
             break;
     }
 }
-
+// init all arrays
+void initall();
+void freeall();
 #endif  // REDSHOW_COMMON_LIB_H
 
 
