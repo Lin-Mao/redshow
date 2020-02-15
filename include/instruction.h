@@ -108,8 +108,22 @@ class InstructionGraph {
     return _nodes.end();
   }
 
+  size_t outgoing_nodes_size(unsigned int pc) {
+    if (_outgoing_nodes.find(pc) == _outgoing_nodes.end()) {
+      return 0;
+    }
+    return _outgoing_nodes.at(pc).size();
+  }
+
   const std::set<unsigned int> &outgoing_nodes(unsigned int pc) {
     return _outgoing_nodes.at(pc);
+  }
+
+  size_t incoming_nodes_size(unsigned int pc) {
+    if (_incoming_nodes.find(pc) == _incoming_nodes.end()) {
+      return 0;
+    }
+    return _incoming_nodes.at(pc).size();
   }
 
   const std::set<unsigned int> &incoming_nodes(unsigned int pc) {
@@ -124,6 +138,10 @@ class InstructionGraph {
 
   void add_node(unsigned int pc, const Instruction &inst) {
     _nodes[pc] = inst;
+  }
+
+  bool has_node(unsigned int pc) {
+    return _nodes.find(pc) != _nodes.end();
   }
 
   Instruction &node(unsigned int pc) {

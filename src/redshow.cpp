@@ -7,6 +7,7 @@
 #include <map>
 #include <string>
 #include <iostream>
+#include <fstream>
 
 #include <cstdlib>
 
@@ -98,11 +99,19 @@ redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, I
     // x/cubins/x.cubin
     iter = cubin_path.rfind("/", iter - 1);
     std::string dir_name = cubin_path.substr(0, iter);
-    // instructions are analyzed before hpcrun
-    if (parse_instructions(dir_name + "/structs/nvidia/" + cubin_name + ".inst", symbols, inst_graph)) {
-      result = REDSHOW_SUCCESS;
+    std::string inst_path = "/structs/nvidia/" + cubin_name + ".inst";
+
+    // Prevent boost from core dump
+    std::ifstream f(inst_path.c_str());
+    if (f.good() == false) {
+      result = REDSHOW_ERROR_NO_SUCH_FILE;
     } else {
-      result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
+      // instructions are analyzed before hpcrun
+      if (parse_instructions(inst_path, symbols, inst_graph)) {
+        result = REDSHOW_SUCCESS;
+      } else {
+        result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
+      }
     }
   }
   
@@ -125,6 +134,11 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
   }
   cubin_map_lock.unlock();
 
+  // Cubin not found
+  if (result == REDSHOW_ERROR_NOT_EXIST_ENTRY) {
+    return result;
+  }
+
   MemoryMap *memory_map = NULL;
 
   memory_snapshot_lock.lock();
@@ -136,6 +150,11 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
     memory_map = &(snapshot_iter->second);
   }
   memory_snapshot_lock.unlock();
+
+  // Memory snapshot not found
+  if (result == REDSHOW_ERROR_NOT_EXIST_ENTRY) {
+    return result;
+  }
 
   if (result == REDSHOW_SUCCESS) {
 #ifdef DEBUG
@@ -159,36 +178,49 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
         } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
           std::cout << "EXIT block: " << record->flat_block_id << std::endl;
         } else {
-          auto &inst = inst_graph->node(pc_offset + symbols_iter->cubin_offset);
-          std::cout << "Instruction: 0x" << std::hex << pc_offset << std::dec <<
-            " " << inst.op << std::endl;
+          AccessType access_type(0, record->size, AccessType::UNKNOWN);
 
-          AccessType access_type;
-          if (record->flags & GPU_PATCH_READ) {
-            access_type = load_data_type(inst.pc, *inst_graph);
-          } else if (record->flags & GPU_PATCH_WRITE) {
-            access_type = store_data_type(inst.pc, *inst_graph);
+          if (inst_graph->size() == 0) {
+            // Default mode, we identify every data as 32 bits unit size, 32 bits vec size, integer type
+            access_type.type = AccessType::INTEGER;
+            access_type.unit_size = MIN2(32, access_type.vec_size);
+          } else {
+            // Accurate mode, when we have instruction information
+            auto &inst = inst_graph->node(pc_offset + symbols_iter->cubin_offset);
+            std::cout << "Instruction: 0x" << std::hex << pc_offset << std::dec <<
+              " " << inst.op << std::endl;
+
+            AccessType access_type(0, record->size, AccessType::UNKNOWN);
+            if (record->flags & GPU_PATCH_READ) {
+              access_type = load_data_type(inst.pc, *inst_graph);
+            } else if (record->flags & GPU_PATCH_WRITE) {
+              access_type = store_data_type(inst.pc, *inst_graph);
+            }
+
+            // Fall back to default mode if failed
+            if (access_type.type == AccessType::UNKNOWN) {
+              access_type.type = AccessType::INTEGER;
+              access_type.unit_size = MIN2(32, access_type.vec_size);
+            }
           }
 
-          if (access_type.type != AccessType::UNKNOWN) {
-            std::cout << "Access type: " << access_type.to_string() << std::endl;
+          std::cout << "Access type: " << access_type.to_string() << std::endl;
 
-            for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
-              if (record->active & (0x1 << j)) {
-                std::cout << "Address: 0x" << std::hex << record->address[j] << std::dec << std::endl;
-                MemoryRange memory_range(record->address[j], record->address[j]);
-                auto iter = memory_map->upper_bound(memory_range);
-                if (iter != memory_map->begin()) {
-                  --iter;
-                  std::cout << "Memory ID: " << iter->second.memory_id << std::endl;
-                }
-                std::cout << "Value: 0x" << std::hex;
-                for (size_t k = 0; k < GPU_PATCH_MAX_ACCESS_SIZE; ++k) {
-                  unsigned int c = record->value[j][k];
-                  std::cout << c;
-                }
-                std::cout << std::dec << std::endl;
+          for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+            if (record->active & (0x1 << j)) {
+              std::cout << "Address: 0x" << std::hex << record->address[j] << std::dec << std::endl;
+              MemoryRange memory_range(record->address[j], record->address[j]);
+              auto iter = memory_map->upper_bound(memory_range);
+              if (iter != memory_map->begin()) {
+                --iter;
+                std::cout << "Memory ID: " << iter->second.memory_id << std::endl;
               }
+              std::cout << "Value: 0x" << std::hex;
+              for (size_t k = 0; k < GPU_PATCH_MAX_ACCESS_SIZE; ++k) {
+                unsigned int c = record->value[j][k];
+                std::cout << c;
+              }
+              std::cout << std::dec << std::endl;
             }
           }
         }
@@ -240,10 +272,18 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, ui
   std::vector<Symbol> symbols(nsymbols);
   result = cubin_analyze(path, symbols, inst_graph);
 
-  if (result == REDSHOW_SUCCESS) {
+  if (result == REDSHOW_SUCCESS || result == REDSHOW_ERROR_NO_SUCH_FILE) {
+    // It is ok to not have inst files, in such a case we just record symbol offset and use the default access type
+    // The problem can be eliminated once we have the next nvdisasm and dyninst ready
     // Assign symbol pc
-    for (auto &symbol : symbols) {
-      symbol.pc = symbol_pcs[symbol.index];
+    if (result == REDSHOW_SUCCESS) {
+      for (auto &symbol : symbols) {
+        symbol.pc = symbol_pcs[symbol.index];
+      }
+    } else {
+      for (auto i = 0; i < nsymbols; ++i) {
+        symbols[i].pc = symbol_pcs[i];
+      }
     }
 
     // Sort symbols by pc

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <fstream>
 #include <vector>
 
 #include <boost/property_tree/ptree.hpp>
@@ -22,7 +23,6 @@
 bool parse_instructions(const std::string &file_path,
   std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
   boost::property_tree::ptree root;
-
   boost::property_tree::read_json(file_path, root);
 
   // Read instructions
@@ -72,7 +72,7 @@ bool parse_instructions(const std::string &file_path,
 
     size_t i = 0;
     if (inst.op.find("STORE") != std::string::npos) {
-      // If store operation has more than on srcs, skip the first src
+      // If store operation has more than one src, skip the first src
       i = 1;
     } else {
       i = 0;
@@ -172,8 +172,6 @@ static AccessType init_access_type(Instruction &inst, InstructionGraph &inst_gra
 AccessType load_data_type(unsigned int pc, InstructionGraph &inst_graph) {
   auto &inst = inst_graph.node(pc);
 
-  assert(inst.op.find(".LOAD") != std::string::npos);
-
   if (inst.access_type.get() != NULL) {
     // If access type is cached
     return *(inst.access_type);
@@ -182,10 +180,14 @@ AccessType load_data_type(unsigned int pc, InstructionGraph &inst_graph) {
   // If access type is undetermined, allocate one
   inst.access_type = std::make_shared<AccessType>();
 
-  auto &outgoing_nodes = inst_graph.outgoing_nodes(pc);
+  // If we cannot determine the access type
+  if (inst.op.find(".STORE") == std::string::npos ||
+    inst_graph.outgoing_nodes_size(pc) != 0) {
+    auto &outgoing_nodes = inst_graph.outgoing_nodes(pc);
 
-  // Associate access type with instruction
-  init_access_type(inst, inst_graph, outgoing_nodes);
+    // Associate access type with instruction
+    init_access_type(inst, inst_graph, outgoing_nodes);
+  }
 
   return *(inst.access_type);
 }
@@ -194,8 +196,6 @@ AccessType load_data_type(unsigned int pc, InstructionGraph &inst_graph) {
 AccessType store_data_type(unsigned int pc, InstructionGraph &inst_graph) {
   auto &inst = inst_graph.node(pc);
 
-  assert(inst.op.find(".STORE") != std::string::npos);
-
   if (inst.access_type.get() != NULL) {
     // If access type is cached
     return *(inst.access_type);
@@ -204,10 +204,14 @@ AccessType store_data_type(unsigned int pc, InstructionGraph &inst_graph) {
   // If access type is undetermined, allocate one
   inst.access_type = std::make_shared<AccessType>();
 
-  auto &incoming_nodes = inst_graph.incoming_nodes(pc);
+  // If we cannot determine the access type
+  if (inst.op.find(".LOAD") == std::string::npos ||
+    inst_graph.incoming_nodes_size(pc) != 0) {
+    auto &incoming_nodes = inst_graph.incoming_nodes(pc);
 
-  // Associate access type with instruction
-  init_access_type(inst, inst_graph, incoming_nodes);
+    // Associate access type with instruction
+    init_access_type(inst, inst_graph, incoming_nodes);
+  }
 
   return *(inst.access_type);
 }
