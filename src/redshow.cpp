@@ -98,7 +98,6 @@ redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, I
     // x/cubins/x.cubin
     iter = cubin_path.rfind("/", iter - 1);
     std::string dir_name = cubin_path.substr(0, iter);
-    std::cout << dir_name << std::endl;
     // instructions are analyzed before hpcrun
     if (parse_instructions(dir_name + "/structs/nvidia/" + cubin_name + ".inst", symbols, inst_graph)) {
       result = REDSHOW_SUCCESS;
@@ -131,7 +130,6 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
   memory_snapshot_lock.lock();
   auto snapshot_iter = memory_snapshot.upper_bound(host_op_id);
   if (snapshot_iter == memory_snapshot.begin()) {
-    std::cout << "here1" << std::endl;
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
   } else {
     --snapshot_iter;
