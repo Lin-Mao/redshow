@@ -72,8 +72,12 @@ bool parse_instructions(const std::string &file_path,
 
     size_t i = 0;
     if (inst.op.find("STORE") != std::string::npos) {
-      // If store operation has more than one src, skip the first src
-      i = 1;
+      // If store operation has more than one src, skip the first or two src
+      if (inst.op.find(".SHARED") != std::string::npos || inst.op.find(".LOCAL") != std::string::npos) {
+        i = 1;
+      } else {
+        i = 2;
+      }
     } else {
       i = 0;
     }
@@ -90,24 +94,6 @@ bool parse_instructions(const std::string &file_path,
       }
     }
   }
-
-#ifdef DEBUG
-  for (auto iter = inst_graph.nodes_begin(); iter != inst_graph.nodes_end(); ++iter) {
-    auto &inst = iter->second;
-
-    AccessType access_type;
-    if (inst.op.find(".STORE") != std::string::npos) {
-      access_type = store_data_type(inst.pc, inst_graph);
-    } else if (inst.op.find(".LOAD") != std::string::npos) {
-      access_type = load_data_type(inst.pc, inst_graph);
-    } else {
-      continue;
-    }
-
-    std::cout << "0x" << std::hex << inst.pc << " " << inst.op << " " <<
-      std::dec << ": " << access_type.to_string() << std::endl;
-  }
-#endif
 
   return true;
 }
@@ -181,7 +167,7 @@ AccessType load_data_type(unsigned int pc, InstructionGraph &inst_graph) {
   inst.access_type = std::make_shared<AccessType>();
 
   // If we cannot determine the access type
-  if (inst.op.find(".STORE") == std::string::npos ||
+  if (inst.op.find(".LOAD") == std::string::npos ||
     inst_graph.outgoing_nodes_size(pc) != 0) {
     auto &outgoing_nodes = inst_graph.outgoing_nodes(pc);
 
@@ -205,7 +191,7 @@ AccessType store_data_type(unsigned int pc, InstructionGraph &inst_graph) {
   inst.access_type = std::make_shared<AccessType>();
 
   // If we cannot determine the access type
-  if (inst.op.find(".LOAD") == std::string::npos ||
+  if (inst.op.find(".STORE") == std::string::npos ||
     inst_graph.incoming_nodes_size(pc) != 0) {
     auto &incoming_nodes = inst_graph.incoming_nodes(pc);
 

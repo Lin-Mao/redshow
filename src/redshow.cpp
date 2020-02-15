@@ -99,7 +99,7 @@ redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, I
     // x/cubins/x.cubin
     iter = cubin_path.rfind("/", iter - 1);
     std::string dir_name = cubin_path.substr(0, iter);
-    std::string inst_path = "/structs/nvidia/" + cubin_name + ".inst";
+    std::string inst_path = dir_name + "/structs/nvidia/" + cubin_name + ".inst";
 
     // Prevent boost from core dump
     std::ifstream f(inst_path.c_str());
@@ -178,7 +178,8 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
         } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
           std::cout << "EXIT block: " << record->flat_block_id << std::endl;
         } else {
-          AccessType access_type(0, record->size, AccessType::UNKNOWN);
+          // record->size * 8, byte to bits
+          AccessType access_type(0, record->size * 8, AccessType::UNKNOWN);
 
           if (inst_graph->size() == 0) {
             // Default mode, we identify every data as 32 bits unit size, 32 bits vec size, integer type
@@ -190,7 +191,6 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
             std::cout << "Instruction: 0x" << std::hex << pc_offset << std::dec <<
               " " << inst.op << std::endl;
 
-            AccessType access_type(0, record->size, AccessType::UNKNOWN);
             if (record->flags & GPU_PATCH_READ) {
               access_type = load_data_type(inst.pc, *inst_graph);
             } else if (record->flags & GPU_PATCH_WRITE) {
