@@ -167,7 +167,7 @@ AccessType load_data_type(unsigned int pc, InstructionGraph &inst_graph) {
   inst.access_type = std::make_shared<AccessType>();
 
   // If we cannot determine the access type
-  if (inst.op.find(".LOAD") == std::string::npos ||
+  if (inst.op.find(".LOAD") != std::string::npos &&
     inst_graph.outgoing_nodes_size(pc) != 0) {
     auto &outgoing_nodes = inst_graph.outgoing_nodes(pc);
 
@@ -191,7 +191,7 @@ AccessType store_data_type(unsigned int pc, InstructionGraph &inst_graph) {
   inst.access_type = std::make_shared<AccessType>();
 
   // If we cannot determine the access type
-  if (inst.op.find(".STORE") == std::string::npos ||
+  if (inst.op.find(".STORE") != std::string::npos &&
     inst_graph.incoming_nodes_size(pc) != 0) {
     auto &incoming_nodes = inst_graph.incoming_nodes(pc);
 

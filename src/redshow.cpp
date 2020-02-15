@@ -124,6 +124,8 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
   
   std::vector<Symbol> *symbols = NULL;
   InstructionGraph *inst_graph = NULL; 
+  // Cubin path is added just for debugging purpose
+  std::string cubin_path;
   
   cubin_map_lock.lock();
   if (cubin_map.find(cubin_id) == cubin_map.end()) {
@@ -131,6 +133,7 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
   } else {
     symbols = &(cubin_map[cubin_id].symbols);
     inst_graph = &(cubin_map[cubin_id].inst_graph);
+    cubin_path = cubin_map[cubin_id].path;
   }
   cubin_map_lock.unlock();
 
