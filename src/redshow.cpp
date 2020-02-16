@@ -30,6 +30,7 @@ struct Cubin {
   InstructionGraph inst_graph;
 
   Cubin() = default;
+
   Cubin(uint32_t cubin_id, const char *path_,
         InstructionGraph &inst_graph) :
       cubin_id(cubin_id), path(path_), inst_graph(inst_graph) {}
@@ -44,6 +45,7 @@ struct MemoryRange {
   uint64_t end;
 
   MemoryRange() = default;
+
   MemoryRange(uint64_t start, uint64_t end) : start(start), end(end) {}
 
   bool operator<(const MemoryRange &other) const {
@@ -165,6 +167,7 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
   }
 
   if (result == REDSHOW_SUCCESS) {
+#ifdef DEBUG
     // An example to demonstrate how we get information from trace
     size_t size = trace_data->tail_index;
     gpu_patch_record_t *records = reinterpret_cast<gpu_patch_record_t *>(trace_data->records);
@@ -215,7 +218,7 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
           std::cout << "Access type: " << access_type.to_string() << std::endl;
 
           for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
-            if (record->active & (0x1 << j)) {
+            if (record->active & (0x1u << j)) {
               std::cout << "Address: 0x" << std::hex << record->address[j] << std::dec << std::endl;
               MemoryRange memory_range(record->address[j], record->address[j]);
               auto iter = memory_map->upper_bound(memory_range);
@@ -237,14 +240,9 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
                   memcpy(&value, &record->value[j][m * access_type.unit_size], access_type.unit_size);
                   get_hr_trace_map(pc_offset, value, (_u64) iter->second.memory_id, hr_trace_map_pc_dist);
                 }
-
-
               }
-
-
             }
           }
-        }
       } else {
         std::cout << "PC: 0x" << std::hex << record->pc << " not found" << std::endl;
       }
