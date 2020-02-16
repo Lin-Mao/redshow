@@ -108,14 +108,28 @@ class InstructionGraph {
     return _nodes.end();
   }
 
+  size_t outgoing_nodes_size(unsigned int pc) {
+    if (_outgoing_nodes.find(pc) == _outgoing_nodes.end()) {
+      return 0;
+    }
+    return _outgoing_nodes.at(pc).size();
+  }
+
   const std::set<unsigned int> &outgoing_nodes(unsigned int pc) {
     return _outgoing_nodes.at(pc);
+  }
+
+  size_t incoming_nodes_size(unsigned int pc) {
+    if (_incoming_nodes.find(pc) == _incoming_nodes.end()) {
+      return 0;
+    }
+    return _incoming_nodes.at(pc).size();
   }
 
   const std::set<unsigned int> &incoming_nodes(unsigned int pc) {
     return _incoming_nodes.at(pc);
   }
- 
+
   void add_edge(unsigned int from, unsigned int to) {
     _incoming_nodes[to].insert(from);
     _outgoing_nodes[from].insert(to);
@@ -126,15 +140,19 @@ class InstructionGraph {
     _nodes[pc] = inst;
   }
 
+  bool has_node(unsigned int pc) {
+    return _nodes.find(pc) != _nodes.end();
+  }
+
   Instruction &node(unsigned int pc) {
     return _nodes.at(pc);
   }
 
   size_t size() {
     return _nodes.size();
-  }  
+  }
 
- private:
+private:
   NeighborNodeMap _incoming_nodes;
   NeighborNodeMap _outgoing_nodes;
   NodeMap _nodes;
