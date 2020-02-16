@@ -53,8 +53,8 @@ void show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<in
 //    How many reuse distance has recorded.
   long long r_num = 0;
   int thread_nums =
-    (threadid_max.tx + 1) * (threadid_max.ty + 1) * (threadid_max.tz + 1) * (threadid_max.bx + 1) *
-    (threadid_max.by + 1) * (threadid_max.bz + 1);
+      (threadid_max.tx + 1) * (threadid_max.ty + 1) * (threadid_max.tz + 1) * (threadid_max.bx + 1) *
+      (threadid_max.by + 1) * (threadid_max.bz + 1);
   map<_u64, vector<int >>::iterator ttm_it;
   for (ttm_it = tra_trace_map.begin(); ttm_it != tra_trace_map.end(); ttm_it++) {
     r_sum += accumulate(ttm_it->second.begin(), ttm_it->second.end(), 0);
@@ -141,9 +141,9 @@ void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 valu
             dead_write_pairs.emplace_back(get<1>(m_it->second), pc, addr, value, atype);
           }
         }
-      }else{
-          dead_write_num++;
-          dead_write_pairs.emplace_back(get<1>(m_it->second), pc, addr, value, atype);
+      } else {
+        dead_write_num++;
+        dead_write_pairs.emplace_back(get<1>(m_it->second), pc, addr, value, atype);
       }
       m_it->second = record[addr];
     }
@@ -172,7 +172,7 @@ void show_trv_redundancy_rate(_u64 line_num, long long &silent_load_num,
 //        0:pc1, 1: pc2, 2: addr,
     out << get<0>(item) << " , " << get<1>(item) << " , " << hex << get<2>(item) << " , " << dec;
 //        According to the array type to show different type of value.
-    output_corresponding_type_value(get<3>(item), get<4>(item), out);
+    output_corresponding_type_value(get<3>(item), get<4>(item), out.rdbuf());
 //            << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
   }
   out.close();
@@ -180,13 +180,13 @@ void show_trv_redundancy_rate(_u64 line_num, long long &silent_load_num,
   for (auto item : silent_write_pairs) {
 //        0:pc1, 1: pc2, 2: addr,
     out2 << get<0>(item) << " , " << get<1>(item) << " , " << hex << get<2>(item) << " , " << dec;
-    output_corresponding_type_value(get<3>(item), get<4>(item), out2);
+    output_corresponding_type_value(get<3>(item), get<4>(item), out2.rdbuf());
   }
   out2.close();
   ofstream out3("trv_dead_write.csv");
   for (auto item : dead_write_pairs) {
     out3 << get<0>(item) << " , " << get<1>(item) << " , " << hex << get<2>(item) << " , " << dec;
-    output_corresponding_type_value(get<3>(item), get<4>(item), out3);
+    output_corresponding_type_value(get<3>(item), get<4>(item), out3.rdbuf());
   }
   out3.close();
 }
@@ -200,7 +200,7 @@ void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr,
   if (stm_it == srag_trace_map.end()) {
     map<ThreadId, vector<tuple<_u64, _u64>>> tmp;
     tmp[tid] = vector<tuple<_u64, _u64>>{
-      make_tuple(index, addr)};
+        make_tuple(index, addr)};
     srag_trace_map[pc] = tmp;
   } else {
     map<ThreadId, vector<tuple<_u64, _u64 >>>::iterator m_it;
@@ -248,7 +248,7 @@ void show_srag_redundancy(map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> &s
 //                                      Every cache line is 32bytes now.
                       int x = get<1>(m_it->second[i]) >> 5;
                       warp_unique_cache_lines.insert(
-                        get<1>(m_it->second[tx_i]) >> CACHE_LINE_BYTES_BIN);
+                          get<1>(m_it->second[tx_i]) >> CACHE_LINE_BYTES_BIN);
                     }
                   }
 //                                    all_transactions += warp_unique_cache_lines.size();
@@ -303,44 +303,79 @@ void show_srv_bs_redundancy(ThreadId &threadid_max,
 }
 
 
-void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, int belong, set<_u64> &pcs,
-                      map<int, map<_u64, _u64>> &hr_trace_map,
-                      map<_u64, map<int, map<_u64, _u64 >>> &hr_trace_map_pc_dist) {
-  pcs.insert(pc);
-//   //{var:{value:num}} map<int, map<_u64, _u64>> hr_trace_map;
-  hr_trace_map[belong][value] += 1;
-//  {pc: { var:{value: num} }}
-  hr_trace_map_pc_dist[pc][belong][value] += 1;
-}
-
-void show_hr_redundancy(map<int, map<_u64, _u64>> &hr_trace_map, set<_u64> &pcs, const BasicType *vars_type) {
-  _u64 pc_nums = pcs.size();
-  //{array:{value:counter}}
-  for (auto &var_it : hr_trace_map) {
+void show_hr_redundancy(map<_u64, map<_u64, map<_u64, _u64 >>> &hr_trace_map_pc_dist,
+                        map<uint64_t, AccessType> &array_type) {
+//  {pc: { array :(value, counter)}}
+// record every pc's hottest value
+//  map<_u64, map<_u64, tuple<_u64, _u64>>> pc_hot_value;
+//  {array: {value: counter}}
+  map<_u64, map<_u64, _u64 >> hr_trace_map;
+  ofstream out("hr_pc.csv");
+  //{pc: {array:{value:counter}}}
+  for (auto &pc_it : hr_trace_map_pc_dist) {
     _u64 max_acc_times = 0;
     _u64 max_acc_value = INT64_MAX;
     _u64 sum_times = 0;
-    BasicType atype = vars_type[var_it.first];
-    for (auto &value_it : var_it.second) {
-      if (value_it.second > max_acc_times) {
-        max_acc_times = value_it.second;
-        max_acc_value = value_it.first;
+//    array:{value:counter}
+    for (auto array_it: pc_it.second) {
+      AccessType atype = array_type[array_it.first];
+//      {value:counter}
+      for (auto &value_it : array_it.second) {
+        if (value_it.second > max_acc_times) {
+          max_acc_times = value_it.second;
+          max_acc_value = value_it.first;
+        }
+        sum_times += value_it.second;
+        hr_trace_map[array_it.first][value_it.first] += value_it.second;
+        out << pc_it.first << "," << array_it.first << ",";
+        output_corresponding_type_value(value_it.first, atype, out.rdbuf(), true);
+        out << "," << value_it.second << endl;
       }
-      sum_times += value_it.second;
+//      out<<pc_it.first<<","<<max_acc_value<<","<<max_acc_times<<endl;
     }
-    cout << "In array " << var_it.first << ", access value ";
-    output_corresponding_type_value_cout(max_acc_value, atype);
-    cout << " " << max_acc_times << " times, ";
-    cout << "rate:" << max_acc_times * 1.0 / sum_times << endl;
-//        write value distribution to log files
-    ofstream out("hr_" + to_string(var_it.first) + ".csv");
-    for (auto &item : var_it.second) {
-      output_corresponding_type_value(item.first, atype, out);
-      out << "," << item.second << endl;
+  }
+  out.close();
+//  {array: {value: counter}}
+  for (const auto &array_it: hr_trace_map) {
+    ofstream out2("hr_" + to_string(array_it.first) + ".csv");
+    AccessType atype = array_type[array_it.first];
+//     {value: counter}
+    for (auto value_it: array_it.second) {
+      output_corresponding_type_value(value_it.first, atype, out2.rdbuf(), true);
+      out2 << "," << value_it.second << endl;
     }
-    out.close();
+    out2.close();
   }
 }
+
+//void show_hr_redundancy(map<_u64, map<_u64, map<_u64, _u64 >>> &hr_trace_map_pc_dist,
+//                        void *array_type) {
+//  //{pc: {array:{value:counter}}}
+//  for (auto &var_it : hr_trace_map_pc_dist) {
+//    _u64 max_acc_times = 0;
+//    _u64 max_acc_value = INT64_MAX;
+//    _u64 sum_times = 0;
+//    BasicType atype = reinterpret_cast<BasicType *>(array_type)[var_it.first];
+//    for (auto &value_it : var_it.second) {
+//      if (value_it.second > max_acc_times) {
+//        max_acc_times = value_it.second;
+//        max_acc_value = value_it.first;
+//      }
+//      sum_times += value_it.second;
+//    }
+//    cout << "In array " << var_it.first << ", access value ";
+//    output_corresponding_type_value_cout(max_acc_value, atype);
+//    cout << " " << max_acc_times << " times, ";
+//    cout << "rate:" << max_acc_times * 1.0 / sum_times << endl;
+////        write value distribution to log files
+//    ofstream out("hr_" + to_string(var_it.first) + ".csv");
+//    for (auto &item : var_it.second) {
+//      output_corresponding_type_value(item.first, atype, out);
+//      out << "," << item.second << endl;
+//    }
+//    out.close();
+//  }
+//}
 
 /**e.g. a[100] belongs to array a
  * @return -1 not found
@@ -503,7 +538,7 @@ map<ThreadId, map<int, map<int, long long>>> srv_bs_trace_map;
 //{var:{value:counter}}
 map<int, map<_u64, _u64>> hr_trace_map;
 // {pc: { var:{value: counter} }}
-map<_u64, map<int, map<_u64, _u64 >>> hr_trace_map_pc_dist;
+map<_u64, map<_u64, map<_u64, _u64 >>> hr_trace_map_pc_dist;
 // to get the number of pcs
 set<_u64> pcs;
 //at this time, I use vector as the main format to store tracemap, but if we can get an input of array size, it can be changed to normal array.

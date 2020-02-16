@@ -17,6 +17,8 @@
 #include <tuple>
 #include <algorithm>
 #include <iostream>
+
+#include "instruction.h"
 // namespace
 using std::ifstream;
 using std::string;
@@ -49,6 +51,7 @@ using std::make_pair;
 using std::hex;
 using std::dec;
 using std::memcpy;
+using std::streambuf;
 
 typedef unsigned char _u8;
 typedef unsigned int _u32;
@@ -59,73 +62,74 @@ typedef unsigned long long _u64;
 #define CACHE_LINE_BYTES_BIN 5
 // The values' types.
 enum BasicType {
-    F32, F64, S64, U64, S32, U32, S8, U8
+  F32, F64, S64, U64, S32, U32, S8, U8
 };
 // We will change the bits after this index to 0. F32:23, F64:52
 const int valid_float_digits = 18;
 const int valid_double_digits = 40;
+
 class ThreadId {
 public:
-    int bx;
-    int by;
-    int bz;
-    int tx;
-    int ty;
-    int tz;
+  int bx;
+  int by;
+  int bz;
+  int tx;
+  int ty;
+  int tz;
 
-    bool operator<(const ThreadId &o) const;
+  bool operator<(const ThreadId &o) const;
 
-    bool operator==(const ThreadId &o) const;
+  bool operator==(const ThreadId &o) const;
 };
 
 
 inline _u64 store2uchar(_u64 a) {
-    return a & 0xffu;
+  return a & 0xffu;
 }
 
 
 inline _u64 store2uint(_u64 a) {
-    _u64 c = 0;
-    c = ((a & 0xffu) << 24u)
-        | ((a & 0xff00u) << 8u) | ((a & 0xff0000u) >> 8u) | ((a & 0xff000000u) >> 24u);
-    return c;
+  _u64 c = 0;
+  c = ((a & 0xffu) << 24u)
+      | ((a & 0xff00u) << 8u) | ((a & 0xff0000u) >> 8u) | ((a & 0xff000000u) >> 24u);
+  return c;
 }
 
 // convert an hex value to float format. Use decimal_degree_f32 to control precision. We still store
 inline _u64 store2float(_u64 a, int decimal_degree_f32) {
-    _u32 c = store2uint(a);
-    _u32 mask = 0xffffffff;
-    for (int i = 0; i < 23 - decimal_degree_f32; ++i) {
-        mask <<= 1u;
-    }
-    c &= mask;
-    _u64 b = 0;
-    memcpy(&b, &c, sizeof(c));
-    return b;
+  _u32 c = store2uint(a);
+  _u32 mask = 0xffffffff;
+  for (int i = 0; i < 23 - decimal_degree_f32; ++i) {
+    mask <<= 1u;
+  }
+  c &= mask;
+  _u64 b = 0;
+  memcpy(&b, &c, sizeof(c));
+  return b;
 }
 
 // Mainly change the expression from big endian to little endian.
 inline _u64 store2u64(_u64 a) {
-    _u64 c = 0;
-    c = ((a & 0xffu) << 56u) | ((a & 0xff00u) << 40u) | ((a & 0xff0000u) << 24u) | ((a & 0xff000000u) << 8u) |
-        ((a & 0xff00000000u) >> 8u) | ((a & 0xff0000000000u) >> 24u) | ((a & 0xff000000000000u) >> 40u) |
-        ((a & 0xff00000000000000u) >> 56u);
-    return c;
+  _u64 c = 0;
+  c = ((a & 0xffu) << 56u) | ((a & 0xff00u) << 40u) | ((a & 0xff0000u) << 24u) | ((a & 0xff000000u) << 8u) |
+      ((a & 0xff00000000u) >> 8u) | ((a & 0xff0000000000u) >> 24u) | ((a & 0xff000000000000u) >> 40u) |
+      ((a & 0xff00000000000000u) >> 56u);
+  return c;
 }
 
 inline _u64 store2double(_u64 a, int decimal_degree_f64) {
-    _u64 c = store2u64(a);
-    _u64 mask = 0xffffffffffffffff;
-    for (int i = 0; i < 52 - decimal_degree_f64; ++i) {
-        mask <<= 1u;
-    }
-    c = c & mask;
-    return c;
+  _u64 c = store2u64(a);
+  _u64 mask = 0xffffffffffffffff;
+  for (int i = 0; i < 52 - decimal_degree_f64; ++i) {
+    mask <<= 1u;
+  }
+  c = c & mask;
+  return c;
 }
 
 
 inline bool equal_2_tuples(tuple<long long, long long, _u64> a, tuple<long long, long long> b) {
-    return get<0>(a) == get<0>(b) && get<1>(a) == get<1>(b);
+  return get<0>(a) == get<0>(b) && get<1>(a) == get<1>(b);
 }
 
 
@@ -176,98 +180,126 @@ int get_cur_addr_belong(_u64 addr, vector<tuple<_u64, int>> &vars_mem_block);
 void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple<_u64, int>> &vars_mem_block,
                       map<int, set<_u64 >> &dc_trace_map);
 
-void get_hr_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, int belong, set<_u64> &pcs,
-                      map<int, map<_u64, _u64>> &hr_trace_map,
-                      map<_u64, map<int, map<_u64, _u64 >>> &hr_trace_map_pc_dist);
-
-void show_hr_redundancy(map<int, map<_u64, _u64>> &hr_trace_map, set<_u64> &pcs, const BasicType *vars_type);
-
-inline void output_corresponding_type_value(_u64 a, BasicType atype, ofstream &out) {
-    switch (atype) {
-        case F32:
-            float b1;
-            memcpy(&b1, &a, sizeof(b1));
-            out << b1;
-            break;
-        case F64:
-            double b2;
-            memcpy(&b2, &a, sizeof(b2));
-            out << b2;
-            break;
-        case S64:
-            long long b3;
-            memcpy(&b3, &a, sizeof(b3));
-            break;
-        case U64:
-            out << a;
-            break;
-        case S32:
-            int b4;
-            memcpy(&b4, &a, sizeof(b4));
-            out << b4;
-            break;
-        case U32:
-            _u32 b5;
-            memcpy(&b5, &a, sizeof(b5));
-            out << b5;
-            break;
-        case S8:
-            char b6;
-            memcpy(&b6, &a, sizeof(b6));
-            out << b6;
-            break;
-        case U8:
-            _u8 b7;
-            memcpy(&b7, &a, sizeof(b7));
-            out << b7;
-            break;
-    }
+inline void
+get_hr_trace_map(_u64 pc, _u64 value, _u64 belong, map<_u64, map<_u64, map<_u64, _u64 >>> &hr_trace_map_pc_dist) {
+//   //{var:{value:num}} map<int, map<_u64, _u64>> hr_trace_map;
+//  {pc: { var:{value: num} }}
+  hr_trace_map_pc_dist[pc][belong][value] += 1;
 }
 
-inline void output_corresponding_type_value_cout(_u64 a, BasicType atype) {
-    switch (atype) {
-        case F32:
-            float b1;
-            memcpy(&b1, &a, sizeof(b1));
-            cout << b1;
-            break;
-        case F64:
-            double b2;
-            memcpy(&b2, &a, sizeof(b2));
-            cout << b2;
-            break;
-        case S64:
-            long long b3;
-            memcpy(&b3, &a, sizeof(b3));
-            break;
-        case U64:
-            cout << a;
-            break;
-        case S32:
-            int b4;
-            memcpy(&b4, &a, sizeof(b4));
-            cout << b4;
-            break;
-        case U32:
-            _u32 b5;
-            memcpy(&b5, &a, sizeof(b5));
-            cout << b5;
-            break;
-        case S8:
-            char b6;
-            memcpy(&b6, &a, sizeof(b6));
-            cout << b6;
-            break;
-        case U8:
-            _u8 b7;
-            memcpy(&b7, &a, sizeof(b7));
-            cout << b7;
-            break;
-    }
+void
+show_hr_redundancy(map<_u64, map<_u64, map<_u64, _u64 >>> &hr_trace_map_pc_dist, map<uint64_t, AccessType> &array_type);
+
+inline void output_corresponding_type_value(_u64 a, BasicType atype, streambuf *buf) {
+  ostream out(buf);
+  switch (atype) {
+    case F32:
+      float b1;
+      memcpy(&b1, &a, sizeof(b1));
+      out << b1;
+      break;
+    case F64:
+      double b2;
+      memcpy(&b2, &a, sizeof(b2));
+      out << b2;
+      break;
+    case S64:
+      long long b3;
+      memcpy(&b3, &a, sizeof(b3));
+      out << b3;
+      break;
+    case U64:
+      out << a;
+      break;
+    case S32:
+      int b4;
+      memcpy(&b4, &a, sizeof(b4));
+      out << b4;
+      break;
+    case U32:
+      _u32 b5;
+      memcpy(&b5, &a, sizeof(b5));
+      out << b5;
+      break;
+    case S8:
+      char b6;
+      memcpy(&b6, &a, sizeof(b6));
+      out << b6;
+      break;
+    case U8:
+      _u8 b7;
+      memcpy(&b7, &a, sizeof(b7));
+      out << b7;
+      break;
+  }
 }
+
+inline void output_corresponding_type_value(_u64 a, AccessType atype, std::streambuf *buf, bool is_signed) {
+  ostream out(buf);
+  if (atype.type == AccessType::INTEGER) {
+    if (atype.unit_size == 8) {
+      if (is_signed) {
+        char b6;
+        memcpy(&b6, &a, sizeof(b6));
+        out << b6;
+      } else {
+        _u8 b7;
+        memcpy(&b7, &a, sizeof(b7));
+        out << b7;
+      }
+    } else if (atype.unit_size == 16) {
+      if (is_signed) {
+        short int b8;
+        memcpy(&b8, &a, sizeof(b8));
+        out << b8;
+      } else {
+        unsigned short int b9;
+        memcpy(&b9, &a, sizeof(b9));
+        out << b9;
+      }
+    } else if (atype.unit_size == 32) {
+      if (is_signed) {
+        int b4;
+        memcpy(&b4, &a, sizeof(b4));
+        out << b4;
+      } else {
+        _u32 b5;
+        memcpy(&b5, &a, sizeof(b5));
+        out << b5;
+      }
+    } else if (atype.unit_size == 64) {
+      if (is_signed) {
+        long long b3;
+        memcpy(&b3, &a, sizeof(b3));
+        out << b3;
+      } else {
+        out << a;
+      }
+    }
+//    At this time, it must be float
+  } else {
+    if (atype.unit_size == 32) {
+      float b1;
+      memcpy(&b1, &a, sizeof(b1));
+      out << b1;
+    } else if (atype.unit_size == 64) {
+      double b2;
+      memcpy(&b2, &a, sizeof(b2));
+      out << b2;
+    }
+  }
+
+}
+
+inline void convert_raw_value_into_u64(_u8 *raw_value, _u64 &dest, int copy_size) {
+  memcpy(&dest, raw_value, copy_size);
+}
+
 // init all arrays
 void initall();
+
 void freeall();
+
 #endif  // REDSHOW_COMMON_LIB_H
 
 

@@ -30,8 +30,8 @@ extern map<_u64, map<ThreadId, set<_u64>>> srag_trace_map_test;
 extern map<_u64, map<_u64, map<ThreadId, _u64 >>> srv_trace_map;
 extern _u64 srag_distribution[WARP_SIZE];
 extern map<ThreadId, map<int, map<int, long long>>> srv_bs_trace_map;
-extern map<int, map<_u64, _u64>> hr_trace_map;
-extern map<_u64, map<int, map<_u64, _u64 >>> hr_trace_map_pc_dist;
+extern map<_u64, map<_u64, _u64>> hr_trace_map;
+extern map<_u64, map<_u64, map<_u64, _u64 >>> hr_trace_map_pc_dist;
 extern set<_u64> pcs;
 extern map<int, set<_u64 >> dc_trace_map;
 
@@ -48,8 +48,8 @@ BasicType vars_type[12] = {F32, S32, F32, F32, F32, F32, F32, F32, F32, F32, F32
 
 void init() {
   options.add_options()
-    ("i,input", "Input trace file", cxxopts::value<std::string>())
-    ("l,log", "Input log file", cxxopts::value<std::string>());
+      ("i,input", "Input trace file", cxxopts::value<std::string>())
+      ("l,log", "Input log file", cxxopts::value<std::string>());
   type_length = {{F32, 8},
                  {F64, 16},
                  {S64, 16},
@@ -190,7 +190,8 @@ void read_input_file(const string &input_file) {
 //            get_srag_trace_map_test(index, pc, tid, addr, value_hex);
 //            get_srv_trace_map(pc, tid, addr, value_hex);
 //                    get_vr_trace_map(pc, tid, addr, value_split, vars_type[belong]);
-          get_hr_trace_map(pc, tid, addr, value, belong, pcs, hr_trace_map, hr_trace_map_pc_dist);
+
+          get_hr_trace_map(pc, value, (_u64) belong, hr_trace_map_pc_dist);
 //                get_dc_trace_map(pc, tid, addr, value_hex);
           index++;
         }
@@ -206,7 +207,7 @@ void read_input_file(const string &input_file) {
   show_srag_redundancy(srag_trace_map, threadid_max, srag_distribution);
 //    calc_vr_redundancy_rate(index);
 //    filter_dead_copy();
-  show_hr_redundancy(hr_trace_map, pcs, vars_type);
+//  show_hr_redundancy(hr_trace_map_pc_dist, vars_type);
 }
 
 int main(int argc, char *argv[]) {

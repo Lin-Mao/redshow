@@ -7,7 +7,7 @@
 #include <map>
 #include <string>
 #include <iostream>
-
+#include "common_lib.h"
 #include <cstdlib>
 
 #ifdef DEBUG
@@ -29,9 +29,10 @@ struct Cubin {
   InstructionGraph inst_graph;
 
   Cubin() = default;
+
   Cubin(uint32_t cubin_id, const char *path_,
-        InstructionGraph &inst_graph) : 
-        cubin_id(cubin_id), path(path_), inst_graph(inst_graph) {}
+        InstructionGraph &inst_graph) :
+      cubin_id(cubin_id), path(path_), inst_graph(inst_graph) {}
 };
 
 static std::map<uint32_t, Cubin> cubin_map;
@@ -43,9 +44,10 @@ struct MemoryRange {
   uint64_t end;
 
   MemoryRange() = default;
+
   MemoryRange(uint64_t start, uint64_t end) : start(start), end(end) {}
 
-  bool operator < (const MemoryRange &other) const {
+  bool operator<(const MemoryRange &other) const {
     return start < other.start;
   }
 };
@@ -55,14 +57,15 @@ struct Memory {
   uint64_t memory_id;
 
   Memory() = default;
+
   Memory(MemoryRange &memory_range, uint64_t memory_id) :
-    memory_range(memory_range), memory_id(memory_id) {}
+      memory_range(memory_range), memory_id(memory_id) {}
 };
 
 typedef std::map<MemoryRange, Memory> MemoryMap;
 static std::map<uint64_t, MemoryMap> memory_snapshot;
 static std::mutex memory_snapshot_lock;
-
+static std::map<uint64_t, AccessType> array_type;
 
 struct Kernel {
   uint64_t kernel_id;
@@ -71,8 +74,9 @@ struct Kernel {
   uint64_t func_addr;
 
   Kernel() = default;
+
   Kernel(uint64_t kernel_id, uint32_t cubin_id, uint32_t func_index, uint64_t func_addr) :
-    kernel_id(kernel_id), cubin_id(cubin_id), func_index(func_index), func_addr(func_addr) {}
+      kernel_id(kernel_id), cubin_id(cubin_id), func_index(func_index), func_addr(func_addr) {}
 };
 
 static std::map<uint64_t, Kernel> kernel_map;
@@ -80,9 +84,12 @@ static std::mutex kernel_map_lock;
 
 static std::set<redshow_analysis_type_t> analysis_enabled;
 
-static redshow_log_data_callback_func log_data_callback = NULL;
+static redshow_log_data_callback_func log_data_callback = nullptr;
 
 static __thread uint64_t mini_host_op_id = 0;
+
+extern map<_u64, map<_u64, map<_u64, _u64 >>> hr_trace_map_pc_dist;
+
 
 redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -106,17 +113,17 @@ redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, I
       result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
     }
   }
-  
+
   return result;
 }
 
 
 redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
-  
+
   std::vector<Symbol> *symbols = NULL;
-  InstructionGraph *inst_graph = NULL; 
-  
+  InstructionGraph *inst_graph = NULL;
+
   cubin_map_lock.lock();
   if (cubin_map.find(cubin_id) == cubin_map.end()) {
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
@@ -140,7 +147,6 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
   memory_snapshot_lock.unlock();
 
   if (result == REDSHOW_SUCCESS) {
-#ifdef DEBUG
     // An example to demonstrate how we get information from trace
     size_t size = trace_data->tail_index;
     gpu_patch_record_t *records = reinterpret_cast<gpu_patch_record_t *>(trace_data->records);
@@ -149,7 +155,7 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
       // Iterate over each record
       gpu_patch_record_t *record = records + i;
       Symbol symbol(record->pc);
-     
+
       auto symbols_iter = std::upper_bound(symbols->begin(), symbols->end(), symbol);
 
       if (symbols_iter != symbols->begin()) {
@@ -163,7 +169,7 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
         } else {
           auto &inst = inst_graph->node(pc_offset + symbols_iter->cubin_offset);
           std::cout << "Instruction: 0x" << std::hex << pc_offset << std::dec <<
-            " " << inst.op << std::endl;
+                    " " << inst.op << std::endl;
 
           AccessType access_type;
           if (record->flags & GPU_PATCH_READ) {
@@ -184,13 +190,25 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
                   --iter;
                   std::cout << "Memory ID: " << iter->second.memory_id << std::endl;
                 }
+
+//                Value part
                 std::cout << "Value: 0x" << std::hex;
                 for (size_t k = 0; k < GPU_PATCH_MAX_ACCESS_SIZE; ++k) {
                   unsigned int c = record->value[j][k];
                   std::cout << c;
                 }
                 std::cout << std::dec << std::endl;
+
+                for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
+                  _u64 value = 0;
+                  memcpy(&value, &record->value[j][m * access_type.unit_size], access_type.unit_size);
+                  get_hr_trace_map(pc_offset, value, (_u64) iter->second.memory_id, hr_trace_map_pc_dist);
+                }
+
+
               }
+
+
             }
           }
         }
@@ -198,6 +216,7 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
         std::cout << "PC: 0x" << std::hex << record->pc << " not found" << std::endl;
       }
     }
+#ifdef DEBUG
 #endif
   }
 
@@ -364,9 +383,9 @@ redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_fu
 
 
 redshow_result_t redshow_analyze(uint32_t cubin_id, uint64_t kernel_id, uint64_t host_op_id,
-  gpu_patch_buffer_t *trace_data) {
+                                 gpu_patch_buffer_t *trace_data) {
   PRINT("\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %p\nhost_op_id: %lu\ntrace_data: %p\n",
-    cubin_id, kernel_id, host_op_id, trace_data);
+        cubin_id, kernel_id, host_op_id, trace_data);
 
   redshow_result_t result;
 
