@@ -108,6 +108,15 @@ void read_input_file(const string &input_file) {
     cout << "Error when opening file " << input_file << endl;
     return;
   }
+  static std::map<uint64_t, AccessType> array_type;
+  int i = 0;
+  for (auto var:vars_type) {
+    AccessType atype;
+    atype.type = AccessType::FLOAT;
+    atype.unit_size = 32;
+    atype.vec_size = 32;
+    array_type[i++] = atype;
+  }
   string line;
 //    just for trv's record of every redundancy
   _u64 index = 0;
@@ -138,13 +147,6 @@ void read_input_file(const string &input_file) {
         cout << "addr " << hex << addr << dec << " found over 1 array it belongs to" << endl;
         break;
       default:
-////                @todo vectorized access
-//                if (sm[5].length() > 8) {
-//                    value_hex = stoull(sm[5].str().substr(0, 8), 0, 1 - 6);
-//                } else {
-//                    value_hex = stoull(sm[5], 0, 16);
-//                }
-//                Should I check the divisibility of sm5.length?
         int t_len = type_length[vars_type[belong]];
         for (int i = 0; i < sm[5].str().length() / t_len; ++i) {
 //                    @todo check the stoull's 2th argument
@@ -177,16 +179,16 @@ void read_input_file(const string &input_file) {
 
           access_type = stoi(sm[6], 0, 16);
 
-          get_tra_trace_map(tid, addr, access_type, belong, tra_list, tra_trace_map, tra_rd_dist);
-          if (access_type == MEM_READ) {
-            get_trv_r_trace_map(index, pc, tid, addr, value, trv_map_read, silent_load_num,
-                                silent_load_pairs, vars_type[belong]);
-          } else {
-            get_trv_w_trace_map(index, pc, tid, addr, value, trv_map_write,
-                                silent_write_num, silent_write_pairs,
-                                trv_map_read, dead_write_num, dead_write_pairs, vars_type[belong]);
-          }
-          get_srag_trace_map(index, pc, tid, addr, srag_trace_map);
+//          get_tra_trace_map(tid, addr, access_type, belong, tra_list, tra_trace_map, tra_rd_dist);
+//          if (access_type == MEM_READ) {
+//            get_trv_r_trace_map(index, pc, tid, addr, value, trv_map_read, silent_load_num,
+//                                silent_load_pairs, vars_type[belong]);
+//          } else {
+//            get_trv_w_trace_map(index, pc, tid, addr, value, trv_map_write,
+//                                silent_write_num, silent_write_pairs,
+//                                trv_map_read, dead_write_num, dead_write_pairs, vars_type[belong]);
+//          }
+//          get_srag_trace_map(index, pc, tid, addr, srag_trace_map);
 //            get_srag_trace_map_test(index, pc, tid, addr, value_hex);
 //            get_srv_trace_map(pc, tid, addr, value_hex);
 //                    get_vr_trace_map(pc, tid, addr, value_split, vars_type[belong]);
@@ -200,14 +202,14 @@ void read_input_file(const string &input_file) {
 
 
   }
-  show_tra_redundancy(index, threadid_max, tra_trace_map, tra_rd_dist);
-
-  show_trv_redundancy_rate(index, silent_load_num, silent_load_pairs, silent_write_num, silent_write_pairs,
-                           dead_write_num, dead_write_pairs);
-  show_srag_redundancy(srag_trace_map, threadid_max, srag_distribution);
+//  show_tra_redundancy(index, threadid_max, tra_trace_map, tra_rd_dist);
+//
+//  show_trv_redundancy_rate(index, silent_load_num, silent_load_pairs, silent_write_num, silent_write_pairs,
+//                           dead_write_num, dead_write_pairs);
+//  show_srag_redundancy(srag_trace_map, threadid_max, srag_distribution);
 //    calc_vr_redundancy_rate(index);
 //    filter_dead_copy();
-//  show_hr_redundancy(hr_trace_map_pc_dist, vars_type);
+  show_hr_redundancy(hr_trace_map_pc_dist, array_type);
 }
 
 int main(int argc, char *argv[]) {

@@ -66,7 +66,6 @@ struct Memory {
 typedef std::map<MemoryRange, Memory> MemoryMap;
 static std::map<uint64_t, MemoryMap> memory_snapshot;
 static std::mutex memory_snapshot_lock;
-static std::map<uint64_t, AccessType> array_type;
 
 struct Kernel {
   uint64_t kernel_id;
@@ -90,7 +89,7 @@ static redshow_log_data_callback_func log_data_callback = NULL;
 static __thread uint64_t mini_host_op_id = 0;
 
 extern map<_u64, map<_u64, map<_u64, _u64 >>> hr_trace_map_pc_dist;
-
+static std::map<uint64_t, AccessType> array_type;
 
 redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -200,8 +199,6 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
             auto &inst = inst_graph->node(pc_offset + symbols_iter->cubin_offset);
             std::cout << "Instruction: 0x" << std::hex << pc_offset << std::dec <<
                       " " << inst.op << std::endl;
-
-            AccessType access_type;
             if (record->flags & GPU_PATCH_READ) {
               access_type = load_data_type(inst.pc, *inst_graph);
             } else if (record->flags & GPU_PATCH_WRITE) {
@@ -222,8 +219,16 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
               std::cout << "Address: 0x" << std::hex << record->address[j] << std::dec << std::endl;
               MemoryRange memory_range(record->address[j], record->address[j]);
               auto iter = memory_map->upper_bound(memory_range);
+              bool find_belong = false;
               if (iter != memory_map->begin()) {
                 --iter;
+                find_belong = true;
+                auto find_it = array_type.find(iter->second.memory_id);
+                if(find_it == array_type.end()){
+                  array_type[iter->second.memory_id] = access_type;
+                }else if(access_type.type != find_it->second.type || access_type.unit_size != find_it->second.unit_size){
+                  std::cout<<"This array has been set to another type:\t"<<access_type.type<<std::endl;
+                }
                 std::cout << "Memory ID: " << iter->second.memory_id << std::endl;
               }
 
@@ -234,12 +239,14 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
                   std::cout << c;
                 }
                 std::cout << std::dec << std::endl;
-
-                for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
-                  _u64 value = 0;
-                  memcpy(&value, &record->value[j][m * access_type.unit_size], access_type.unit_size);
-                  get_hr_trace_map(pc_offset, value, (_u64) iter->second.memory_id, hr_trace_map_pc_dist);
+                if (find_belong){
+                  for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
+                    _u64 value = 0;
+                    memcpy(&value, &record->value[j][m * access_type.unit_size], access_type.unit_size);
+                    get_hr_trace_map(pc_offset, value, (_u64) iter->second.memory_id, hr_trace_map_pc_dist);
+                  }
                 }
+
               }
             }
           }
@@ -247,6 +254,9 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
         std::cout << "PC: 0x" << std::hex << record->pc << " not found" << std::endl;
       }
     }
+//    add show_hr
+  show_hr_redundancy(hr_trace_map_pc_dist, array_type);
+  hr_trace_map_pc_dist.clear();
 #endif
   }
 
