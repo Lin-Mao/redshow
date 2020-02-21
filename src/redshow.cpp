@@ -189,30 +189,27 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
           std::cout << "EXIT block: " << record->flat_block_id << std::endl;
         } else {
           // record->size * 8, byte to bits
-          AccessType access_type(0, record->size * 8, AccessType::UNKNOWN);
+          AccessType access_type;
 
-          if (inst_graph->size() == 0) {
-            // Default mode, we identify every data as 32 bits unit size, 32 bits vec size, integer type
-            access_type.type = AccessType::INTEGER;
-            access_type.unit_size = MIN2(32, access_type.vec_size);
-          } else {
+          if (inst_graph->size() != 0) {
             // Accurate mode, when we have instruction information
             auto &inst = inst_graph->node(pc_offset + symbols_iter->cubin_offset);
             std::cout << "Instruction: 0x" << std::hex << pc_offset << std::dec <<
                       " " << inst.op << std::endl;
 
-            AccessType access_type;
             if (record->flags & GPU_PATCH_READ) {
               access_type = load_data_type(inst.pc, *inst_graph);
             } else if (record->flags & GPU_PATCH_WRITE) {
               access_type = store_data_type(inst.pc, *inst_graph);
             }
-
             // Fall back to default mode if failed
-            if (access_type.type == AccessType::UNKNOWN) {
-              access_type.type = AccessType::INTEGER;
-              access_type.unit_size = MIN2(32, access_type.vec_size);
-            }
+          }
+
+          if (access_type.type == AccessType::UNKNOWN) {
+            // Default mode, we identify every data as 32 bits unit size, 32 bits vec size, integer type
+            access_type.type = AccessType::INTEGER;
+            access_type.vec_size = record->size;
+            access_type.unit_size = MIN2(32, access_type.vec_size);
           }
 
           std::cout << "Access type: " << access_type.to_string() << std::endl;
@@ -222,9 +219,11 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
               std::cout << "Address: 0x" << std::hex << record->address[j] << std::dec << std::endl;
               MemoryRange memory_range(record->address[j], record->address[j]);
               auto iter = memory_map->upper_bound(memory_range);
+              uint64_t memory_id = 0;
               if (iter != memory_map->begin()) {
                 --iter;
-                std::cout << "Memory ID: " << iter->second.memory_id << std::endl;
+                memory_id = iter->second.memory_id;
+                std::cout << "Memory ID: " << memory_id << std::endl;
               }
 
 //                Value part
@@ -238,7 +237,7 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
                 for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
                   _u64 value = 0;
                   memcpy(&value, &record->value[j][m * access_type.unit_size], access_type.unit_size);
-                  get_hr_trace_map(pc_offset, value, (_u64) iter->second.memory_id, hr_trace_map_pc_dist);
+                  get_hr_trace_map(pc_offset, value, memory_id, hr_trace_map_pc_dist);
                 }
               }
             }
