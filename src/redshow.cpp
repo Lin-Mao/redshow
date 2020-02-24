@@ -87,9 +87,15 @@ static std::set<redshow_analysis_type_t> analysis_enabled;
 static redshow_log_data_callback_func log_data_callback = NULL;
 
 static __thread uint64_t mini_host_op_id = 0;
-
-extern map<_u64, map<_u64, map<_u64, _u64 >>> hr_trace_map_pc_dist;
-static std::map<uint64_t, AccessType> array_type;
+//  {tuple<array_id, AccessType> :{value: counter}}
+extern map<tuple<_u64, AccessType>, map<_u64, _u64 >> hr_trace_map;
+//{thread: {addr1: <value, pc, index>,}}
+extern map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> trv_map_read;
+extern map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> trv_map_write;
+// <pc1, pc2, addr, value, type>
+extern vector<tuple<_u64, _u64, _u64, _u64, AccessType>> silent_load_pairs;
+extern vector<tuple<_u64, _u64, _u64, _u64, AccessType>> silent_write_pairs;
+extern vector<tuple<_u64, _u64, _u64, _u64, AccessType>> dead_write_pairs;
 
 redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -166,7 +172,7 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
   }
 
   if (result == REDSHOW_SUCCESS) {
-#ifdef DEBUG
+//#ifdef DEBUG
     // An example to demonstrate how we get information from trace
     size_t size = trace_data->tail_index;
     gpu_patch_record_t *records = reinterpret_cast<gpu_patch_record_t *>(trace_data->records);
@@ -223,41 +229,44 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
               if (iter != memory_map->begin()) {
                 --iter;
                 find_belong = true;
-                auto find_it = array_type.find(iter->second.memory_id);
-                if(find_it == array_type.end()){
-                  array_type[iter->second.memory_id] = access_type;
-                }else if(access_type.type != find_it->second.type || access_type.unit_size != find_it->second.unit_size){
-                  std::cout<<"This array has been set to another type:\t"<<access_type.type<<std::endl;
-                }
                 std::cout << "Memory ID: " << iter->second.memory_id << std::endl;
               }
 
 //                Value part
-                std::cout << "Value: 0x" << std::hex;
-                for (size_t k = 0; k < GPU_PATCH_MAX_ACCESS_SIZE; ++k) {
-                  unsigned int c = record->value[j][k];
-                  std::cout << c;
-                }
-                std::cout << std::dec << std::endl;
-                if (find_belong){
-                  for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
-                    _u64 value = 0;
-                    memcpy(&value, &record->value[j][m * access_type.unit_size], access_type.unit_size);
-                    get_hr_trace_map(pc_offset, value, (_u64) iter->second.memory_id, hr_trace_map_pc_dist);
+              std::cout << "Value: 0x" << std::hex;
+              for (size_t k = 0; k < GPU_PATCH_MAX_ACCESS_SIZE; ++k) {
+                unsigned int c = record->value[j][k];
+                std::cout << c;
+              }
+              std::cout << std::dec << std::endl;
+              if (find_belong) {
+                for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
+                  _u64 value = 0;
+                  memcpy(&value, &record->value[j][m * access_type.unit_size], access_type.unit_size >> 3u);
+                  get_hr_trace_map(value, (_u64) iter->second.memory_id, access_type, hr_trace_map);
+                  if (record->flags & GPU_PATCH_READ) {
+                    get_trv_r_trace_map(i, record->pc, threadid, record->address[j], value, trv_map_read,
+                                        silent_load_pairs,
+                                        access_type);
+                  } else if (record->flags & GPU_PATCH_WRITE) {
+                    get_trv_w_trace_map(i, record->pc, threaid, record->address[j], value, trv_map_write,
+                                        silent_write_pairs,
+                                        trv_map_read, dead_write_pairs, access_type);
                   }
                 }
-
               }
+
             }
           }
+        }
       } else {
         std::cout << "PC: 0x" << std::hex << record->pc << " not found" << std::endl;
       }
     }
 //    add show_hr
-  show_hr_redundancy(hr_trace_map_pc_dist, array_type);
-  hr_trace_map_pc_dist.clear();
-#endif
+    show_hr_redundancy(hr_trace_map);
+    show_trv_redundancy_rate(size, silent_load_pairs, silent_write_pairs, dead_write_pairs);
+//#endif
   }
 
   return result;

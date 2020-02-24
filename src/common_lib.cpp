@@ -80,8 +80,8 @@ void show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<in
 /**@arg index: It is used to mark the silent load offset in the trace file. It is also used to mark the last read which is used to */
 void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value,
                          map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> &trv_map_read,
-                         long long &silent_load_num,
-                         vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &silent_load_pairs, BasicType atype) {
+                         vector<tuple<_u64, _u64, _u64, _u64, AccessType>> &silent_load_pairs, AccessType atype) {
+//
   auto tmr_it = trv_map_read.find(tid);
   map<_u64, tuple<_u64, _u64, _u64 >> record;
 //    record current operation.
@@ -97,7 +97,6 @@ void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 valu
       tmr_it->second[addr] = record[addr];
     } else {
       if (get<0>(m_it->second) == value) {
-        silent_load_num++;
         silent_load_pairs.emplace_back(get<1>(m_it->second), pc, addr, value, atype);
       }
       m_it->second = record[addr];
@@ -108,11 +107,9 @@ void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 valu
 /**@arg index: It is used to mark the silent write and dead write offset in the trace file. */
 void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value,
                          map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> &trv_map_write,
-                         long long &silent_write_num,
-                         vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &silent_write_pairs,
+                         vector<tuple<_u64, _u64, _u64, _u64, AccessType>> &silent_write_pairs,
                          map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> &trv_map_read,
-                         long long &dead_write_num,
-                         vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &dead_write_pairs, BasicType atype) {
+                         vector<tuple<_u64, _u64, _u64, _u64, AccessType>> &dead_write_pairs, AccessType atype) {
   auto tmw_it = trv_map_write.find(tid);
 //    {addr: <value, pc, index>}
   map<_u64, tuple<_u64, _u64, _u64 >> record;
@@ -125,7 +122,6 @@ void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 valu
       tmw_it->second[addr] = record[addr];
     } else {
       if (get<0>(m_it->second) == value) {
-        silent_write_num++;
         silent_write_pairs.emplace_back(get<1>(m_it->second), pc, addr, value, atype);
       }
 //            check the last read about this <thread, addr>
@@ -137,12 +133,10 @@ void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 valu
           auto r_value = m_it2->second;
 //                  the last read of this addr is earlier than last write.
           if (get<2>(r_value) < get<2>(m_it->second)) {
-            dead_write_num++;
             dead_write_pairs.emplace_back(get<1>(m_it->second), pc, addr, value, atype);
           }
         }
       } else {
-        dead_write_num++;
         dead_write_pairs.emplace_back(get<1>(m_it->second), pc, addr, value, atype);
       }
       m_it->second = record[addr];
@@ -151,16 +145,14 @@ void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 valu
 }
 
 //
-void show_trv_redundancy_rate(_u64 line_num, long long &silent_load_num,
-                              vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &silent_load_pairs,
-                              long long &silent_write_num,
-                              vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &silent_write_pairs,
-                              long long &dead_write_num,
-                              vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &dead_write_pairs) {
-  if (line_num == 0) {
-    cout << "No memory operation found" << endl;
-    return;
-  }
+void show_trv_redundancy_rate(_u64 line_num,
+                              vector<tuple<_u64, _u64, _u64, _u64, AccessType>> &silent_load_pairs,
+                              vector<tuple<_u64, _u64, _u64, _u64, AccessType>> &silent_write_pairs,
+                              vector<tuple<_u64, _u64, _u64, _u64, AccessType>> &dead_write_pairs) {
+  // <pc1, pc2, addr, value, type>
+  _u64 silent_load_num = silent_load_pairs.size();
+  _u64 silent_write_num = silent_write_pairs.size();
+  _u64 dead_write_num = dead_write_pairs.size();
   cout << "silent_load_num\t" << silent_load_num << endl;
   cout << "silent_load rate\t" << (double) silent_load_num / line_num << endl;
   cout << "silent_write_num\t" << silent_write_num << endl;
@@ -169,24 +161,21 @@ void show_trv_redundancy_rate(_u64 line_num, long long &silent_load_num,
   cout << "dead_write rate\t" << (double) dead_write_num / line_num << endl;
   ofstream out("trv_silent_load.csv");
   for (auto item : silent_load_pairs) {
-//        0:pc1, 1: pc2, 2: addr,
     out << get<0>(item) << " , " << get<1>(item) << " , " << hex << get<2>(item) << " , " << dec;
-//        According to the array type to show different type of value.
-    output_corresponding_type_value(get<3>(item), get<4>(item), out.rdbuf());
-//            << get<0>(get<3>(item)) << "." << get<1>(get<3>(item)) << endl;
+    output_corresponding_type_value(get<3>(item), get<4>(item), out.rdbuf(), true);
   }
   out.close();
   ofstream out2("trv_silent_write.csv");
   for (auto item : silent_write_pairs) {
 //        0:pc1, 1: pc2, 2: addr,
     out2 << get<0>(item) << " , " << get<1>(item) << " , " << hex << get<2>(item) << " , " << dec;
-    output_corresponding_type_value(get<3>(item), get<4>(item), out2.rdbuf());
+    output_corresponding_type_value(get<3>(item), get<4>(item), out2.rdbuf(), true);
   }
   out2.close();
   ofstream out3("trv_dead_write.csv");
   for (auto item : dead_write_pairs) {
     out3 << get<0>(item) << " , " << get<1>(item) << " , " << hex << get<2>(item) << " , " << dec;
-    output_corresponding_type_value(get<3>(item), get<4>(item), out3.rdbuf());
+    output_corresponding_type_value(get<3>(item), get<4>(item), out3.rdbuf(), true);
   }
   out3.close();
 }
@@ -303,51 +292,27 @@ void show_srv_bs_redundancy(ThreadId &threadid_max,
 }
 
 
-void show_hr_redundancy(map<_u64, map<_u64, map<_u64, _u64 >>> &hr_trace_map_pc_dist,
-                        map<uint64_t, AccessType> &array_type) {
-//  {pc: { array :(value, counter)}}
-// record every pc's hottest value
-//  map<_u64, map<_u64, tuple<_u64, _u64>>> pc_hot_value;
-//  {array: {value: counter}}
-  map<_u64, map<_u64, _u64 >> hr_trace_map;
-  ofstream out("hr_pc.csv");
-  //{pc: {array:{value:counter}}}
-  for (auto &pc_it : hr_trace_map_pc_dist) {
+void show_hr_redundancy(map<tuple<_u64, AccessType>, map<_u64, _u64 >> &hr_trace_map) {
+
+//  {tuple<array_id, AccessType> :{value: counter}}
+  for (auto &array_it : hr_trace_map) {
+    ofstream out("hr_" + to_string(get<0>(array_it.first)) + ".csv");
     _u64 max_acc_times = 0;
     _u64 max_acc_value = INT64_MAX;
     _u64 sum_times = 0;
-//    array:{value:counter}
-    for (auto array_it: pc_it.second) {
-      AccessType atype = array_type[array_it.first];
-//      {value:counter}
-      for (auto &value_it : array_it.second) {
-        if (value_it.second > max_acc_times) {
-          max_acc_times = value_it.second;
-          max_acc_value = value_it.first;
-        }
-        sum_times += value_it.second;
-        hr_trace_map[array_it.first][value_it.first] += value_it.second;
-        out << pc_it.first << "," << array_it.first << ",";
-        output_corresponding_type_value(value_it.first, atype, out.rdbuf(), true);
-        out << "," << value_it.second << endl;
+//    {value: counter}
+    for (auto &value_it : array_it.second) {
+      if (value_it.second > max_acc_times) {
+        max_acc_times = value_it.second;
+        max_acc_value = value_it.first;
       }
-//      out<<pc_it.first<<","<<max_acc_value<<","<<max_acc_times<<endl;
+      sum_times += value_it.second;
+      output_corresponding_type_value(value_it.first, get<1>(array_it.first), out.rdbuf(), true);
+      out << "," << value_it.second << endl;
     }
-  }
-  out.close();
-//  {array: {value: counter}}
-  for (const auto &array_it: hr_trace_map) {
-    ofstream out2("hr_" + to_string(array_it.first) + ".csv");
-    AccessType atype = array_type[array_it.first];
-//     {value: counter}
-    for (auto value_it: array_it.second) {
-      output_corresponding_type_value(value_it.first, atype, out2.rdbuf(), true);
-      out2 << "," << value_it.second << endl;
-    }
-    out2.close();
+    out.close();
   }
 }
-
 //void show_hr_redundancy(map<_u64, map<_u64, map<_u64, _u64 >>> &hr_trace_map_pc_dist,
 //                        void *array_type) {
 //  //{pc: {array:{value:counter}}}
@@ -533,14 +498,8 @@ _u64 srag_distribution[WARP_SIZE];
  * {thread: {array_i: {offset: {first_value, last_value}}}}*/
 map<ThreadId, map<int, map<int, long long>>> srv_bs_trace_map;
 // horizontal redundancy
-
-
-//{var:{value:counter}}
-map<int, map<_u64, _u64>> hr_trace_map;
-// {pc: { var:{value: counter} }}
-map<_u64, map<_u64, map<_u64, _u64 >>> hr_trace_map_pc_dist;
-// to get the number of pcs
-set<_u64> pcs;
+//  {tuple<array_id, AccessType> :{value: counter}}
+map<tuple<_u64, AccessType>, map<_u64, _u64 >> hr_trace_map;
 //at this time, I use vector as the main format to store tracemap, but if we can get an input of array size, it can be changed to normal array.
 // {var:{index1,index2}}
 map<int, set<_u64 >> dc_trace_map;

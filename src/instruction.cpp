@@ -194,10 +194,8 @@ AccessType store_data_type(unsigned int pc, InstructionGraph &inst_graph) {
   if (inst.op.find(".STORE") != std::string::npos &&
       inst_graph.incoming_nodes_size(pc) != 0) {
     auto &incoming_nodes = inst_graph.incoming_nodes(pc);
-
     // Associate access type with instruction
     init_access_type(inst, inst_graph, incoming_nodes);
   }
-
   return *(inst.access_type);
 }

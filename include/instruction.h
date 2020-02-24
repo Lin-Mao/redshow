@@ -15,16 +15,16 @@ struct Symbol {
   uint64_t pc;
 
   Symbol(uint32_t index, uint64_t cubin_offset, uint64_t pc) :
-    index(index), cubin_offset(cubin_offset), pc(pc) {}
+      index(index), cubin_offset(cubin_offset), pc(pc) {}
 
   Symbol(uint32_t index, uint64_t cubin_offset) :
-    Symbol(index, cubin_offset, 0) {}
+      Symbol(index, cubin_offset, 0) {}
 
   Symbol(uint64_t pc) : Symbol(0, 0, pc) {}
 
   Symbol() : Symbol(0, 0, 0) {}
 
-  bool operator < (const Symbol &other) const {
+  bool operator<(const Symbol &other) const {
     return this->pc < other.pc;
   }
 };
@@ -41,12 +41,12 @@ struct AccessType {
   uint32_t vec_size;
   // 8, 16, 32, 64
   uint32_t unit_size;
-  DataType type; 
+  DataType type;
 
   AccessType(uint32_t unit_size, uint32_t vec_size, DataType type) :
-    unit_size(unit_size), vec_size(vec_size), type(type) {}
+      unit_size(unit_size), vec_size(vec_size), type(type) {}
 
-  AccessType() : AccessType(0, 0, UNKNOWN) {} 
+  AccessType() : AccessType(0, 0, UNKNOWN) {}
 
   std::string to_string() {
     std::stringstream ss;
@@ -62,6 +62,11 @@ struct AccessType {
     ss << ", u: " << unit_size << "}";
     return ss.str();
   }
+
+  bool operator<(const AccessType &b) const {
+    return this->type < b.type;
+  }
+
 };
 
 /*
@@ -69,8 +74,8 @@ struct AccessType {
  */
 
 struct Instruction {
-  std::string op; 
-  unsigned int pc; 
+  std::string op;
+  unsigned int pc;
   int predicate;  // P0-P6
   std::vector<int> dsts;  // R0-R255: only records normal registers
   std::vector<int> srcs;  // R0-R255, only records normal registers
@@ -78,26 +83,26 @@ struct Instruction {
   std::shared_ptr<AccessType> access_type;
 
   Instruction(const std::string &op, unsigned int pc, int predicate,
-    std::vector<int> &dsts, std::vector<int> &srcs,
-    std::map<int, std::vector<int> > &assign_pcs) :
-    op(op), pc(pc), predicate(predicate),
-    dsts(dsts), srcs(srcs), assign_pcs(assign_pcs),
-    access_type(NULL) {}
+              std::vector<int> &dsts, std::vector<int> &srcs,
+              std::map<int, std::vector<int> > &assign_pcs) :
+      op(op), pc(pc), predicate(predicate),
+      dsts(dsts), srcs(srcs), assign_pcs(assign_pcs),
+      access_type(NULL) {}
 
   Instruction() : access_type(NULL) {}
 
-  bool operator < (const Instruction &other) const {
+  bool operator<(const Instruction &other) const {
     return this->pc < other.pc;
   }
 };
 
 
 class InstructionGraph {
- public:
+public:
   typedef std::map<unsigned int, std::set<unsigned int> > NeighborNodeMap;
   typedef std::map<unsigned int, Instruction> NodeMap;
 
- public:
+public:
   InstructionGraph() {}
 
   typename NodeMap::iterator nodes_begin() {

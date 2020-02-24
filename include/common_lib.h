@@ -143,25 +143,20 @@ void show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<in
 //Silent load
 void get_trv_r_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value,
                          map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> &trv_map_read,
-                         long long &silent_load_num,
-                         vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &silent_load_pairs, BasicType atype);
+                         vector<tuple<_u64, _u64, _u64, _u64, AccessType>> &silent_load_pairs, AccessType atype);
 
 //dead store & silent store
 void get_trv_w_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr, _u64 value,
                          map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> &trv_map_write,
-                         long long &silent_write_num,
-                         vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &silent_write_pairs,
+                         vector<tuple<_u64, _u64, _u64, _u64, AccessType>> &silent_write_pairs,
                          map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> &trv_map_read,
-                         long long &dead_write_num,
-                         vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &dead_write_pairs, BasicType atype);
+                         vector<tuple<_u64, _u64, _u64, _u64, AccessType>> &dead_write_pairs, AccessType atype);
 
 // calculate the rates and write these pairs
-void show_trv_redundancy_rate(_u64 line_num, long long &silent_load_num,
-                              vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &silent_load_pairs,
-                              long long &silent_write_num,
-                              vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &silent_write_pairs,
-                              long long &dead_write_num,
-                              vector<tuple<_u64, _u64, _u64, _u64, BasicType>> &dead_write_pairs);
+void show_trv_redundancy_rate(_u64 line_num,
+                              vector<tuple<_u64, _u64, _u64, _u64, AccessType>> &silent_load_pairs,
+                              vector<tuple<_u64, _u64, _u64, _u64, AccessType>> &silent_write_pairs,
+                              vector<tuple<_u64, _u64, _u64, _u64, AccessType>> &dead_write_pairs);
 
 // get Spatial Redundancy Address (Memory Divergence)
 void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr,
@@ -181,14 +176,13 @@ void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple
                       map<int, set<_u64 >> &dc_trace_map);
 
 inline void
-get_hr_trace_map(_u64 pc, _u64 value, _u64 belong, map<_u64, map<_u64, map<_u64, _u64 >>> &hr_trace_map_pc_dist) {
-//   //{var:{value:num}} map<int, map<_u64, _u64>> hr_trace_map;
-//  {pc: { var:{value: num} }}
-  hr_trace_map_pc_dist[pc][belong][value] += 1;
+get_hr_trace_map(_u64 value, _u64 belong, AccessType atype,
+                 map<tuple<_u64, AccessType>, map<_u64, _u64 >> &hr_trace_map) {
+//
+  hr_trace_map[make_tuple(belong, atype)][value] += 1;
 }
 
-void
-show_hr_redundancy(map<_u64, map<_u64, map<_u64, _u64 >>> &hr_trace_map_pc_dist, map<uint64_t, AccessType> &array_type);
+void show_hr_redundancy(map<tuple<_u64, AccessType>, map<_u64, _u64 >> &hr_trace_map);
 
 inline void output_corresponding_type_value(_u64 a, BasicType atype, streambuf *buf) {
   ostream out(buf);

@@ -30,8 +30,7 @@ extern map<_u64, map<ThreadId, set<_u64>>> srag_trace_map_test;
 extern map<_u64, map<_u64, map<ThreadId, _u64 >>> srv_trace_map;
 extern _u64 srag_distribution[WARP_SIZE];
 extern map<ThreadId, map<int, map<int, long long>>> srv_bs_trace_map;
-extern map<_u64, map<_u64, _u64>> hr_trace_map;
-extern map<_u64, map<_u64, map<_u64, _u64 >>> hr_trace_map_pc_dist;
+extern map<tuple<_u64, AccessType>, map<_u64, _u64 >> hr_trace_map;
 extern set<_u64> pcs;
 extern map<int, set<_u64 >> dc_trace_map;
 
@@ -193,7 +192,7 @@ void read_input_file(const string &input_file) {
 //            get_srv_trace_map(pc, tid, addr, value_hex);
 //                    get_vr_trace_map(pc, tid, addr, value_split, vars_type[belong]);
 
-          get_hr_trace_map(pc, value, (_u64) belong, hr_trace_map_pc_dist);
+          get_hr_trace_map(value, (_u64) belong, array_type[belong], hr_trace_map);
 //                get_dc_trace_map(pc, tid, addr, value_hex);
           index++;
         }
@@ -209,7 +208,7 @@ void read_input_file(const string &input_file) {
 //  show_srag_redundancy(srag_trace_map, threadid_max, srag_distribution);
 //    calc_vr_redundancy_rate(index);
 //    filter_dead_copy();
-  show_hr_redundancy(hr_trace_map_pc_dist, array_type);
+  show_hr_redundancy(hr_trace_map);
 }
 
 int main(int argc, char *argv[]) {
