@@ -239,6 +239,8 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
                 std::cout << c;
               }
               std::cout << std::dec << std::endl;
+              ThreadId threadid{record->flat_block_id, record->flat_thread_id};
+
               if (find_belong) {
                 for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
                   _u64 value = 0;
@@ -249,7 +251,7 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
                                         silent_load_pairs,
                                         access_type);
                   } else if (record->flags & GPU_PATCH_WRITE) {
-                    get_trv_w_trace_map(i, record->pc, threaid, record->address[j], value, trv_map_write,
+                    get_trv_w_trace_map(i, record->pc, threadid, record->address[j], value, trv_map_write,
                                         silent_write_pairs,
                                         trv_map_read, dead_write_pairs, access_type);
                   }

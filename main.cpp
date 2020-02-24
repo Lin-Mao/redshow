@@ -12,7 +12,7 @@ void read_input_file(const string &input_file, string target_name);
 ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max);
 
 ostream &operator<<(ostream &out, const ThreadId &A) {
-  out << "(" << A.bx << "," << A.by << "," << A.bz << ")(" << A.tx << "," << A.ty << "," << A.tz << ")";
+  out << "(" << A.flat_block_id << ")(" << A.flat_thread_id << ")";
   return out;
 }
 
@@ -132,9 +132,6 @@ void read_input_file(const string &input_file) {
     addr = stoull(sm[4], 0, 16);
     ThreadId tid = transform_tid(sm[2], sm[3]);
     threadid_max = get_max_threadId(tid, threadid_max);
-    if (tid.bx == -1 || tid.by == -1 || tid.bz == -1 || tid.tx == -1 || tid.ty == -1 | tid.tz == -1) {
-      cout << "Can not filter threadid from " << line << endl;
-    }
     auto belongs = get_cur_addr_belong_index(addr, vars_mem_block);
     int belong = get<0>(belongs);
     _u64 offset = get<1>(belongs);

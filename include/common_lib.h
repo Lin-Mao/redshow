@@ -70,12 +70,8 @@ const int valid_double_digits = 40;
 
 class ThreadId {
 public:
-  int bx;
-  int by;
-  int bz;
-  int tx;
-  int ty;
-  int tz;
+  _u32 flat_block_id;
+  _u32 flat_thread_id;
 
   bool operator<(const ThreadId &o) const;
 

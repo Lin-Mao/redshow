@@ -45,36 +45,36 @@ void get_tra_trace_map(const ThreadId tid, _u64 addr, int acc_type, int belong, 
   }
 }
 
-
-void show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<int >> &tra_trace_map,
-                         map<int, map<int, _u64 >> &tra_rd_dist) {
-  double tra_rate = 0;
-  long long r_sum = 0;
-//    How many reuse distance has recorded.
-  long long r_num = 0;
-  int thread_nums =
-      (threadid_max.tx + 1) * (threadid_max.ty + 1) * (threadid_max.tz + 1) * (threadid_max.bx + 1) *
-      (threadid_max.by + 1) * (threadid_max.bz + 1);
-  map<_u64, vector<int >>::iterator ttm_it;
-  for (ttm_it = tra_trace_map.begin(); ttm_it != tra_trace_map.end(); ttm_it++) {
-    r_sum += accumulate(ttm_it->second.begin(), ttm_it->second.end(), 0);
-    r_num += ttm_it->second.size();
-  }
-  tra_rate = thread_nums == 0 ? 0 : (double) r_sum / thread_nums;
-  cout << "reuse distance sum:\t" << r_sum << endl;
-  cout << "reuse rate:\t" << (double) r_num / index << endl;
-  cout << "tra rate:\t" << tra_rate << endl;
-// write the reuse distance histogram to csv files.
-  for (int i = 0; i < tra_rd_dist.size(); ++i) {
-    ofstream out("tra_" + to_string(i) + ".csv");
-    auto tmp_rd_dist = tra_rd_dist[i];
-    for (auto every_rd:tmp_rd_dist) {
-      out << every_rd.first << "," << every_rd.second << endl;
-    }
-    out.close();
-  }
-
-}
+//
+//void show_tra_redundancy(_u64 index, ThreadId &threadid_max, map<_u64, vector<int >> &tra_trace_map,
+//                         map<int, map<int, _u64 >> &tra_rd_dist) {
+//  double tra_rate = 0;
+//  long long r_sum = 0;
+////    How many reuse distance has recorded.
+//  long long r_num = 0;
+//  int thread_nums =
+//      (threadid_max.tx + 1) * (threadid_max.ty + 1) * (threadid_max.tz + 1) * (threadid_max.bx + 1) *
+//      (threadid_max.by + 1) * (threadid_max.bz + 1);
+//  map<_u64, vector<int >>::iterator ttm_it;
+//  for (ttm_it = tra_trace_map.begin(); ttm_it != tra_trace_map.end(); ttm_it++) {
+//    r_sum += accumulate(ttm_it->second.begin(), ttm_it->second.end(), 0);
+//    r_num += ttm_it->second.size();
+//  }
+//  tra_rate = thread_nums == 0 ? 0 : (double) r_sum / thread_nums;
+//  cout << "reuse distance sum:\t" << r_sum << endl;
+//  cout << "reuse rate:\t" << (double) r_num / index << endl;
+//  cout << "tra rate:\t" << tra_rate << endl;
+//// write the reuse distance histogram to csv files.
+//  for (int i = 0; i < tra_rd_dist.size(); ++i) {
+//    ofstream out("tra_" + to_string(i) + ".csv");
+//    auto tmp_rd_dist = tra_rd_dist[i];
+//    for (auto every_rd:tmp_rd_dist) {
+//      out << every_rd.first << "," << every_rd.second << endl;
+//    }
+//    out.close();
+//  }
+//
+//}
 
 
 /**@arg index: It is used to mark the silent load offset in the trace file. It is also used to mark the last read which is used to */
@@ -204,61 +204,61 @@ void get_srag_trace_map(_u64 index, _u64 pc, ThreadId tid, _u64 addr,
   }
 }
 
-// {pc: {tid: {addr,}, ]}}
-void show_srag_redundancy(map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> &srag_trace_map, ThreadId &threadid_max,
-                          _u64 (&srag_distribution)[WARP_SIZE]) {
-//    _u64 all_transactions = 0;
-  int bz, by, bx, tz, ty, tx;
-  for (auto stm_it:srag_trace_map) {
-    for (bz = 0; bz <= threadid_max.bz; bz++) {
-      for (by = 0; by <= threadid_max.by; ++by) {
-        for (bx = 0; bx <= threadid_max.bx; ++bx) {
-          for (tz = 0; tz <= threadid_max.tz; ++tz) {
-            for (ty = 0; ty <= threadid_max.ty; ++ty) {
-              for (tx = 0; tx <= threadid_max.tx; tx += 32) {
-                int remain_items = 0;
-//                                Find how many iterations the thread could have.
-                for (int tx_i = 0; tx_i < 32; ++tx_i) {
-                  ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
-//                                    m_it: map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>
-                  auto m_it = stm_it.second.find(tmp_id);
-                  if (m_it != stm_it.second.end()) {
-                    remain_items = max(remain_items, (int) m_it->second.size());
-                  }
-                }
-                for (int i = 0; i < remain_items; ++i) {
-//                                    per warp, per pc, per iteration of a loop
-                  set<_u64> warp_unique_cache_lines;
-                  for (int tx_i = 0; tx_i < 32; ++tx_i) {
-                    ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
-                    auto m_it = stm_it.second.find(tmp_id);
-                    if (m_it != stm_it.second.end() && m_it->second.size() > i) {
-//                                            the tuple has three items now. We need the second one, addr
-//                                      Every cache line is 32bytes now.
-                      int x = get<1>(m_it->second[i]) >> 5;
-                      warp_unique_cache_lines.insert(
-                          get<1>(m_it->second[tx_i]) >> CACHE_LINE_BYTES_BIN);
-                    }
-                  }
-//                                    all_transactions += warp_unique_cache_lines.size();
-                  int cur_warp_unique_cache_line_size = warp_unique_cache_lines.size();
-                  if (cur_warp_unique_cache_line_size > 32 || cur_warp_unique_cache_line_size <= 0) {
-                    cout << "Error: There is a warp access illegal unique cache line size "
-                         << cur_warp_unique_cache_line_size << endl;
-                  } else {
-                    srag_distribution[cur_warp_unique_cache_line_size - 1]++;
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-//    double perfect_transaction = index  / 8;
-//    return all_transactions / perfect_transaction;
-}
+//// {pc: {tid: {addr,}, ]}}
+//void show_srag_redundancy(map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> &srag_trace_map, ThreadId &threadid_max,
+//                          _u64 (&srag_distribution)[WARP_SIZE]) {
+////    _u64 all_transactions = 0;
+//  int bz, by, bx, tz, ty, tx;
+//  for (auto stm_it:srag_trace_map) {
+//    for (bz = 0; bz <= threadid_max.bz; bz++) {
+//      for (by = 0; by <= threadid_max.by; ++by) {
+//        for (bx = 0; bx <= threadid_max.bx; ++bx) {
+//          for (tz = 0; tz <= threadid_max.tz; ++tz) {
+//            for (ty = 0; ty <= threadid_max.ty; ++ty) {
+//              for (tx = 0; tx <= threadid_max.tx; tx += 32) {
+//                int remain_items = 0;
+////                                Find how many iterations the thread could have.
+//                for (int tx_i = 0; tx_i < 32; ++tx_i) {
+//                  ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
+////                                    m_it: map<ThreadId, vector<tuple<_u64, _u64, _u64 >>>
+//                  auto m_it = stm_it.second.find(tmp_id);
+//                  if (m_it != stm_it.second.end()) {
+//                    remain_items = max(remain_items, (int) m_it->second.size());
+//                  }
+//                }
+//                for (int i = 0; i < remain_items; ++i) {
+////                                    per warp, per pc, per iteration of a loop
+//                  set<_u64> warp_unique_cache_lines;
+//                  for (int tx_i = 0; tx_i < 32; ++tx_i) {
+//                    ThreadId tmp_id = {bx, by, bz, tx + tx_i, ty, tz};
+//                    auto m_it = stm_it.second.find(tmp_id);
+//                    if (m_it != stm_it.second.end() && m_it->second.size() > i) {
+////                                            the tuple has three items now. We need the second one, addr
+////                                      Every cache line is 32bytes now.
+//                      int x = get<1>(m_it->second[i]) >> 5;
+//                      warp_unique_cache_lines.insert(
+//                          get<1>(m_it->second[tx_i]) >> CACHE_LINE_BYTES_BIN);
+//                    }
+//                  }
+////                                    all_transactions += warp_unique_cache_lines.size();
+//                  int cur_warp_unique_cache_line_size = warp_unique_cache_lines.size();
+//                  if (cur_warp_unique_cache_line_size > 32 || cur_warp_unique_cache_line_size <= 0) {
+//                    cout << "Error: There is a warp access illegal unique cache line size "
+//                         << cur_warp_unique_cache_line_size << endl;
+//                  } else {
+//                    srag_distribution[cur_warp_unique_cache_line_size - 1]++;
+//                  }
+//                }
+//              }
+//            }
+//          }
+//        }
+//      }
+//    }
+//  }
+////    double perfect_transaction = index  / 8;
+////    return all_transactions / perfect_transaction;
+//}
 
 // {thread: {array_i: {first_value, last_value} }}
 void get_srv_bs_trace_map(ThreadId tid, tuple<long long, long long> value, int belong, int offset,
@@ -416,48 +416,39 @@ void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple
 
 
 ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max) {
-  threadid_max.bz = max(threadid_max.bz, a.bz);
-  threadid_max.by = max(threadid_max.by, a.by);
-  threadid_max.bx = max(threadid_max.bx, a.bx);
-  threadid_max.tz = max(threadid_max.tz, a.tz);
-  threadid_max.ty = max(threadid_max.ty, a.ty);
-  threadid_max.tx = max(threadid_max.tx, a.tx);
+  threadid_max.flat_block_id = max(threadid_max.flat_block_id, a.flat_block_id);
+  threadid_max.flat_thread_id = max(threadid_max.flat_thread_id, a.flat_thread_id);
   return threadid_max;
 }
 
 ThreadId transform_tid(string s_bid, string s_tid) {
 // This function will transform the raw string of bid and tid to struct ThreadId
 // @arg s_bid: (2,0,0): (bx,by,bz)
-  regex tid_re(R"((\d+),(\d+),(\d+))");
-
-  ThreadId tid = {-1, -1, -1, -1, -1, -1};
+//  regex tid_re(R"((\d+),(\d+),(\d+))");
+// merge new branch, so the threadid is changed to flat_thread_id
+  regex tid_re(R"((\d+))");
+  ThreadId tid;
   smatch sm;
   regex_match(s_bid, sm, tid_re);
   if (sm.empty()) {
     return tid;
   }
-  tid.bx = stoi(sm[1], 0, 10);
-  tid.by = stoi(sm[2], 0, 10);
-  tid.bz = stoi(sm[3], 0, 10);
+  tid.flat_block_id = stoi(sm[1], 0, 10);
   regex_match(s_tid, sm, tid_re);
   if (sm.empty()) {
     return tid;
   }
-  tid.tx = stoi(sm[1], 0, 10);
-  tid.ty = stoi(sm[2], 0, 10);
-  tid.tz = stoi(sm[3], 0, 10);
+  tid.flat_thread_id = stoi(sm[1], 0, 10);
   return tid;
 }
 
 bool ThreadId::operator<(const ThreadId &o) const {
-  return (bz < o.bz) || (bz == o.bz && by < o.by) || (bz == o.bz && by == o.by && bx < o.bx) ||
-         (bz == o.bz && by == o.by && bx == o.bx && tz < o.tz) ||
-         (bz == o.bz && by == o.by && bx == o.bx && tz == o.tz && ty < o.ty) ||
-         (bz == o.bz && by == o.by && bx == o.bx && tz == o.tz && ty == o.ty && tx < o.tx);
+  return (this->flat_block_id < o.flat_block_id) ||
+         (this->flat_block_id == o.flat_block_id && this->flat_thread_id < o.flat_thread_id);
 }
 
 bool ThreadId::operator==(const ThreadId &o) const {
-  return (bz == o.bz) && (by == o.by) && (bx == o.bx) && (tz == o.tz) && (ty == o.ty) && (tx == o.tx);
+  return this->flat_thread_id == o.flat_thread_id && this->flat_block_id == o.flat_block_id;
 }
 
 
