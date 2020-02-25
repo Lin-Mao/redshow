@@ -246,7 +246,7 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
                 for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
                   _u64 value = 0;
                   memcpy(&value, &record->value[j][m * access_type.unit_size], access_type.unit_size >> 3u);
-                  get_hr_trace_map(value, (_u64) iter->second.memory_id, access_type, hr_trace_map);
+                  get_hr_trace_map(value, memory_id, access_type, hr_trace_map);
                   if (record->flags & GPU_PATCH_READ) {
                     get_trv_r_trace_map(i, record->pc, threadid, record->address[j], value, trv_map_read,
                                         silent_load_pairs,

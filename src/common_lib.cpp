@@ -296,7 +296,7 @@ void show_hr_redundancy(map<tuple<_u64, AccessType>, map<_u64, _u64 >> &hr_trace
 
 //  {tuple<array_id, AccessType> :{value: counter}}
   for (auto &array_it : hr_trace_map) {
-    ofstream out("hr_" + to_string(get<0>(array_it.first)) + ".csv");
+    ofstream out("hr_" + to_string(get<0>(array_it.first)) + ".csv", std::ios::app);
     _u64 max_acc_times = 0;
     _u64 max_acc_value = INT64_MAX;
     _u64 sum_times = 0;
@@ -307,6 +307,7 @@ void show_hr_redundancy(map<tuple<_u64, AccessType>, map<_u64, _u64 >> &hr_trace
         max_acc_value = value_it.first;
       }
       sum_times += value_it.second;
+//      value, access_type, cout, is_signed
       output_corresponding_type_value(value_it.first, get<1>(array_it.first), out.rdbuf(), true);
       out << "," << value_it.second << endl;
     }
