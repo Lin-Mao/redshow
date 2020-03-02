@@ -98,11 +98,11 @@ struct Instruction {
 
 
 class InstructionGraph {
-public:
+ public:
   typedef std::map<unsigned int, std::set<unsigned int> > NeighborNodeMap;
   typedef std::map<unsigned int, Instruction> NodeMap;
 
-public:
+ public:
   InstructionGraph() {}
 
   typename NodeMap::iterator nodes_begin() {
@@ -157,7 +157,7 @@ public:
     return _nodes.size();
   }
 
-private:
+ private:
   NeighborNodeMap _incoming_nodes;
   NeighborNodeMap _outgoing_nodes;
   NodeMap _nodes;

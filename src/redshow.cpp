@@ -73,6 +73,10 @@ struct Kernel {
   uint32_t func_index;
   uint64_t func_addr;
 
+  // {tuple<array_id, AccessType> : {value: counter}}
+  HorizontalTraceMap hr_read_trace_map;
+  HorizontalTraceMap hr_write_trace_map;
+
   Kernel() = default;
 
   Kernel(uint64_t kernel_id, uint32_t cubin_id, uint32_t func_index, uint64_t func_addr) :
@@ -86,16 +90,16 @@ static std::set<redshow_analysis_type_t> analysis_enabled;
 
 static redshow_log_data_callback_func log_data_callback = NULL;
 
+static redshow_record_data_callback_func record_data_callback = NULL;
+
 static __thread uint64_t mini_host_op_id = 0;
-//  {tuple<array_id, AccessType> :{value: counter}}
-extern map<tuple<_u64, AccessType>, map<_u64, _u64 >> hr_trace_map;
-//{thread: {addr1: <value, pc, index>,}}
-extern map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> trv_map_read;
-extern map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> trv_map_write;
-// <pc1, pc2, addr, value, type>
-extern vector<tuple<_u64, _u64, _u64, _u64, AccessType>> silent_load_pairs;
-extern vector<tuple<_u64, _u64, _u64, _u64, AccessType>> silent_write_pairs;
-extern vector<tuple<_u64, _u64, _u64, _u64, AccessType>> dead_write_pairs;
+
+// {tuple<array_id, AccessType> : {value: counter}}
+static HorizontalTraceMap hr_read_trace_map;
+static HorizontalTraceMap hr_write_trace_map;
+
+static uint32_t num_views_limit = 0;
+
 
 redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -172,8 +176,6 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
   }
 
   if (result == REDSHOW_SUCCESS) {
-#ifdef DEBUG
-    // An example to demonstrate how we get information from trace
     size_t size = trace_data->tail_index;
     gpu_patch_record_t *records = reinterpret_cast<gpu_patch_record_t *>(trace_data->records);
 
@@ -188,87 +190,60 @@ redshow_result_t trace_analyze(uint32_t cubin_id, uint64_t host_op_id, gpu_patch
         --symbols_iter;
         auto pc_offset = record->pc - symbols_iter->pc;
 
-        if (record->flags & GPU_PATCH_BLOCK_ENTER_FLAG) {
-          std::cout << "Enter block: " << record->flat_block_id << std::endl;
-        } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
-          std::cout << "EXIT block: " << record->flat_block_id << std::endl;
-        } else {
-          // record->size * 8, byte to bits
-          AccessType access_type;
+        // record->size * 8, byte to bits
+        AccessType access_type;
 
-          if (inst_graph->size() != 0) {
-            // Accurate mode, when we have instruction information
-            auto &inst = inst_graph->node(pc_offset + symbols_iter->cubin_offset);
-            std::cout << "Instruction: 0x" << std::hex << pc_offset << std::dec <<
-                      " " << inst.op << std::endl;
+        if (inst_graph->size() != 0) {
+          // Accurate mode, when we have instruction information
+          auto &inst = inst_graph->node(pc_offset + symbols_iter->cubin_offset);
 
-            if (record->flags & GPU_PATCH_READ) {
-              access_type = load_data_type(inst.pc, *inst_graph);
-            } else if (record->flags & GPU_PATCH_WRITE) {
-              access_type = store_data_type(inst.pc, *inst_graph);
+          if (record->flags & GPU_PATCH_READ) {
+            access_type = load_data_type(inst.pc, *inst_graph);
+          } else if (record->flags & GPU_PATCH_WRITE) {
+            access_type = store_data_type(inst.pc, *inst_graph);
+          }
+          // Fall back to default mode if failed
+        }
+
+        if (access_type.type == AccessType::UNKNOWN) {
+          // Default mode, we identify every data as 32 bits unit size, 32 bits vec size, integer type
+          access_type.type = AccessType::FLOAT;
+          access_type.vec_size = record->size;
+          access_type.unit_size = MIN2(GPU_PATCH_WARP_SIZE, access_type.vec_size);
+        }
+
+        for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+          if (record->active & (0x1u << j)) {
+            MemoryRange memory_range(record->address[j], record->address[j]);
+            auto iter = memory_map->upper_bound(memory_range);
+            uint64_t memory_id = 0;
+            if (iter != memory_map->begin()) {
+              --iter;
+              memory_id = iter->second.memory_id;
             }
-            // Fall back to default mode if failed
-          }
 
-          if (access_type.type == AccessType::UNKNOWN) {
-            // Default mode, we identify every data as 32 bits unit size, 32 bits vec size, integer type
-            access_type.type = AccessType::INTEGER;
-            access_type.vec_size = record->size;
-            access_type.unit_size = MIN2(32, access_type.vec_size);
-          }
-
-          std::cout << "Access type: " << access_type.to_string() << std::endl;
-
-          for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
-            if (record->active & (0x1u << j)) {
-              std::cout << "Address: 0x" << std::hex << record->address[j] << std::dec << std::endl;
-              MemoryRange memory_range(record->address[j], record->address[j]);
-              auto iter = memory_map->upper_bound(memory_range);
-              uint64_t memory_id = 0;
-              bool find_belong = false;
-              if (iter != memory_map->begin()) {
-                --iter;
-                memory_id = iter->second.memory_id;
-                find_belong = true;
-                std::cout << "Memory ID: " << iter->second.memory_id << std::endl;
-              }
-
-//                Value part
-              std::cout << "Value: 0x" << std::hex;
-              for (size_t k = 0; k < GPU_PATCH_MAX_ACCESS_SIZE; ++k) {
-                unsigned int c = record->value[j][k];
-                std::cout << c;
-              }
-              std::cout << std::dec << std::endl;
-              ThreadId threadid{record->flat_block_id, record->flat_thread_id};
-
-              if (find_belong) {
-                for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
-                  _u64 value = 0;
-                  memcpy(&value, &record->value[j][m * access_type.unit_size], access_type.unit_size >> 3u);
-                  get_hr_trace_map(value, memory_id, access_type, hr_trace_map);
-                  if (record->flags & GPU_PATCH_READ) {
-                    get_trv_r_trace_map(i, record->pc, threadid, record->address[j], value, trv_map_read,
-                                        silent_load_pairs,
-                                        access_type);
-                  } else if (record->flags & GPU_PATCH_WRITE) {
-                    get_trv_w_trace_map(i, record->pc, threadid, record->address[j], value, trv_map_write,
-                                        silent_write_pairs,
-                                        trv_map_read, dead_write_pairs, access_type);
+            if (memory_id != 0) {
+              for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
+                _u64 value = 0;
+                memcpy(&value, &record->value[j][m * access_type.unit_size], access_type.unit_size >> 3u);
+                
+                for (auto analysis : analysis_enabled) {
+                  if (analysis == REDSHOW_ANALYSIS_HORIZONTAL_REDUNDANCY) {
+                    if (record->flags & GPU_PATCH_READ) {
+                      get_hr_trace_map(record->pc, value, memory_id, access_type, hr_read_trace_map);
+                    } else {
+                      get_hr_trace_map(record->pc, value, memory_id, access_type, hr_write_trace_map);
+                    }
+                  } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
+                    // pass
                   }
                 }
               }
             }
           }
         }
-      } else {
-        std::cout << "PC: 0x" << std::hex << record->pc << " not found" << std::endl;
       }
     }
-//    add show_hr
-    show_hr_redundancy(hr_trace_map);
-    show_trv_redundancy_rate(size, silent_load_pairs, silent_write_pairs, dead_write_pairs);
-#endif
   }
 
   return result;
@@ -441,6 +416,13 @@ redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_fu
 }
 
 
+redshow_result_t redshow_record_data_callback_register(redshow_record_data_callback_func func,
+  uint32_t num_views_limit) {
+  record_data_callback = func;
+  num_views_limit = num_views_limit;
+}
+
+
 redshow_result_t redshow_analyze(uint32_t cubin_id, uint64_t kernel_id, uint64_t host_op_id,
                                  gpu_patch_buffer_t *trace_data) {
   PRINT("\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %p\nhost_op_id: %lu\ntrace_data: %p\n",
@@ -456,6 +438,17 @@ redshow_result_t redshow_analyze(uint32_t cubin_id, uint64_t kernel_id, uint64_t
     kernel_map_lock.lock();
     if (kernel_map.find(kernel_id) != kernel_map.end()) {
       // Merge existing data
+      for (auto &analysis : analysis_enabled) {
+        if (analysis == REDSHOW_ANALYSIS_HORIZONTAL_REDUNDANCY) {
+          merge_hr_trace_map(kernel_map[kernel_id].hr_read_trace_map, hr_read_trace_map);
+          merge_hr_trace_map(kernel_map[kernel_id].hr_write_trace_map, hr_write_trace_map);
+          // Clear previous result
+          hr_read_trace_map.clear();
+          hr_write_trace_map.clear();
+        } else {
+          // Pass
+        }
+      }
     } else {
       // Allocate new record data
       kernel_map[kernel_id].kernel_id = kernel_id;
@@ -515,4 +508,32 @@ redshow_result_t redshow_analysis_end() {
   }
 
   return result;
+}
+
+
+redshow_result_t redshow_flush() {
+  redshow_record_data_t record_data;
+  record_data.data_views = new redshow_record_data_view_t[num_views_limit];
+
+  for (auto &kernel_iter : kernel_map) {
+    auto kernel_id = kernel_iter.first;
+    auto &kernel = kernel_iter.second;
+
+    record_data.kernel_id = kernel_id;
+    for (auto analysis : analysis_enabled) {
+      if (analysis == REDSHOW_ANALYSIS_HORIZONTAL_REDUNDANCY) {
+        record_data.analysis_type = REDSHOW_ANALYSIS_HORIZONTAL_REDUNDANCY;
+        // Read
+        record_data.access_type = REDSHOW_ACCESS_READ;
+        record_hr_redundancy(kernel.hr_read_trace_map, record_data, num_views_limit);
+        record_data_callback(kernel_id, &record_data);
+        // Write
+        record_data.access_type = REDSHOW_ACCESS_WRITE;
+        record_hr_redundancy(kernel.hr_write_trace_map, record_data, num_views_limit);
+        record_data_callback(kernel_id, &record_data);
+      } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
+        // Pass
+      }
+    }
+  }
 }

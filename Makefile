@@ -45,7 +45,7 @@ $(LIB_DIR):
 	mkdir -p $@
 
 $(BINS): % : %.cpp $(OBJECTS)
-	$(CC) $(CFLAGS) -I$(INC_DIR) -o $@ $^
+	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(GPU_PATCH_DIR)include -o $@ $^
 
 $(LIB): $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $^ 

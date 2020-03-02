@@ -13,12 +13,15 @@
 #include <fstream>
 #include <set>
 #include <regex>
+#include <queue>
 
 #include <tuple>
 #include <algorithm>
 #include <iostream>
 
 #include "instruction.h"
+#include "redshow.h"
+
 // namespace
 using std::ifstream;
 using std::string;
@@ -67,6 +70,18 @@ enum BasicType {
 // We will change the bits after this index to 0. F32:23, F64:52
 const int valid_float_digits = 18;
 const int valid_double_digits = 40;
+
+// {tuple<array_id, AccessType> : {pc: {value: counter}}}
+typedef std::map<tuple<_u64, AccessType>, std::map<_u64, std::map<_u64, _u64>>> HorizontalTraceMap;
+
+struct CompareDataView { 
+  bool operator()(redshow_record_data_view_t const& d1, redshow_record_data_view_t const& d2) { 
+    return d1.count < d2.count;
+  } 
+}; 
+  
+typedef std::priority_queue<redshow_record_data_view_t,
+        std::vector<redshow_record_data_view_t>, CompareDataView> TopDataViews;
 
 class ThreadId {
 public:
@@ -172,13 +187,16 @@ void get_dc_trace_map(_u64 pc, ThreadId tid, _u64 addr, _u64 value, vector<tuple
                       map<int, set<_u64 >> &dc_trace_map);
 
 inline void
-get_hr_trace_map(_u64 value, _u64 belong, AccessType atype,
-                 map<tuple<_u64, AccessType>, map<_u64, _u64 >> &hr_trace_map) {
-//
-  hr_trace_map[make_tuple(belong, atype)][value] += 1;
+get_hr_trace_map(_u64 pc, _u64 value, _u64 belong, AccessType atype,
+                 HorizontalTraceMap &hr_trace_map) {
+  hr_trace_map[make_tuple(belong, atype)][pc][value] += 1;
 }
 
-void show_hr_redundancy(map<tuple<_u64, AccessType>, map<_u64, _u64 >> &hr_trace_map);
+void merge_hr_trace_map(HorizontalTraceMap &prev_map, HorizontalTraceMap &cur_map);
+
+void record_hr_redundancy(HorizontalTraceMap &hr_trace_map, redshow_record_data_t &record_data, uint32_t num_views_limit);
+
+void show_hr_redundancy(HorizontalTraceMap &hr_trace_map);
 
 inline void output_corresponding_type_value(_u64 a, BasicType atype, streambuf *buf) {
   ostream out(buf);

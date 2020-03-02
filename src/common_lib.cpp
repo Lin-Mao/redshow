@@ -292,28 +292,84 @@ void show_srv_bs_redundancy(ThreadId &threadid_max,
 }
 
 
-void show_hr_redundancy(map<tuple<_u64, AccessType>, map<_u64, _u64 >> &hr_trace_map) {
+void show_hr_redundancy(HorizontalTraceMap &hr_trace_map) {
 
-//  {tuple<array_id, AccessType> :{value: counter}}
-  for (auto &array_it : hr_trace_map) {
-    ofstream out("hr_" + to_string(get<0>(array_it.first)) + ".csv", std::ios::app);
-    _u64 max_acc_times = 0;
-    _u64 max_acc_value = INT64_MAX;
-    _u64 sum_times = 0;
-//    {value: counter}
-    for (auto &value_it : array_it.second) {
-      if (value_it.second > max_acc_times) {
-        max_acc_times = value_it.second;
-        max_acc_value = value_it.first;
+////  {tuple<array_id, AccessType> :{value: counter}}
+//  for (auto &array_it : hr_trace_map) {
+//    ofstream out("hr_" + to_string(get<0>(array_it.first)) + ".csv", std::ios::app);
+//    _u64 max_acc_times = 0;
+//    _u64 max_acc_value = INT64_MAX;
+//    _u64 sum_times = 0;
+////    {value: counter}
+//    for (auto &value_it : array_it.second) {
+//      if (value_it.second > max_acc_times) {
+//        max_acc_times = value_it.second;
+//        max_acc_value = value_it.first;
+//      }
+//      sum_times += value_it.second;
+////      value, access_type, cout, is_signed
+//      output_corresponding_type_value(value_it.first, get<1>(array_it.first), out.rdbuf(), true);
+//      out << "," << value_it.second << endl;
+//    }
+//    out.close();
+//  }
+}
+
+
+// HorizontalTraceMap:
+// {tuple<array_id, AccessType> : {pc : {value : counter}}}
+void merge_hr_trace_map(HorizontalTraceMap &prev_map, HorizontalTraceMap &cur_map) {
+  for (auto &memory_iter : cur_map) {
+    auto memory_entry = memory_iter.first;
+    for (auto &pc_iter : memory_iter.second) {
+      auto pc = pc_iter.first;
+      for (auto &val_iter : pc_iter.second) {
+        auto val = val_iter.first;
+        auto count = val_iter.second;
+        prev_map[memory_entry][pc][val] += count;
       }
-      sum_times += value_it.second;
-//      value, access_type, cout, is_signed
-      output_corresponding_type_value(value_it.first, get<1>(array_it.first), out.rdbuf(), true);
-      out << "," << value_it.second << endl;
     }
-    out.close();
   }
 }
+
+
+// HorizontalTraceMap: {tuple<array_id, AccessType> : {pc : {value : counter}}}
+void record_hr_redundancy(HorizontalTraceMap &hr_trace_map,
+  redshow_record_data_t &record_data, uint32_t num_views_limit) {
+  // {count : {memory_id, pc}}
+  // Pick top record data views
+  TopDataViews top_data_views;
+  for (auto &memory_iter : hr_trace_map) {
+    auto memory_id = std::get<0>(memory_iter.first);
+    for (auto &pc_iter : memory_iter.second) {
+      auto pc = pc_iter.first;
+      for (auto &val_iter : pc_iter.second) {
+        auto count = val_iter.second;
+        redshow_record_data_view_t data_view = redshow_record_data_view_t {
+          .pc = pc, .memory_id = memory_id, .count = count};
+        if (top_data_views.size() < num_views_limit) {
+          top_data_views.push(data_view);
+        } else {
+          auto &top = top_data_views.top();
+          if (top.count < data_view.count) {
+            top_data_views.pop();
+            top_data_views.push(data_view);
+          }
+        }
+      }
+    }
+  }
+
+  size_t num_views = 0;
+  // Put top record data views into record_data
+  while (top_data_views.empty() == false) {
+    auto &data_view = top_data_views.top();
+    top_data_views.pop();
+    record_data.data_views[num_views++] = data_view;
+  }
+  record_data.num_views = num_views;
+}
+
 //void show_hr_redundancy(map<_u64, map<_u64, map<_u64, _u64 >>> &hr_trace_map_pc_dist,
 //                        void *array_type) {
 //  //{pc: {array:{value:counter}}}
@@ -491,7 +547,6 @@ _u64 srag_distribution[WARP_SIZE];
 map<ThreadId, map<int, map<int, long long>>> srv_bs_trace_map;
 // horizontal redundancy
 //  {tuple<array_id, AccessType> :{value: counter}}
-map<tuple<_u64, AccessType>, map<_u64, _u64 >> hr_trace_map;
 //at this time, I use vector as the main format to store tracemap, but if we can get an input of array size, it can be changed to normal array.
 // {var:{index1,index2}}
 map<int, set<_u64 >> dc_trace_map;

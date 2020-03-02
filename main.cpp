@@ -189,7 +189,7 @@ void read_input_file(const string &input_file) {
 //            get_srv_trace_map(pc, tid, addr, value_hex);
 //                    get_vr_trace_map(pc, tid, addr, value_split, vars_type[belong]);
 
-          get_hr_trace_map(value, (_u64) belong, array_type[belong], hr_trace_map);
+          //get_hr_trace_map(value, (_u64) belong, array_type[belong], hr_trace_map);
 //                get_dc_trace_map(pc, tid, addr, value_hex);
           index++;
         }
@@ -205,7 +205,7 @@ void read_input_file(const string &input_file) {
 //  show_srag_redundancy(srag_trace_map, threadid_max, srag_distribution);
 //    calc_vr_redundancy_rate(index);
 //    filter_dead_copy();
-  show_hr_redundancy(hr_trace_map);
+  //show_hr_redundancy(hr_trace_map);
 }
 
 int main(int argc, char *argv[]) {
