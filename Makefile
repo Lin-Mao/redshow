@@ -27,7 +27,9 @@ OBJECTS := $(addprefix $(BUILD_DIR), $(patsubst %.cpp, %.o, $(SRCS)))
 OBJECTS_DIR := $(sort $(addprefix $(BUILD_DIR), $(dir $(SRCS))))
 BINS := main
 
-all: dirs objects lib bins
+# all: dirs objects lib bins
+# Do not compile bin now
+all: dirs objects lib
 
 ifdef PREFIX
 install: all

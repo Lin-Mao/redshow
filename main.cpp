@@ -3,41 +3,228 @@
 
 using cxxopts::Options;
 
+// init all arrays
+void initall();
+
+void freeall();
+
+// The values' types.
+enum BasicType {
+  F32, F64, S64, U64, S32, U32, S8, U8
+};
+
+inline void output_corresponding_type_value(u64 a, BasicType atype, streambuf *buf) {
+  ostream out(buf);
+  switch (atype) {
+    case F32:
+      float b1;
+      memcpy(&b1, &a, sizeof(b1));
+      out << b1;
+      break;
+    case F64:
+      double b2;
+      memcpy(&b2, &a, sizeof(b2));
+      out << b2;
+      break;
+    case S64:
+      long long b3;
+      memcpy(&b3, &a, sizeof(b3));
+      out << b3;
+      break;
+    case U64:
+      out << a;
+      break;
+    case S32:
+      int b4;
+      memcpy(&b4, &a, sizeof(b4));
+      out << b4;
+      break;
+    case U32:
+      u32 b5;
+      memcpy(&b5, &a, sizeof(b5));
+      out << b5;
+      break;
+    case S8:
+      char b6;
+      memcpy(&b6, &a, sizeof(b6));
+      out << b6;
+      break;
+    case U8:
+      _u8 b7;
+      memcpy(&b7, &a, sizeof(b7));
+      out << b7;
+      break;
+  }
+}
+
+inline void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *buf, bool is_signed) {
+  ostream out(buf);
+  if (atype.type == AccessType::INTEGER) {
+    if (atype.unit_size == 8) {
+      if (is_signed) {
+        char b6;
+        memcpy(&b6, &a, sizeof(b6));
+        out << b6;
+      } else {
+        _u8 b7;
+        memcpy(&b7, &a, sizeof(b7));
+        out << b7;
+      }
+    } else if (atype.unit_size == 16) {
+      if (is_signed) {
+        short int b8;
+        memcpy(&b8, &a, sizeof(b8));
+        out << b8;
+      } else {
+        unsigned short int b9;
+        memcpy(&b9, &a, sizeof(b9));
+        out << b9;
+      }
+    } else if (atype.unit_size == 32) {
+      if (is_signed) {
+        int b4;
+        memcpy(&b4, &a, sizeof(b4));
+        out << b4;
+      } else {
+        u32 b5;
+        memcpy(&b5, &a, sizeof(b5));
+        out << b5;
+      }
+    } else if (atype.unit_size == 64) {
+      if (is_signed) {
+        long long b3;
+        memcpy(&b3, &a, sizeof(b3));
+        out << b3;
+      } else {
+        out << a;
+      }
+    }
+//    At this time, it must be float
+  } else {
+    if (atype.unit_size == 32) {
+      float b1;
+      memcpy(&b1, &a, sizeof(b1));
+      out << b1;
+    } else if (atype.unit_size == 64) {
+      double b2;
+      memcpy(&b2, &a, sizeof(b2));
+      out << b2;
+    }
+  }
+
+}
+
+u64 store2uchar(u64 a) {
+  return a & 0xffu;
+}
+
+
+u64 store2uint(u64 a) {
+  u64 c = 0;
+  c = ((a & 0xffu) << 24u)
+      | ((a & 0xff00u) << 8u) | ((a & 0xff0000u) >> 8u) | ((a & 0xff000000u) >> 24u);
+  return c;
+}
+
+// convert an hex value to float format. Use decimal_degree_f32 to control precision. We still store
+u64 store2float(u64 a, int decimal_degree_f32) {
+  u32 c = store2uint(a);
+  u32 mask = 0xffffffff;
+  for (int i = 0; i < 23 - decimal_degree_f32; ++i) {
+    mask <<= 1u;
+  }
+  c &= mask;
+  u64 b = 0;
+  memcpy(&b, &c, sizeof(c));
+  return b;
+}
+
+// Mainly change the expression from big endian to little endian.
+u64 store2u64(u64 a) {
+  u64 c = 0;
+  c = ((a & 0xffu) << 56u) | ((a & 0xff00u) << 40u) | ((a & 0xff0000u) << 24u) | ((a & 0xff000000u) << 8u) |
+      ((a & 0xff00000000u) >> 8u) | ((a & 0xff0000000000u) >> 24u) | ((a & 0xff000000000000u) >> 40u) |
+      ((a & 0xff00000000000000u) >> 56u);
+  return c;
+}
+
+
+u64 store2double(u64 a, int decimal_degree_f64) {
+  u64 c = store2u64(a);
+  u64 mask = 0xffffffffffffffff;
+  for (int i = 0; i < 52 - decimal_degree_f64; ++i) {
+    mask <<= 1u;
+  }
+  c = c & mask;
+  return c;
+}
+
+
+bool equal_2_tuples(std::tuple<long long, long long, u64> a, std::tuple<long long, long long> b) {
+  return std::get<0>(a) == std::get<0>(b) && std::get<1>(a) == std::get<1>(b);
+}
+
+
+ThreadId transform_tid(std::string s_bid, std::string s_tid) {
+// This function will transform the raw string of bid and tid to struct ThreadId
+// @arg s_bid: (2,0,0): (bx,by,bz)
+//  regex tid_re(R"((\d+),(\d+),(\d+))");
+// merge new branch, so the threadid is changed to flat_thread_id
+  std::regex tid_re(R"((\d+))");
+  ThreadId tid;
+  std::smatch sm;
+  regex_match(s_bid, sm, tid_re);
+  if (sm.empty()) {
+    return tid;
+  }
+  tid.flat_block_id = stoi(sm[1], 0, 10);
+  regex_match(s_tid, sm, tid_re);
+  if (sm.empty()) {
+    return tid;
+  }
+  tid.flat_thread_id = stoi(sm[1], 0, 10);
+  return tid;
+}
+
+
+ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max) {
+  threadid_max.flat_block_id = std::max(threadid_max.flat_block_id, a.flat_block_id);
+  threadid_max.flat_thread_id = std::max(threadid_max.flat_thread_id, a.flat_thread_id);
+  return threadid_max;
+}
+
+
 void init();
 
-ThreadId transform_tid(string bid, string tid);
-
 void read_input_file(const string &input_file, string target_name);
-
-ThreadId get_max_threadId(ThreadId a, ThreadId threadid_max);
 
 ostream &operator<<(ostream &out, const ThreadId &A) {
   out << "(" << A.flat_block_id << ")(" << A.flat_thread_id << ")";
   return out;
 }
 
-extern map<ThreadId, list<_u64 >> tra_list;
-extern map<_u64, vector<int >> tra_trace_map;
-extern map<int, map<int, _u64 >> tra_rd_dist;
-extern map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> trv_map_read;
-extern map<ThreadId, map<_u64, tuple<_u64, _u64, _u64>>> trv_map_write;
-extern vector<tuple<_u64, _u64, _u64, _u64, BasicType>> silent_load_pairs;
-extern vector<tuple<_u64, _u64, _u64, _u64, BasicType>> silent_write_pairs;
-extern vector<tuple<_u64, _u64, _u64, _u64, BasicType>> dead_write_pairs;
+extern map<ThreadId, list<u64 >> tra_list;
+extern map<u64, vector<int >> tra_trace_map;
+extern map<int, map<int, u64 >> tra_rd_dist;
+extern map<ThreadId, map<u64, tuple<u64, u64, u64>>> trv_map_read;
+extern map<ThreadId, map<u64, tuple<u64, u64, u64>>> trv_map_write;
+extern vector<tuple<u64, u64, u64, u64, BasicType>> silent_load_pairs;
+extern vector<tuple<u64, u64, u64, u64, BasicType>> silent_write_pairs;
+extern vector<tuple<u64, u64, u64, u64, BasicType>> dead_write_pairs;
 extern long long silent_load_num, dead_write_num, silent_write_num;
-extern map<_u64, map<ThreadId, vector<tuple<_u64, _u64>>>> srag_trace_map;
-extern map<_u64, map<ThreadId, set<_u64>>> srag_trace_map_test;
-extern map<_u64, map<_u64, map<ThreadId, _u64 >>> srv_trace_map;
-extern _u64 srag_distribution[WARP_SIZE];
+extern map<u64, map<ThreadId, vector<tuple<u64, u64>>>> srag_trace_map;
+extern map<u64, map<ThreadId, set<u64>>> srag_trace_map_test;
+extern map<u64, map<u64, map<ThreadId, u64 >>> srv_trace_map;
+extern u64 srag_distribution[WARP_SIZE];
 extern map<ThreadId, map<int, map<int, long long>>> srv_bs_trace_map;
-extern map<tuple<_u64, AccessType>, map<_u64, _u64 >> hr_trace_map;
-extern set<_u64> pcs;
-extern map<int, set<_u64 >> dc_trace_map;
+extern map<tuple<u64, AccessType>, map<u64, u64 >> hr_trace_map;
+extern set<u64> pcs;
+extern map<int, set<u64 >> dc_trace_map;
 
 
 Options options("CUDA_RedShow", "A test suit for hpctoolkit santizer");
 // every array's memory start addr and size
-vector<tuple<_u64, int>> vars_mem_block;
+vector<tuple<u64, int>> vars_mem_block;
 // the sizes of thread block and grid
 ThreadId threadid_max;
 map<BasicType, int> type_length;
@@ -85,13 +272,13 @@ void read_log_file(const string &input_file) {
   string strdata(beg, end);
   fin.close();
   smatch sm;
-  _u64 addr;
+  u64 addr;
   int var_size;
   int i = 0;
   while (regex_search(strdata, sm, log_read_re)) {
     addr = stoull(sm[1], 0, 16);
     var_size = stoi(sm[2], 0, 10);
-    vars_mem_block.emplace_back(pair<_u64, int>(addr, var_size));
+    vars_mem_block.emplace_back(pair<u64, int>(addr, var_size));
     strdata = sm.suffix().str();
 //        init arrays' index to avoid the empty check
     cout << "Array " << i << " start at " << hex << addr << dec << " , size " << var_size << endl;
@@ -118,7 +305,7 @@ void read_input_file(const string &input_file) {
   }
   string line;
 //    just for trv's record of every redundancy
-  _u64 index = 0;
+  u64 index = 0;
   while (getline(fin, line)) {
     smatch sm;
     regex_match(line, sm, line_read_re);
@@ -126,7 +313,7 @@ void read_input_file(const string &input_file) {
       cout << "This line can't match the regex:\t" << line << endl;
       continue;
     }
-    _u64 pc, addr, value_hex;
+    u64 pc, addr, value_hex;
     int access_type;
     pc = stoull(sm[1], 0, 16);
     addr = stoull(sm[4], 0, 16);
@@ -134,7 +321,7 @@ void read_input_file(const string &input_file) {
     threadid_max = get_max_threadId(tid, threadid_max);
     auto belongs = get_cur_addr_belong_index(addr, vars_mem_block);
     int belong = get<0>(belongs);
-    _u64 offset = get<1>(belongs);
+    u64 offset = get<1>(belongs);
     switch (belong) {
       case -1 :
         cout << "addr " << hex << addr << dec << " not found which array it belongs to" << endl;
@@ -149,7 +336,7 @@ void read_input_file(const string &input_file) {
           int left_index = i * t_len;
 //          int right_index = i * t_len + t_len - 1;
           value_hex = stoull(sm[5].str().substr(left_index, t_len), nullptr, 16);
-          _u64 value = INT64_MAX;
+          u64 value = INT64_MAX;
           switch (vars_type[belong]) {
             case F32:
               value = store2float(value_hex, valid_float_digits);
@@ -189,7 +376,7 @@ void read_input_file(const string &input_file) {
 //            get_srv_trace_map(pc, tid, addr, value_hex);
 //                    get_vr_trace_map(pc, tid, addr, value_split, vars_type[belong]);
 
-          //get_hr_trace_map(value, (_u64) belong, array_type[belong], hr_trace_map);
+          //get_hr_trace_map(value, (u64) belong, array_type[belong], hr_trace_map);
 //                get_dc_trace_map(pc, tid, addr, value_hex);
           index++;
         }

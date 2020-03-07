@@ -9,17 +9,17 @@
 #define EXTERNC
 #endif
 
-typedef enum {
-  REDSHOW_ANALYSIS_HORIZONTAL_REDUNDANCY = 0,
+typedef enum redshow_analysis_type {
+  REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY = 0,
   REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY = 1,
 } redshow_analysis_type_t;
 
-typedef enum {
+typedef enum redshow_access_type {
   REDSHOW_ACCESS_READ = 0,
   REDSHOW_ACCESS_WRITE = 1
 } redshow_access_type_t;
 
-typedef enum {
+typedef enum redshow_result {
   REDSHOW_SUCCESS = 0,
   REDSHOW_ERROR_NOT_IMPL = 1,
   REDSHOW_ERROR_NOT_EXIST_ENTRY = 2,
@@ -30,18 +30,18 @@ typedef enum {
   REDSHOW_ERROR_FAILED_ANALYZE_TRACE = 7
 } redshow_result_t;
 
-typedef struct {
-  uint64_t pc;
+typedef struct redshow_record_view {
+  uint32_t function_index;
+  uint64_t pc_offset;
   uint64_t memory_id;
   uint64_t count;
-} redshow_record_data_view_t;
+} redshow_record_view_t;
 
-typedef struct {
-  redshow_analysis_type_t analysis_type;
-  uint64_t kernel_id;
-  redshow_access_type_t access_type;
+typedef struct redshow_record_data {
   uint32_t num_views;
-  redshow_record_data_view_t *data_views;
+  redshow_analysis_type_t analysis_type;
+  redshow_access_type_t access_type;
+  redshow_record_view_t *views;
 } redshow_record_data_t;
 
 /*
@@ -122,7 +122,7 @@ EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_cal
  * Thread-Safety: NO
  */
 
-typedef void (*redshow_record_data_callback_func)(uint64_t kernel_id, redshow_record_data_t *record_data);
+typedef void (*redshow_record_data_callback_func)(uint32_t cubin_id, uint64_t kernel_id, redshow_record_data_t *record_data);
 
 EXTERNC redshow_result_t redshow_record_data_callback_register(redshow_record_data_callback_func func, uint32_t num_views_limit);
 

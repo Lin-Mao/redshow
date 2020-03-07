@@ -8,7 +8,6 @@
 #include <sstream>
 #include <vector>
 
-
 struct Symbol {
   uint32_t index;
   uint64_t cubin_offset;

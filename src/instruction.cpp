@@ -20,6 +20,7 @@
 
 #define MIN2(x, y) (x > y ? y : x)
 
+
 bool parse_instructions(const std::string &file_path,
   std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
   boost::property_tree::ptree root;
