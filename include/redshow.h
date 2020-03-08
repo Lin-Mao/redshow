@@ -134,18 +134,25 @@ EXTERNC redshow_result_t redshow_record_data_callback_register(redshow_record_da
  * First use binary search to find an enclosed region of function addresses
  * instruction_offset = instruction_pc - function_address
  *
+ * thread_id:
+ * Which thread launches the kernel
+ *
  * cubin_id:
  * Lookup correponding cubin
  
  * kernel_id:
  * Unique identifier for a calling context
  *
+ * host_op_id:
+ * Unique identifier for the operation
+ *
  * trace_data:
  * GPU memory trace for a single kernel launch.
  *
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_analyze(uint32_t cubin_id, uint64_t kernel_id, uint64_t host_op_id, gpu_patch_buffer_t *trace_data);
+EXTERNC redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint64_t kernel_id, uint64_t host_op_id,
+  gpu_patch_buffer_t *trace_data);
 
 /*
  * Mark the begin of the current analysis region
@@ -163,6 +170,6 @@ EXTERNC redshow_result_t redshow_analysis_end();
  *
  * Thread-Safety: NO
  */
-EXTERNC redshow_result_t redshow_flush();
+EXTERNC redshow_result_t redshow_flush(uint32_t thread_id);
 
 #endif  // REDSHOW_H

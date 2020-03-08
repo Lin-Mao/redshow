@@ -41,14 +41,14 @@ struct ThreadId {
   }
 };
 
-// {<memory_id, AccessType> : {pc: {value: count}}}
-typedef std::map<std::tuple<u64, AccessType>, std::map<u64, std::map<u64, u64>>> SpatialTrace;
+// {<memory_id, AccessType::DataType> : {pc: {value: count}}}
+typedef std::map<std::tuple<u64, AccessType::DataType>, std::map<u64, std::map<u64, u64>>> SpatialTrace;
 
 // {ThreadId : {address : {<pc, value>}}}
 typedef std::map<ThreadId, std::map<u64, std::tuple<u64, u64>>> TemporalTrace;
 
-// {pc1 : {pc2 : {<value, AccessType> : count}}}
-typedef std::map<u64, std::map<u64, std::map<std::tuple<u64, AccessType>, u64>>> PCPairs;
+// {pc1 : {pc2 : {<value, AccessType::DataType> : count}}}
+typedef std::map<u64, std::map<u64, std::map<std::tuple<u64, AccessType::DataType>, u64>>> PCPairs;
 
 
 struct CompareView {
@@ -96,7 +96,7 @@ typedef std::priority_queue<redshow_record_view_t,
  * pc_pairs:
  * {pc1 : {pc2 : {<value, type>}}}
  */
-void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType access_type,
+void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType::DataType access_type,
   TemporalTrace &temporal_trace, PCPairs &pc_pairs);
 
 /*
@@ -129,17 +129,17 @@ void show_temporal_trace();
  * How a thread accesses memory (e.g. float/int, vector/scalar)
  *
  * spatial_trace:
- * {<memory_id, AccessType> : {pc: {value: count}}}
+ * {<memory_id, AccessType::DataType> : {pc: {value: count}}}
  *
  */
-void get_spatial_trace(u64 pc, u64 value, u64 memory_id, AccessType access_type,
+void get_spatial_trace(u64 pc, u64 value, u64 memory_id, AccessType::DataType access_type,
   SpatialTrace &spatial_trace);
 
 /*
  * Record frequent spatial records
  *
  * spatial_trace:
- * {<memory_id, AccessType> : {pc: {value: count}}}
+ * {<memory_id, AccessType::DataType> : {pc: {value: count}}}
  *
  * record_data:
  * Data returned to the runtime
