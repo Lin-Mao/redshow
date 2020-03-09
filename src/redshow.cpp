@@ -356,14 +356,6 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, ui
     // Sort symbols by pc
     std::sort(symbols.begin(), symbols.end());
 
-#ifdef DEBUG
-    for (auto &symbol : symbols) {
-      std::cout << "Symbol index: " << symbol.index << std::endl;
-      std::cout << "Symbol cubin offset: 0x" << std::hex << symbol.cubin_offset << std::dec << std::endl;
-      std::cout << "Symbol pc: 0x" << std::hex << symbol.pc << std::dec << std::endl;
-    }
-#endif
-
     cubin_map_lock.lock();
     if (cubin_map.find(cubin_id) == cubin_map.end()) {
       cubin_map[cubin_id].cubin_id = cubin_id;
@@ -406,7 +398,7 @@ redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t 
   MemoryRange memory_range(start, end);
 
   memory_snapshot_lock.lock();
-  auto iter = memory_snapshot.lower_bound(host_op_id);
+  auto iter = memory_snapshot.upper_bound(host_op_id);
   if (iter != memory_snapshot.begin()) {
     --iter;
     // Take a snapshot
@@ -442,7 +434,7 @@ redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_
   MemoryRange memory_range(start, end);
 
   memory_snapshot_lock.lock();
-  auto snapshot_iter = memory_snapshot.lower_bound(host_op_id);
+  auto snapshot_iter = memory_snapshot.upper_bound(host_op_id);
   if (snapshot_iter != memory_snapshot.begin()) {
     --snapshot_iter;
     // Take a snapshot
@@ -504,6 +496,8 @@ redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint64_t
     } else {
       result = REDSHOW_ERROR_NOT_REGISTER_CALLBACK;
     }
+  } else {
+    PRINT("\nredshow->Fail redshow_analyze result %d\n", result);
   }
 
   return result;
@@ -549,6 +543,8 @@ redshow_result_t redshow_analysis_end() {
 
 
 redshow_result_t redshow_flush(uint32_t thread_id) {
+  PRINT("\nredshow->Enter redshow_flush thread_id %u\n", thread_id);
+
   redshow_record_data_t record_data;
 
   kernel_map_lock.lock();

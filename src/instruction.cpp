@@ -12,7 +12,7 @@
 
 #include <cstdlib>
 
-#ifdef DEBUG
+#ifdef DEBUG_INSTRUCTION
 #define PRINT(...) fprintf(stderr, __VA_ARGS__)
 #else
 #define PRINT(...)
@@ -88,7 +88,7 @@ bool parse_instructions(const std::string &file_path,
       for (auto src_pc : inst.assign_pcs[src]) {
         inst_graph.add_edge(src_pc, inst.pc);
 
-#ifdef DEBUG
+#ifdef DEBUG_INSTRUCTION
         std::cout << "Add edge: 0x" << std::hex << src_pc << ", 0x" <<
           inst.pc << std::dec << std::endl;
 #endif
