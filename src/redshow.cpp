@@ -21,6 +21,7 @@
 #endif
 
 #define MIN2(x, y) (x > y ? y : x)
+#define MAX2(x, y) (x > y ? x : y)
 
 /*
  * Global data structures
@@ -415,27 +416,31 @@ redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t 
   MemoryRange memory_range(start, end);
 
   memory_snapshot_lock.lock();
-  auto iter = memory_snapshot.upper_bound(host_op_id);
-  if (iter != memory_snapshot.begin()) {
-    --iter;
-    // Take a snapshot
-    memory_map = iter->second;
-    if (memory_map.find(memory_range) == memory_map.end()) {
-      memory_map[memory_range].memory_range = memory_range;
-      memory_map[memory_range].memory_id = memory_id;
-      memory_snapshot[host_op_id] = memory_map;
-      result = REDSHOW_SUCCESS;
-    } else {
-      result = REDSHOW_ERROR_DUPLICATE_ENTRY;
-    }
-  } else if (memory_snapshot.size() == 0) {
+  if (memory_snapshot.size() == 0) {
     // First snapshot
     memory_map[memory_range].memory_range = memory_range;
     memory_map[memory_range].memory_id = memory_id;
     memory_snapshot[host_op_id] = memory_map;
     result = REDSHOW_SUCCESS;
-  } else {
-    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+    PRINT("First host_op_id %lu registered\n", host_op_id);
+  } else { 
+    auto iter = memory_snapshot.upper_bound(host_op_id);
+    if (iter != memory_snapshot.begin()) {
+      --iter;
+      // Take a snapshot
+      memory_map = iter->second;
+      if (memory_map.find(memory_range) == memory_map.end()) {
+        memory_map[memory_range].memory_range = memory_range;
+        memory_map[memory_range].memory_id = memory_id;
+        memory_snapshot[host_op_id] = memory_map;
+        result = REDSHOW_SUCCESS;
+        PRINT("host_op_id %lu registered\n", host_op_id);
+      } else {
+        result = REDSHOW_ERROR_DUPLICATE_ENTRY;
+      }
+    } else {
+      result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+    }
   }
   memory_snapshot_lock.unlock();
 
@@ -459,6 +464,7 @@ redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_
     auto memory_map_iter = memory_map.find(memory_range);
     if (memory_map_iter != memory_map.end()) {
       memory_map.erase(memory_map_iter);
+      memory_snapshot[host_op_id] = memory_map;
       result = REDSHOW_SUCCESS;
     } else {
       result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
@@ -540,12 +546,22 @@ redshow_result_t redshow_analysis_end() {
     std::vector<uint64_t> ids;
 
     memory_snapshot_lock.lock();
+    uint64_t max_min_host_op_id = 0;
     for (auto &iter : memory_snapshot) {
       if (iter.first < mini_host_op_id) {
         ids.push_back(iter.first);
+        max_min_host_op_id = MAX2(iter.first, max_min_host_op_id);
       }
     }
+    // Maintain a single snapshot
+    bool keep = false;
+    if (ids.size() == memory_snapshot.size()) {
+      keep = true;
+    }
     for (auto &id : ids) {
+      if (keep == true && id == max_min_host_op_id) {
+        continue;
+      }
       memory_snapshot.erase(id);
     }
     memory_snapshot_lock.unlock();
