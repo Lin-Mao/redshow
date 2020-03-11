@@ -220,76 +220,93 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
     for (size_t i = 0; i < size; ++i) {
       // Iterate over each record
       gpu_patch_record_t *record = records + i;
+      ThreadId thread_id{record->flat_block_id, record->flat_thread_id};
 
       if (record->size == 0) {
         // Fast path, no thread active
         continue;
       }
 
-      uint32_t function_index = 0;
-      uint64_t cubin_offset = 0;
-      uint64_t pc_offset = 0;
-      transform_pc(*symbols, record->pc, function_index, cubin_offset, pc_offset);
+      if (record->flags & GPU_PATCH_BLOCK_ENTER_FLAG) {
+        // Skip analysis  
+      } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
+        // Remove temporal records
+        read_temporal_trace.erase(thread_id);
+        write_temporal_trace.erase(thread_id);
+      } else {
+        uint32_t function_index = 0;
+        uint64_t cubin_offset = 0;
+        uint64_t pc_offset = 0;
+        transform_pc(*symbols, record->pc, function_index, cubin_offset, pc_offset);
 
-      // record->size * 8, byte to bits
-      AccessType access_type;
+        // record->size * 8, byte to bits
+        AccessType access_type;
 
-      if (inst_graph->size() != 0) {
-        // Accurate mode, when we have instruction information
-        auto &inst = inst_graph->node(cubin_offset);
+        if (inst_graph->size() != 0) {
+          // Accurate mode, when we have instruction information
+          auto &inst = inst_graph->node(cubin_offset);
 
-        if (record->flags & GPU_PATCH_READ) {
-          access_type = load_data_type(inst.pc, *inst_graph);
-        } else if (record->flags & GPU_PATCH_WRITE) {
-          access_type = store_data_type(inst.pc, *inst_graph);
+          if (record->flags & GPU_PATCH_READ) {
+            access_type = load_data_type(inst.pc, *inst_graph);
+          } else if (record->flags & GPU_PATCH_WRITE) {
+            access_type = store_data_type(inst.pc, *inst_graph);
+          }
+          // Fall back to default mode if failed
         }
-        // Fall back to default mode if failed
-      }
 
-      if (access_type.type == AccessType::UNKNOWN) {
-        // Default mode, we identify every data as 32 bits unit size, 32 bits vec size, float type
-        access_type.type = AccessType::FLOAT;
-        access_type.vec_size = record->size * 8;
-        access_type.unit_size = MIN2(GPU_PATCH_WARP_SIZE, access_type.vec_size * 8);
-      }
+        if (access_type.type == AccessType::UNKNOWN) {
+          // Default mode, we identify every data as 32 bits unit size, 32 bits vec size, float type
+          access_type.type = AccessType::FLOAT;
+          access_type.vec_size = record->size * 8;
+          access_type.unit_size = MIN2(GPU_PATCH_WARP_SIZE, access_type.vec_size * 8);
+        }
 
-      // TODO: accelerate by handling all threads in a warp together
-      for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
-        if (record->active & (0x1u << j)) {
-          MemoryRange memory_range(record->address[j], record->address[j]);
-          auto iter = memory_map->upper_bound(memory_range);
-          uint64_t memory_id = 0;
-          if (iter != memory_map->begin()) {
-            --iter;
-            memory_id = iter->second.memory_id;
-          }
-
-          if (memory_id == 0) {
-            // It means the memory is local, shared, or allocated in an unknown way
-            if (record->flags & GPU_PATCH_LOCAL) {
-              memory_id = MEMORY_ID_LOCAL; 
-            } else if (record->flags & GPU_PATCH_SHARED) {
-              memory_id = MEMORY_ID_SHARED;
-            } else {
-              // Unknown allocation
+        // TODO: accelerate by handling all threads in a warp together
+        for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+          if (record->active & (0x1u << j)) {
+            MemoryRange memory_range(record->address[j], record->address[j]);
+            auto iter = memory_map->upper_bound(memory_range);
+            uint64_t memory_id = 0;
+            if (iter != memory_map->begin()) {
+              --iter;
+              memory_id = iter->second.memory_id;
             }
-          }
 
-          if (memory_id != 0) {
-            for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
-              uint64_t value = 0;
-              memcpy(&value, &record->value[j][m * access_type.unit_size], access_type.unit_size >> 3u);
-              
-              for (auto analysis : analysis_enabled) {
-                if (analysis == REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) {
-                  if (record->flags & GPU_PATCH_READ) {
-                    get_spatial_trace(record->pc, value, memory_id, access_type.type, read_spatial_trace);
+            if (memory_id == 0) {
+              // It means the memory is local, shared, or allocated in an unknown way
+              if (record->flags & GPU_PATCH_LOCAL) {
+                memory_id = MEMORY_ID_LOCAL; 
+              } else if (record->flags & GPU_PATCH_SHARED) {
+                memory_id = MEMORY_ID_SHARED;
+              } else {
+                // Unknown allocation
+              }
+            }
+
+            if (memory_id != 0) {
+              for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
+                uint64_t value = 0;
+                memcpy(&value, &record->value[j][m * access_type.unit_size], access_type.unit_size >> 3u);
+
+                for (auto analysis : analysis_enabled) {
+                  if (analysis == REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) {
+                    if (record->flags & GPU_PATCH_READ) {
+                      get_spatial_trace(record->pc, value, memory_id, access_type.type, read_spatial_trace);
+                    } else {
+                      get_spatial_trace(record->pc, value, memory_id, access_type.type, write_spatial_trace);
+                    }
+                  } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
+                    if (record->flags & GPU_PATCH_READ) {
+                      get_temporal_trace(record->pc, thread_id, record->address[j], value, access_type.type,
+                        read_temporal_trace, read_pc_pairs);
+                    } else {
+                      get_temporal_trace(record->pc, thread_id, record->address[j], value, access_type.type,
+                        write_temporal_trace, write_pc_pairs);
+                    }
                   } else {
-                    get_spatial_trace(record->pc, value, memory_id, access_type.type, write_spatial_trace);
+                    // Pass
                   }
-                } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
                 }
-                // Pass
               }
             }
           }
@@ -595,7 +612,35 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         }
         record_data_callback(cubin_id, kernel_id, &record_data);
       } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
-        // Pass
+        record_data.analysis_type = REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY;
+        // Read
+        record_data.access_type = REDSHOW_ACCESS_READ;
+        record_temporal_trace(kernel.read_pc_pairs, record_data, num_views_limit);
+        // Transform pcs
+        for (auto i = 0; i < record_data.num_views; ++i) {
+          uint64_t pc = record_data.views[i].pc_offset;
+          uint32_t function_index = 0;
+          uint64_t cubin_offset = 0;
+          uint64_t pc_offset = 0;
+          transform_pc(*symbols, pc, function_index, cubin_offset, pc_offset);
+          record_data.views[i].function_index = function_index;
+          record_data.views[i].pc_offset = pc_offset;
+        }
+        record_data_callback(cubin_id, kernel_id, &record_data);
+        // Write
+        record_data.access_type = REDSHOW_ACCESS_WRITE;
+        record_temporal_trace(kernel.write_pc_pairs, record_data, num_views_limit);
+        // Transform pcs
+        for (auto i = 0; i < record_data.num_views; ++i) {
+          uint64_t pc = record_data.views[i].pc_offset;
+          uint32_t function_index = 0;
+          uint64_t cubin_offset = 0;
+          uint64_t pc_offset = 0;
+          transform_pc(*symbols, pc, function_index, cubin_offset, pc_offset);
+          record_data.views[i].function_index = function_index;
+          record_data.views[i].pc_offset = pc_offset;
+        }
+        record_data_callback(cubin_id, kernel_id, &record_data);
       }
     }
   }
