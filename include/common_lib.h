@@ -53,7 +53,7 @@ typedef std::map<u64, std::map<u64, std::map<std::tuple<u64, AccessType::DataTyp
 
 struct CompareView {
   bool operator()(redshow_record_view_t const& d1, redshow_record_view_t const& d2) { 
-    return d1.count < d2.count;
+    return d1.count > d2.count;
   } 
 }; 
 
