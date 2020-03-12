@@ -222,7 +222,6 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
     for (size_t i = 0; i < size; ++i) {
       // Iterate over each record
       gpu_patch_record_t *record = records + i;
-      ThreadId thread_id{record->flat_block_id, record->flat_thread_id};
 
       if (record->size == 0) {
         // Fast path, no thread active
@@ -266,6 +265,8 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
         // TODO: accelerate by handling all threads in a warp together
         for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
           if (record->active & (0x1u << j)) {
+            ThreadId thread_id{record->flat_block_id, record->flat_thread_id + j};
+
             MemoryRange memory_range(record->address[j], record->address[j]);
             auto iter = memory_map->upper_bound(memory_range);
             uint64_t memory_op_id = 0;
