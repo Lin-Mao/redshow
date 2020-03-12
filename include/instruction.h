@@ -63,7 +63,13 @@ struct AccessType {
   }
 
   bool operator<(const AccessType &b) const {
-    return this->type < b.type;
+    if (this->vec_size == b.vec_size) {
+      if (this->unit_size == b.unit_size) {
+        return this->type < b.type;
+      }
+      return this->unit_size < b.unit_size;
+    }
+    return this->vec_size < b.vec_size;
   }
 
 };
