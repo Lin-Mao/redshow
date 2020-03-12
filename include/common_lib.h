@@ -41,7 +41,7 @@ struct ThreadId {
   }
 };
 
-// {<memory_id, AccessType::DataType> : {pc: {value: count}}}
+// {<memory_op_id, AccessType::DataType> : {pc: {value: count}}}
 typedef std::map<std::tuple<u64, AccessType::DataType>, std::map<u64, std::map<u64, u64>>> SpatialTrace;
 
 // {ThreadId : {address : {<pc, value>}}}
@@ -122,24 +122,24 @@ void show_temporal_trace();
  * pc:
  * Current record's pc
  *
- * memory_id:
+ * memory_op_id:
  * Current record's memory identifier
  *
  * access_type:
  * How a thread accesses memory (e.g. float/int, vector/scalar)
  *
  * spatial_trace:
- * {<memory_id, AccessType::DataType> : {pc: {value: count}}}
+ * {<memory_op_id, AccessType::DataType> : {pc: {value: count}}}
  *
  */
-void get_spatial_trace(u64 pc, u64 value, u64 memory_id, AccessType::DataType access_type,
+void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessType::DataType access_type,
   SpatialTrace &spatial_trace);
 
 /*
  * Record frequent spatial records
  *
  * spatial_trace:
- * {<memory_id, AccessType::DataType> : {pc: {value: count}}}
+ * {<memory_op_id, AccessType::DataType> : {pc: {value: count}}}
  *
  * record_data:
  * Data returned to the runtime

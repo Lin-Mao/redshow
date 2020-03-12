@@ -78,9 +78,9 @@ void show_temporal_trace() {
 }
 
 
-void get_spatial_trace(u64 pc, u64 value, u64 memory_id, AccessType::DataType access_type,
+void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessType::DataType access_type,
   SpatialTrace &spatial_trace) {
-  spatial_trace[std::make_tuple(memory_id, access_type)][pc][value] += 1;
+  spatial_trace[std::make_tuple(memory_op_id, access_type)][pc][value] += 1;
 }
 
 
@@ -88,9 +88,8 @@ void record_spatial_trace(SpatialTrace &spatial_trace,
   redshow_record_data_t &record_data, uint32_t num_views_limit) {
   // Pick top record data views
   TopViews top_views;
-  // memory_iter: {<memory_id, AccessType::DataType> : {pc: {value: counter}}}
+  // memory_iter: {<memory_op_id, AccessType::DataType> : {pc: {value: counter}}}
   for (auto &memory_iter : spatial_trace) {
-    auto memory_id = std::get<0>(memory_iter.first);
     // pc_iter: {pc: {value: counter}}
     for (auto &pc_iter : memory_iter.second) {
       auto pc = pc_iter.first;
@@ -99,7 +98,7 @@ void record_spatial_trace(SpatialTrace &spatial_trace,
         auto count = val_iter.second;
         redshow_record_view_t view;
         view.pc_offset = pc;
-        view.memory_id = memory_id;
+        view.memory_id = 0;
         view.count = count;
         if (top_views.size() < num_views_limit) {
           top_views.push(view);

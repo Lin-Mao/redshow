@@ -59,12 +59,13 @@ struct MemoryRange {
 
 struct Memory {
   MemoryRange memory_range;
+  uint64_t memory_op_id;
   uint64_t memory_id;
 
   Memory() = default;
 
-  Memory(MemoryRange &memory_range, uint64_t memory_id) :
-      memory_range(memory_range), memory_id(memory_id) {}
+  Memory(MemoryRange &memory_range, uint64_t memory_op_id, uint64_t memory_id) :
+      memory_range(memory_range), memory_op_id(memory_op_id), memory_id(memory_id) {}
 };
 
 typedef std::map<MemoryRange, Memory> MemoryMap;
@@ -267,24 +268,24 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
           if (record->active & (0x1u << j)) {
             MemoryRange memory_range(record->address[j], record->address[j]);
             auto iter = memory_map->upper_bound(memory_range);
-            uint64_t memory_id = 0;
+            uint64_t memory_op_id = 0;
             if (iter != memory_map->begin()) {
               --iter;
-              memory_id = iter->second.memory_id;
+              memory_op_id = iter->second.memory_op_id;
             }
 
-            if (memory_id == 0) {
+            if (memory_op_id == 0) {
               // It means the memory is local, shared, or allocated in an unknown way
               if (record->flags & GPU_PATCH_LOCAL) {
-                memory_id = MEMORY_ID_LOCAL; 
+                memory_op_id = MEMORY_ID_LOCAL; 
               } else if (record->flags & GPU_PATCH_SHARED) {
-                memory_id = MEMORY_ID_SHARED;
+                memory_op_id = MEMORY_ID_SHARED;
               } else {
                 // Unknown allocation
               }
             }
 
-            if (memory_id != 0) {
+            if (memory_op_id != 0) {
               for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
                 uint64_t value = 0;
                 memcpy(&value, &record->value[j][m * access_type.unit_size], access_type.unit_size >> 3u);
@@ -292,9 +293,9 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
                 for (auto analysis : analysis_enabled) {
                   if (analysis == REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) {
                     if (record->flags & GPU_PATCH_READ) {
-                      get_spatial_trace(record->pc, value, memory_id, access_type.type, read_spatial_trace);
+                      get_spatial_trace(record->pc, value, memory_op_id, access_type.type, read_spatial_trace);
                     } else {
-                      get_spatial_trace(record->pc, value, memory_id, access_type.type, write_spatial_trace);
+                      get_spatial_trace(record->pc, value, memory_op_id, access_type.type, write_spatial_trace);
                     }
                   } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
                     if (record->flags & GPU_PATCH_READ) {
@@ -420,6 +421,7 @@ redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t 
     // First snapshot
     memory_map[memory_range].memory_range = memory_range;
     memory_map[memory_range].memory_id = memory_id;
+    memory_map[memory_range].memory_op_id = host_op_id;
     memory_snapshot[host_op_id] = memory_map;
     result = REDSHOW_SUCCESS;
     PRINT("First host_op_id %lu registered\n", host_op_id);
@@ -432,6 +434,7 @@ redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t 
       if (memory_map.find(memory_range) == memory_map.end()) {
         memory_map[memory_range].memory_range = memory_range;
         memory_map[memory_range].memory_id = memory_id;
+        memory_map[memory_range].memory_op_id = host_op_id;
         memory_snapshot[host_op_id] = memory_map;
         result = REDSHOW_SUCCESS;
         PRINT("host_op_id %lu registered\n", host_op_id);
