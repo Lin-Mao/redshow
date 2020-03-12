@@ -556,13 +556,9 @@ redshow_result_t redshow_analysis_end() {
         max_min_host_op_id = MAX2(iter.first, max_min_host_op_id);
       }
     }
-    // Maintain a single snapshot
-    bool keep = false;
-    if (ids.size() == memory_snapshot.size()) {
-      keep = true;
-    }
+    // Maintain the largest snapshot
     for (auto &id : ids) {
-      if (keep == true && id == max_min_host_op_id) {
+      if (id == max_min_host_op_id) {
         continue;
       }
       memory_snapshot.erase(id);
