@@ -107,8 +107,8 @@ static __thread uint64_t mini_host_op_id = 0;
 static uint32_t num_views_limit = 0;
 
 enum {
-  MEMORY_ID_SHARED = 0,
-  MEMORY_ID_LOCAL = 1
+  MEMORY_ID_SHARED = 1,
+  MEMORY_ID_LOCAL = 2
 };
 
 
