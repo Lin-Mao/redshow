@@ -9,11 +9,17 @@
 #define EXTERNC
 #endif
 
-typedef enum {
-  REDSHOW_REUSE_DISTANCE = 0
+typedef enum redshow_analysis_type {
+  REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY = 0,
+  REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY = 1,
 } redshow_analysis_type_t;
 
-typedef enum {
+typedef enum redshow_access_type {
+  REDSHOW_ACCESS_READ = 0,
+  REDSHOW_ACCESS_WRITE = 1
+} redshow_access_type_t;
+
+typedef enum redshow_result {
   REDSHOW_SUCCESS = 0,
   REDSHOW_ERROR_NOT_IMPL = 1,
   REDSHOW_ERROR_NOT_EXIST_ENTRY = 2,
@@ -24,23 +30,26 @@ typedef enum {
   REDSHOW_ERROR_FAILED_ANALYZE_TRACE = 7
 } redshow_result_t;
 
-typedef struct {
-  uint32_t dummy;
-} redshow_reuse_distance_t;
+typedef struct redshow_record_view {
+  uint32_t function_index;
+  uint64_t pc_offset;
+  uint64_t memory_id;
+  uint64_t count;
+} redshow_record_view_t;
 
-typedef struct {
-  redshow_analysis_type_t type;
-  union {
-    redshow_reuse_distance_t reuse_distance;
-  };
+typedef struct redshow_record_data {
+  uint32_t num_views;
+  redshow_analysis_type_t analysis_type;
+  redshow_access_type_t access_type;
+  redshow_record_view_t *views;
 } redshow_record_data_t;
 
 /*
- * Configure the output analysis result directory
+ * Output detailed analysis result
  * 
  * Thread-Safety: NO
  */
-EXTERNC redshow_result_t redshow_analysis_output(const char *path);
+EXTERNC redshow_result_t redshow_analysis_output();
 
 /*
  * This function is used to setup specific analysis types.
@@ -107,6 +116,15 @@ typedef void (*redshow_log_data_callback_func)(uint64_t kernel_id, gpu_patch_buf
 
 EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_func func);
 
+/*
+ * Let a user get overview data for all kernels when the program is finished.
+ *
+ * Thread-Safety: NO
+ */
+
+typedef void (*redshow_record_data_callback_func)(uint32_t cubin_id, uint64_t kernel_id, redshow_record_data_t *record_data);
+
+EXTERNC redshow_result_t redshow_record_data_callback_register(redshow_record_data_callback_func func, uint32_t num_views_limit);
 
 /*
  * Apply registered analysis to a gpu trace, analysis results are buffered.
@@ -116,18 +134,25 @@ EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_cal
  * First use binary search to find an enclosed region of function addresses
  * instruction_offset = instruction_pc - function_address
  *
+ * thread_id:
+ * Which thread launches the kernel
+ *
  * cubin_id:
  * Lookup correponding cubin
- *
+ 
  * kernel_id:
  * Unique identifier for a calling context
+ *
+ * host_op_id:
+ * Unique identifier for the operation
  *
  * trace_data:
  * GPU memory trace for a single kernel launch.
  *
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_analyze(uint32_t cubin_id, uint64_t kernel_id, uint64_t host_op_id, gpu_patch_buffer_t *trace_data);
+EXTERNC redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint64_t kernel_id, uint64_t host_op_id,
+  gpu_patch_buffer_t *trace_data);
 
 /*
  * Mark the begin of the current analysis region
@@ -138,5 +163,13 @@ EXTERNC redshow_result_t redshow_analysis_begin();
  * Mark the end of the current analysis region
  */
 EXTERNC redshow_result_t redshow_analysis_end();
+
+/*
+ * Flush back all the result.
+ * This function is supposed to be called when all the analysis and kernel launches are done.
+ *
+ * Thread-Safety: NO
+ */
+EXTERNC redshow_result_t redshow_flush(uint32_t thread_id);
 
 #endif  // REDSHOW_H

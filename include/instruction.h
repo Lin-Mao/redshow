@@ -8,7 +8,6 @@
 #include <sstream>
 #include <vector>
 
-
 struct Symbol {
   uint32_t index;
   uint64_t cubin_offset;
@@ -64,7 +63,13 @@ struct AccessType {
   }
 
   bool operator<(const AccessType &b) const {
-    return this->type < b.type;
+    if (this->vec_size == b.vec_size) {
+      if (this->unit_size == b.unit_size) {
+        return this->type < b.type;
+      }
+      return this->unit_size < b.unit_size;
+    }
+    return this->vec_size < b.vec_size;
   }
 
 };
@@ -98,11 +103,11 @@ struct Instruction {
 
 
 class InstructionGraph {
-public:
+ public:
   typedef std::map<unsigned int, std::set<unsigned int> > NeighborNodeMap;
   typedef std::map<unsigned int, Instruction> NodeMap;
 
-public:
+ public:
   InstructionGraph() {}
 
   typename NodeMap::iterator nodes_begin() {
@@ -157,7 +162,7 @@ public:
     return _nodes.size();
   }
 
-private:
+ private:
   NeighborNodeMap _incoming_nodes;
   NeighborNodeMap _outgoing_nodes;
   NodeMap _nodes;
