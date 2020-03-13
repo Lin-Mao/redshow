@@ -232,8 +232,14 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
         // Skip analysis  
       } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
         // Remove temporal records
-        read_temporal_trace.erase(thread_id);
-        write_temporal_trace.erase(thread_id);
+        for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+          if (record->active & (0x1u << j)) {
+            uint32_t flat_thread_id = record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
+            ThreadId thread_id{record->flat_block_id, flat_thread_id};
+            read_temporal_trace.erase(thread_id);
+            write_temporal_trace.erase(thread_id);
+          }
+        }
       } else {
         uint32_t function_index = 0;
         uint64_t cubin_offset = 0;
@@ -265,7 +271,8 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
         // TODO: accelerate by handling all threads in a warp together
         for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
           if (record->active & (0x1u << j)) {
-            ThreadId thread_id{record->flat_block_id, record->flat_thread_id + j};
+            uint32_t flat_thread_id = record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
+            ThreadId thread_id{record->flat_block_id, flat_thread_id};
 
             MemoryRange memory_range(record->address[j], record->address[j]);
             auto iter = memory_map->upper_bound(memory_range);
