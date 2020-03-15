@@ -85,7 +85,8 @@ void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessType::DataType
 
 
 void record_spatial_trace(SpatialTrace &spatial_trace,
-  redshow_record_data_t &record_data, uint32_t num_views_limit) {
+                          redshow_record_data_t &record_data, uint32_t num_views_limit,
+                          SpatialStatistic &spatial_statistic) {
   // Pick top record data views
   TopViews top_views;
   // memory_iter: {<memory_op_id, AccessType::DataType> : {pc: {value: counter}}}
@@ -96,6 +97,7 @@ void record_spatial_trace(SpatialTrace &spatial_trace,
       // vale_iter: {value: counter}
       for (auto &val_iter : pc_iter.second) {
         auto count = val_iter.second;
+        spatial_statistic[std::get<0>(memory_iter.first)][val_iter.first] = count;
         redshow_record_view_t view;
         view.pc_offset = pc;
         view.memory_id = 0;
@@ -124,5 +126,40 @@ void record_spatial_trace(SpatialTrace &spatial_trace,
 }
 
 
-void show_spatial_trace() {
+void
+show_spatial_trace(uint32_t thread_id, SpatialStatistic &spatial_statistic, uint32_t num_write_limit, bool is_read) {
+  using std::endl;
+  using std::to_string;
+  std::string r = is_read ? "read" : "write";
+  std::ofstream out("sptial_" + r + "_top" + to_string(num_write_limit) + "_" + to_string(thread_id) + ".csv",
+                    std::ios::app);
+  out << "size;";
+  out << spatial_statistic.size() << endl;
+  // {memory_op_id: {value: count}}
+  for (auto &memory_iter: spatial_statistic) {
+    out << "memory_id;" << memory_iter.first << endl;
+    TopStatistic top_statistic;
+    u64 all_count = 0;
+    for (auto &value_iter: memory_iter.second) {
+      all_count += value_iter.second;
+      if (top_statistic.size() < num_write_limit) {
+        top_statistic.push(value_iter);
+      } else {
+        auto &top = top_statistic.top();
+        if (value_iter.second > top.second) {
+          top_statistic.pop();
+          top_statistic.push(value_iter);
+        }
+      }
+    }
+
+//    write to file
+    while (not top_statistic.empty()) {
+      auto top = top_statistic.top();
+      top_statistic.pop();
+      out << top.first << "," << top.second << "," << (double) top.second / all_count << endl;
+    }
+    out << endl;
+  }
+  out.close();
 }

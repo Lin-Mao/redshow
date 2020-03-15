@@ -35,14 +35,17 @@ struct ThreadId {
       (this->flat_block_id == o.flat_block_id && this->flat_thread_id < o.flat_thread_id);
   }
 
-  bool operator == (const ThreadId &o) const {
+  bool operator==(const ThreadId &o) const {
     return this->flat_thread_id == o.flat_thread_id &&
-      this->flat_block_id == o.flat_block_id;
+           this->flat_block_id == o.flat_block_id;
   }
 };
 
 // {<memory_op_id, AccessType::DataType> : {pc: {value: count}}}
 typedef std::map<std::tuple<u64, AccessType::DataType>, std::map<u64, std::map<u64, u64>>> SpatialTrace;
+
+// {memory_op_id: {value: count}}
+typedef std::map<u64, std::map<u64, u64>> SpatialStatistic;
 
 // {ThreadId : {address : {<pc, value>}}}
 typedef std::map<ThreadId, std::map<u64, std::tuple<u64, u64>>> TemporalTrace;
@@ -50,17 +53,25 @@ typedef std::map<ThreadId, std::map<u64, std::tuple<u64, u64>>> TemporalTrace;
 // {pc1 : {pc2 : {<value, AccessType::DataType> : count}}}
 typedef std::map<u64, std::map<u64, std::map<std::tuple<u64, AccessType::DataType>, u64>>> PCPairs;
 
-
 struct CompareView {
-  bool operator()(redshow_record_view_t const& d1, redshow_record_view_t const& d2) { 
+  bool operator()(redshow_record_view_t const &d1, redshow_record_view_t const &d2) {
     return d1.count > d2.count;
-  } 
-}; 
+  }
+};
+
+struct CompareStatistic {
+  bool operator()(std::pair<u64, u64> const &d1, std::pair<u64, u64> const &d2) {
+    return d1.second > d2.second;
+  }
+};
 
 typedef std::priority_queue<redshow_record_view_t,
-                            std::vector<redshow_record_view_t>, 
-                            CompareView> TopViews;
+    std::vector<redshow_record_view_t>,
+    CompareView> TopViews;
 
+typedef std::priority_queue<std::pair<u64, u64>,
+    std::vector<std::pair<u64, u64>>,
+    CompareStatistic> TopStatistic;
 /* 
  * Interface:
  *
@@ -148,9 +159,11 @@ void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessType::DataType
  * Number of entries the runtime needs to know
  */
 void record_spatial_trace(SpatialTrace &spatial_trace,
-  redshow_record_data_t &record_data, uint32_t num_views_limit);
+                          redshow_record_data_t &record_data, uint32_t num_views_limit,
+                          SpatialStatistic &spatial_statistic);
 
-void show_spatial_trace();
+void show_spatial_trace(uint32_t thread_id, SpatialStatistic &spatial_read_statistic, uint32_t num_write_limit,
+                        bool is_read);
 
 
 #endif  // REDSHOW_COMMON_LIB_H
