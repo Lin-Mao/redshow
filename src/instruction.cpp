@@ -151,7 +151,7 @@ static AccessType init_access_type(Instruction &inst, InstructionGraph &inst_gra
 
   if (inst.access_type->type == AccessType::UNKNOWN) {
     // If type is not determined
-    inst.access_type->type = AccessType::INTEGER;
+    inst.access_type->type = AccessType::FLOAT;
   }
 }
 
