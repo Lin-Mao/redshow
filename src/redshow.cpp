@@ -106,8 +106,8 @@ static __thread uint64_t mini_host_op_id = 0;
 
 static uint32_t num_views_limit = 0;
 
-static int decimal_degree_f32 = 18;
-static int decimal_degree_f64 = 40;
+static int decimal_degree_f32 = 23;
+static int decimal_degree_f64 = 52;
 
 enum {
   MEMORY_ID_SHARED = 1,

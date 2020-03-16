@@ -172,34 +172,23 @@ void record_spatial_trace(SpatialTrace &spatial_trace,
 void show_spatial_trace(uint32_t thread_id, SpatialStatistic &spatial_statistic, uint32_t num_write_limit,
                         bool is_read);
 
+/**
+ * Use decimal_degree_f32 bits to cut the valid floating number bits.
+ * @arg decimal_degree_f32: the valid bits. The floating numbers have 23-bit fractions.
+ * */
+u64 store2float(u64 a, int decimal_degree_f32);
 
-// convert an hex value to float format. Use decimal_degree_f32 to control precision.
-inline u64 store2float(u64 a, int decimal_degree_f32) {
-  u32 c = a & 0xffffffffu;
-  u32 mask = 0xffffffff;
-  for (int i = 0; i < 23 - decimal_degree_f32; ++i) {
-    mask <<= 1u;
-  }
-  c &= mask;
-  u64 b = 0;
-  memcpy(&b, &c, sizeof(c));
-  return b;
-}
+/**
+ * @arg decimal_degree_f64: the valid bits. The float64 numbers have 52-bit fractions.
+ * */
+u64 store2double(u64 a, int decimal_degree_f64);
 
-
-inline u64 store2double(u64 a, int decimal_degree_f64) {
-  u64 c = a;
-  u64 mask = 0xffffffffffffffff;
-  for (int i = 0; i < 52 - decimal_degree_f64; ++i) {
-    mask <<= 1u;
-  }
-  c = c & mask;
-  return c;
-}
-
+/**
+ * Change raw data to formatted value.
+ * */
 u64 store2basictype(u64 a, AccessType atype, int decimal_degree_f32, int decimal_degree_f64);
 
-inline void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *buf, bool is_signed);
+void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *buf, bool is_signed);
 
 #endif  // REDSHOW_COMMON_LIB_H
 
