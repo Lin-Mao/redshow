@@ -146,4 +146,3 @@ dkms.conf
 # Main binary
 main
 build/
-Makefile.config

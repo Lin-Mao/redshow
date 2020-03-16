@@ -106,6 +106,9 @@ static __thread uint64_t mini_host_op_id = 0;
 
 static uint32_t num_views_limit = 0;
 
+static int decimal_degree_f32 = 18;
+static int decimal_degree_f64 = 40;
+
 enum {
   MEMORY_ID_SHARED = 1,
   MEMORY_ID_LOCAL = 2
@@ -295,15 +298,15 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
 
             if (memory_op_id != 0) {
               for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
-                uint64_t value = 0;
-                memcpy(&value, &record->value[j][m * access_type.unit_size], access_type.unit_size >> 3u);
-
+                uint64_t value_tmp = 0, value = 0;
+                memcpy(&value_tmp, &record->value[j][m * (access_type.unit_size >> 3u)], access_type.unit_size >> 3u);
+                value = store2basictype(value_tmp, access_type, decimal_degree_f32, decimal_degree_f64);
                 for (auto analysis : analysis_enabled) {
                   if (analysis == REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) {
                     if (record->flags & GPU_PATCH_READ) {
-                      get_spatial_trace(record->pc, value, memory_op_id, access_type.type, read_spatial_trace);
+                      get_spatial_trace(record->pc, value, memory_op_id, access_type, read_spatial_trace);
                     } else {
-                      get_spatial_trace(record->pc, value, memory_op_id, access_type.type, write_spatial_trace);
+                      get_spatial_trace(record->pc, value, memory_op_id, access_type, write_spatial_trace);
                     }
                   } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
                     if (record->flags & GPU_PATCH_READ) {
