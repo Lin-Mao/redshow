@@ -44,6 +44,28 @@ static std::map<uint32_t, Cubin> cubin_map;
 static std::mutex cubin_map_lock;
 
 
+struct CubinCache {
+  uint32_t cubin_id;
+  uint32_t nsymbols;
+  uint64_t *symbol_pcs;
+  std::string path;
+
+  CubinCache() = default;
+
+  CubinCache(uint32_t cubin_id) : cubin_id(cubin_id), nsymbols(0) {}
+
+  CubinCache(uint32_t cubin_id, const std::string &path) :
+    cubin_id(cubin_id), path(path), nsymbols(0) {}
+
+  ~CubinCache() {
+    delete [] symbol_pcs;
+  }
+};
+
+static std::map<uint32_t, CubinCache> cubin_cache_map;
+static std::mutex cubin_cache_map_lock;
+
+
 struct MemoryRange {
   uint64_t start;
   uint64_t end;
@@ -193,8 +215,43 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
   }
   cubin_map_lock.unlock();
 
-  // Cubin not found
+  // Cubin not found, maybe in the cache map
   if (result == REDSHOW_ERROR_NOT_EXIST_ENTRY) {
+    uint32_t nsymbols;
+    uint64_t *symbol_pcs;
+    const char *path;
+
+    cubin_cache_map_lock.lock();
+    if (cubin_cache_map.find(cubin_id) == cubin_cache_map.end()) {
+      result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+    } else {
+      result = REDSHOW_SUCCESS;
+      auto &cubin_cache = cubin_cache_map[cubin_id];
+      nsymbols = cubin_cache.nsymbols;
+      symbol_pcs = cubin_cache.symbol_pcs;
+      path = cubin_cache.path.c_str();
+    }
+    cubin_cache_map_lock.unlock();
+
+    if (result == REDSHOW_SUCCESS) {
+      result = redshow_cubin_register(cubin_id, nsymbols, symbol_pcs, path);
+    }
+
+    // Try fetch cubin again
+    if (result == REDSHOW_SUCCESS) {
+      cubin_map_lock.lock();
+      if (cubin_map.find(cubin_id) == cubin_map.end()) {
+        result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+      } else {
+        symbols = &(cubin_map[cubin_id].symbols);
+        inst_graph = &(cubin_map[cubin_id].inst_graph);
+        cubin_path = cubin_map[cubin_id].path;
+      }
+      cubin_map_lock.unlock();
+    }
+  }
+
+  if (result != REDSHOW_SUCCESS) {
     return result;
   }
 
@@ -211,10 +268,6 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
   memory_snapshot_lock.unlock();
 
   // Memory snapshot not found
-  if (result == REDSHOW_ERROR_NOT_EXIST_ENTRY) {
-    return result;
-  }
-
   if (result != REDSHOW_SUCCESS) {
     return result;
   }
@@ -394,6 +447,31 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, ui
     }
     cubin_map_lock.unlock();
   }
+
+  return result;
+}
+
+
+redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *symbol_pcs, const char *path) {
+  PRINT("\nredshow->Enter redshow_cubin_cache_register\ncubin_id: %u\npath: %s\n", cubin_id, path);
+
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  cubin_cache_map_lock.lock();
+  if (cubin_cache_map.find(cubin_id) == cubin_cache_map.end()) {
+    auto &cubin_cache = cubin_cache_map[cubin_id];
+
+    cubin_cache.cubin_id = cubin_id;
+    cubin_cache.path = std::string(path);
+    cubin_cache.nsymbols = nsymbols;
+    cubin_cache.symbol_pcs = new uint64_t[nsymbols];
+    for (size_t i = 0; i < nsymbols; ++i) {
+      cubin_cache.symbol_pcs[i] = symbol_pcs[i];
+    }
+  } else {
+    result = REDSHOW_ERROR_DUPLICATE_ENTRY;
+  }
+  cubin_cache_map_lock.unlock();
 
   return result;
 }
