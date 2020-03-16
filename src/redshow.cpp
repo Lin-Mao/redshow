@@ -128,8 +128,8 @@ static __thread uint64_t mini_host_op_id = 0;
 
 static uint32_t num_views_limit = 0;
 
-static int decimal_degree_f32 = 23;
-static int decimal_degree_f64 = 52;
+static int decimal_degree_f32 = VALID_FLOAT_DIGITS;
+static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
 
 enum {
   MEMORY_ID_SHARED = 1,
@@ -359,25 +359,29 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
           continue;
         }
 
-        for (size_t m = 0; m < access_type.vec_size / access_type.unit_size; m++) {
+        auto num_units = access_type.vec_size / access_type.unit_size;
+        AccessType unit_access_type = access_type;
+        // We iterate through all the units such that every unit's vec_size = unit_size
+        unit_access_type.vec_size = unit_access_type.unit_size;
+        for (size_t m = 0; m < num_units; m++) {
           uint64_t value = 0;
-          uint32_t byte_size = access_type.unit_size >> 3u;
+          uint32_t byte_size = unit_access_type.unit_size >> 3u;
           memcpy(&value, &record->value[j][m * byte_size], byte_size);
-          value = store2basictype(value, access_type, decimal_degree_f32, decimal_degree_f64);
+          value = store2basictype(value, unit_access_type, decimal_degree_f32, decimal_degree_f64);
 
           for (auto analysis : analysis_enabled) {
             if (analysis == REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) {
               if (record->flags & GPU_PATCH_READ) {
-                get_spatial_trace(record->pc, value, memory_op_id, access_type.type, read_spatial_trace);
+                get_spatial_trace(record->pc, value, memory_op_id, unit_access_type, read_spatial_trace);
               } else {
-                get_spatial_trace(record->pc, value, memory_op_id, access_type.type, write_spatial_trace);
+                get_spatial_trace(record->pc, value, memory_op_id, unit_access_type, write_spatial_trace);
               }
             } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
               if (record->flags & GPU_PATCH_READ) {
-                get_temporal_trace(record->pc, thread_id, record->address[j], value, access_type.type,
+                get_temporal_trace(record->pc, thread_id, record->address[j], value, unit_access_type,
                   read_temporal_trace, read_pc_pairs);
               } else {
-                get_temporal_trace(record->pc, thread_id, record->address[j], value, access_type.type,
+                get_temporal_trace(record->pc, thread_id, record->address[j], value, unit_access_type,
                   write_temporal_trace, write_pc_pairs);
               }
             } else {

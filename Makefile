@@ -47,13 +47,13 @@ $(LIB_DIR):
 	mkdir -p $@
 
 $(BINS): % : %.cpp $(OBJECTS)
-	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(GPU_PATCH_DIR)include -o $@ $^
+	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(GPU_PATCH_DIR)/include -o $@ $^
 
 $(LIB): $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $^ 
 
 $(OBJECTS): $(BUILD_DIR)%.o : %.cpp
-	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(GPU_PATCH_DIR)include -o $@ -c $<
+	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(GPU_PATCH_DIR)/include -o $@ -c $<
 
 clean:
 	-rm -rf $(BUILD_DIR) $(LIB_DIR) $(BINS)

@@ -68,10 +68,12 @@ struct CompareStatistic {
 typedef std::priority_queue<redshow_record_view_t,
     std::vector<redshow_record_view_t>,
     CompareView> TopViews;
+
 // {value, count, Accesstype}
 typedef std::priority_queue<std::tuple<u64, u64, AccessType>,
     std::vector<std::tuple<u64, u64, AccessType>>,
     CompareStatistic> TopStatistic;
+
 /* 
  * Interface:
  *
@@ -107,7 +109,7 @@ typedef std::priority_queue<std::tuple<u64, u64, AccessType>,
  * pc_pairs:
  * {pc1 : {pc2 : {<value, type>}}}
  */
-void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType::DataType access_type,
+void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType access_type,
                         TemporalTrace &temporal_trace, PCPairs &pc_pairs);
 
 /*
