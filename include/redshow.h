@@ -27,8 +27,18 @@ typedef enum redshow_result {
   REDSHOW_ERROR_NOT_REGISTER_CALLBACK = 4,
   REDSHOW_ERROR_NO_SUCH_FILE = 5,
   REDSHOW_ERROR_FAILED_ANALYZE_CUBIN = 6,
-  REDSHOW_ERROR_FAILED_ANALYZE_TRACE = 7
+  REDSHOW_ERROR_FAILED_ANALYZE_TRACE = 7,
+  REDSHOW_ERROR_NO_SUCH_APPROX = 8
 } redshow_result_t;
+
+typedef enum redshow_approx_level {
+  REDSHOW_APPROX_NONE = 0,
+  REDSHOW_APPROX_MIN = 1,
+  REDSHOW_APPROX_LOW = 2,
+  REDSHOW_APPROX_MID = 3,
+  REDSHOW_APPROX_HIGH = 4,
+  REDSHOW_APPROX_MAX = 5,
+} redshow_approx_level_t;
 
 typedef struct redshow_record_view {
   uint32_t function_index;
@@ -50,6 +60,13 @@ typedef struct redshow_record_data {
  * Thread-Safety: NO
  */
 EXTERNC redshow_result_t redshow_analysis_output();
+
+/*
+ * Config floating point redundancy approximate level
+ * 
+ * Thread-Safety: NO
+ */
+EXTERNC redshow_result_t redshow_approx_level_config(uint32_t level);
 
 /*
  * This function is used to setup specific analysis types.
@@ -132,7 +149,7 @@ EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_cal
 
 typedef void (*redshow_record_data_callback_func)(uint32_t cubin_id, uint64_t kernel_id, redshow_record_data_t *record_data);
 
-EXTERNC redshow_result_t redshow_record_data_callback_register(redshow_record_data_callback_func func, uint32_t num_views_limit);
+EXTERNC redshow_result_t redshow_record_data_callback_register(redshow_record_data_callback_func func, uint32_t pc_views_limit, uint32_t mem_views_limit);
 
 /*
  * Apply registered analysis to a gpu trace, analysis results are buffered.
