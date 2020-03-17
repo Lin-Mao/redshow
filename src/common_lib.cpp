@@ -132,7 +132,7 @@ show_spatial_trace(uint32_t thread_id, SpatialStatistic &spatial_statistic, uint
   using std::to_string;
   using std::get;
   std::string r = is_read ? "read" : "write";
-  std::ofstream out("sptial_" + r + "_top" + to_string(num_write_limit) + "_" + to_string(thread_id) + ".csv",
+  std::ofstream out("spatial_" + r + "_top" + to_string(num_write_limit) + "_" + to_string(thread_id) + ".csv",
                     std::ios::app);
   out << "size;";
   out << spatial_statistic.size() << endl;

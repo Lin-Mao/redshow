@@ -787,6 +787,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
     show_spatial_trace(thread_id, spatial_read_statistic, mem_views_limit, true);
     show_spatial_trace(thread_id, spatial_write_statistic, mem_views_limit, false);
   }
+
   // Remove all kernel records
   kernel_map_lock.lock();
 
