@@ -413,16 +413,28 @@ redshow_result_t redshow_approx_level_config(uint32_t level) {
   // TODO(Yueming)
   switch (level) {
     case REDSHOW_APPROX_NONE:
+      decimal_degree_f32 = VALID_FLOAT_DIGITS;
+      decimal_degree_f64 = VALID_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_MIN:
+      decimal_degree_f32 = 20;
+      decimal_degree_f64 = 46;
       break;
     case REDSHOW_APPROX_LOW:
+      decimal_degree_f32 = 17;
+      decimal_degree_f64 = 40;
       break;
     case REDSHOW_APPROX_MID:
+      decimal_degree_f32 = 14;
+      decimal_degree_f64 = 34;
       break;
     case REDSHOW_APPROX_HIGH:
+      decimal_degree_f32 = 11;
+      decimal_degree_f64 = 28;
       break;
     case REDSHOW_APPROX_MAX:
+      decimal_degree_f32 = 8;
+      decimal_degree_f64 = 22;
       break;
     default:
       result = REDSHOW_ERROR_NO_SUCH_APPROX; 
