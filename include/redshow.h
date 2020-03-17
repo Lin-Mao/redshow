@@ -87,6 +87,14 @@ EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analys
 EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *symbol_pcs, const char *path);
 
 /*
+ * For a large-scale program that loads a large number of CUBINs, we do not analyze every of them because not all
+ * the cubins will be used.
+ *
+ * Instead, we cache the cubin's symbols and path and analyze the cubins we use
+ */
+EXTERNC redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *symbol_pcs, const char *path);
+
+/*
  * This function is used to unregister a module.
  * 
  * Thread-Safety: YES

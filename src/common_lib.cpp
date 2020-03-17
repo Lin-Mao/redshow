@@ -6,7 +6,7 @@
 #include "redshow.h"
 
 
-void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType::DataType access_type,
+void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType access_type,
                         TemporalTrace &temporal_trace, PCPairs &pc_pairs) {
   auto tmr_it = temporal_trace.find(tid);
   // Record current operation.
@@ -172,6 +172,7 @@ show_spatial_trace(uint32_t thread_id, SpatialStatistic &spatial_statistic, uint
   out.close();
 }
 
+
 u64 store2basictype(u64 a, AccessType atype, int decimal_degree_f32, int decimal_degree_f64) {
   switch (atype.type) {
     case AccessType::UNKNOWN:
@@ -199,6 +200,7 @@ u64 store2basictype(u64 a, AccessType atype, int decimal_degree_f32, int decimal
   }
   return a;
 }
+
 
 void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *buf, bool is_signed) {
   std::ostream out(buf);
@@ -254,8 +256,8 @@ void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *bu
       out << b2;
     }
   }
-
 }
+
 
 u64 store2double(u64 a, int decimal_degree_f64) {
   u64 c = a;
@@ -266,6 +268,7 @@ u64 store2double(u64 a, int decimal_degree_f64) {
   c = c & mask;
   return c;
 }
+
 
 u64 store2float(u64 a, int decimal_degree_f32) {
   u32 c = a & 0xffffffffu;
