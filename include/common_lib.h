@@ -51,7 +51,7 @@ typedef std::map<std::tuple<u64, AccessType>, std::map<u64, u64>> SpatialStatist
 typedef std::map<ThreadId, std::map<u64, std::tuple<u64, u64>>> TemporalTrace;
 
 // {pc1 : {pc2 : {<value, AccessType::DataType> : count}}}
-typedef std::map<u64, std::map<u64, std::map<std::tuple<u64, AccessType::DataType>, u64>>> PCPairs;
+typedef std::map<u64, std::map<u64, std::map<std::tuple<u64, AccessType>, u64>>> PCPairs;
 
 struct CompareView {
   bool operator()(redshow_record_view_t const &d1, redshow_record_view_t const &d2) {

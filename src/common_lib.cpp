@@ -6,7 +6,7 @@
 #include "redshow.h"
 
 
-void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType::DataType access_type,
+void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType access_type,
                         TemporalTrace &temporal_trace, PCPairs &pc_pairs) {
   auto tmr_it = temporal_trace.find(tid);
   // Record current operation.
