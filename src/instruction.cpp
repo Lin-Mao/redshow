@@ -5,6 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <queue>
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -101,7 +102,7 @@ bool parse_instructions(const std::string &file_path,
 
 
 static AccessType init_access_type(Instruction &inst, InstructionGraph &inst_graph,
-  const std::set<unsigned int> &neighbors) {
+  const std::set<unsigned int> &neighbors, bool load) {
   // Determine the vec size of data,
   if (inst.op.find(".128") != std::string::npos) {
     inst.access_type->vec_size = 128;
@@ -120,8 +121,18 @@ static AccessType init_access_type(Instruction &inst, InstructionGraph &inst_gra
   // Determine the unit size of data,
   // STORE: check the usage of its src regs
   // LOAD: check the usage of its dst regs
+  // Use BFS to find the closest neighbor with explicit data type
+  std::queue<unsigned int> queue;
+
+  // Init queue
   for (auto iter = neighbors.begin(); iter != neighbors.end(); ++iter) {
-    auto &dst_inst = inst_graph.node(*iter);
+    queue.push(*iter);
+  }
+
+  while (queue.empty() == false) {
+    auto pc = queue.front();
+    queue.pop();
+    auto &dst_inst = inst_graph.node(pc);
 
     if (inst.access_type->unit_size == 0) {
       if (dst_inst.op.find(".64") != std::string::npos) {
@@ -132,6 +143,18 @@ static AccessType init_access_type(Instruction &inst, InstructionGraph &inst_gra
         inst.access_type->unit_size = MIN2(16, inst.access_type->vec_size);
       } else if (dst_inst.op.find(".8") != std::string::npos) {
         inst.access_type->unit_size = MIN2(8, inst.access_type->vec_size);
+      } else if (dst_inst.op.find("._64_TO_32") != std::string::npos) {
+        if (load) {
+          inst.access_type->unit_size = MIN2(64, inst.access_type->vec_size);
+        } else {
+          inst.access_type->unit_size = MIN2(32, inst.access_type->vec_size);
+        }
+      } else if (dst_inst.op.find("._32_TO_64") != std::string::npos) {
+        if (load) {
+          inst.access_type->unit_size = MIN2(32, inst.access_type->vec_size);
+        } else {
+          inst.access_type->unit_size = MIN2(64, inst.access_type->vec_size);
+        }
       }
     }
 
@@ -140,7 +163,54 @@ static AccessType init_access_type(Instruction &inst, InstructionGraph &inst_gra
         inst.access_type->type = AccessType::FLOAT;
       } else if (dst_inst.op.find("INTEGER") != std::string::npos) {
         inst.access_type->type = AccessType::INTEGER;
-      } 
+      } else if (dst_inst.op.find("CONTROL") != std::string::npos) {
+        inst.access_type->type = AccessType::INTEGER;
+      } else if (dst_inst.op.find(".CONVERT") != std::string::npos) {
+        if (dst_inst.op.find(".I2F") != std::string::npos) {
+          if (load) {
+            inst.access_type->type = AccessType::INTEGER;
+          } else {
+            inst.access_type->type = AccessType::FLOAT;
+          }
+        } else if (dst_inst.op.find(".F2F") != std::string::npos) {
+          inst.access_type->type = AccessType::FLOAT;
+        } else if (dst_inst.op.find(".F2I") != std::string::npos) {
+          if (load) {
+            inst.access_type->type = AccessType::FLOAT;
+          } else {
+            inst.access_type->type = AccessType::INTEGER;
+          }
+        } else if (dst_inst.op.find(".I2I") != std::string::npos) {
+          inst.access_type->type = AccessType::INTEGER;
+        }
+      } else if (dst_inst.op.find("MOVE") != std::string::npos) {
+        if (dst_inst.op.find(".I") != std::string::npos) {
+          // Can identify both data type and unit size
+          inst.access_type->type = AccessType::INTEGER;
+          inst.access_type->unit_size = MIN2(32, inst.access_type->vec_size);
+        } else {
+          // Look forward
+          if (load) {
+            if (inst_graph.outgoing_nodes_size(pc) != 0) {
+              auto &outgoing_nodes = inst_graph.outgoing_nodes(pc);
+              for (auto iter = outgoing_nodes.begin(); iter != outgoing_nodes.end(); ++iter) {
+                queue.push(*iter);
+              }
+            }
+          } else {
+            if (inst_graph.incoming_nodes_size(pc) != 0) {
+              auto &incoming_nodes = inst_graph.incoming_nodes(pc);
+              for (auto iter = incoming_nodes.begin(); iter != incoming_nodes.end(); ++iter) {
+                queue.push(*iter);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (inst.access_type->unit_size != 0 && inst.access_type->type != AccessType::UNKNOWN) {
+      break;
     }
   }
 
@@ -173,7 +243,7 @@ AccessType load_data_type(unsigned int pc, InstructionGraph &inst_graph) {
     auto &outgoing_nodes = inst_graph.outgoing_nodes(pc);
 
     // Associate access type with instruction
-    init_access_type(inst, inst_graph, outgoing_nodes);
+    init_access_type(inst, inst_graph, outgoing_nodes, true);
   }
 
   return *(inst.access_type);
@@ -196,7 +266,7 @@ AccessType store_data_type(unsigned int pc, InstructionGraph &inst_graph) {
       inst_graph.incoming_nodes_size(pc) != 0) {
     auto &incoming_nodes = inst_graph.incoming_nodes(pc);
     // Associate access type with instruction
-    init_access_type(inst, inst_graph, incoming_nodes);
+    init_access_type(inst, inst_graph, incoming_nodes, false);
   }
   return *(inst.access_type);
 }

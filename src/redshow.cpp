@@ -434,7 +434,7 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, ui
   std::vector<Symbol> symbols(nsymbols);
   result = cubin_analyze(path, symbols, inst_graph);
 
-  if (result == REDSHOW_SUCCESS) {
+  if (result == REDSHOW_SUCCESS || result == REDSHOW_ERROR_NO_SUCH_FILE) {
     // We must have found an instruction file, no matter nvdisasm failed or not
     // Assign symbol pc
     for (auto i = 0; i < nsymbols; ++i) {
