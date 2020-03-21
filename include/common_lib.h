@@ -52,6 +52,8 @@ typedef std::map<ThreadId, std::map<u64, std::tuple<u64, u64>>> TemporalTrace;
 
 // {pc1 : {pc2 : {<value, AccessType::DataType> : count}}}
 typedef std::map<u64, std::map<u64, std::map<std::tuple<u64, AccessType>, u64>>> PCPairs;
+// {pc: access_sum_count}
+typedef std::map<u64, u64> PCAccessSum;
 
 struct CompareView {
   bool operator()(redshow_record_view_t const &d1, redshow_record_view_t const &d2) {
@@ -124,7 +126,7 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType ac
  * num_views_limit:
  * Number of entries the runtime needs to know
  */
-void record_temporal_trace(PCPairs &pc_pairs,
+void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum,
                            redshow_record_data_t &record_data, uint32_t num_views_limit);
 
 void show_temporal_trace();

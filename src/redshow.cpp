@@ -105,10 +105,10 @@ struct Kernel {
 
   TemporalTrace read_temporal_trace;
   PCPairs read_pc_pairs;
-
+  PCAccessSum read_pc_sum;
   TemporalTrace write_temporal_trace;
   PCPairs write_pc_pairs;
-
+  PCAccessSum write_pc_sum;
   Kernel() = default;
 
   Kernel(uint64_t kernel_id, uint32_t cubin_id, uint32_t func_index, uint64_t func_addr) :
@@ -203,7 +203,8 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
   auto &read_pc_pairs = kernel.read_pc_pairs;
   auto &write_temporal_trace = kernel.write_temporal_trace;
   auto &write_pc_pairs = kernel.write_pc_pairs;
-
+  auto &read_pc_sum = kernel.read_pc_sum;
+  auto &write_pc_sum = kernel.write_pc_sum;
   std::vector<Symbol> *symbols = NULL;
   InstructionGraph *inst_graph = NULL;
   // Cubin path is added just for debugging purpose
@@ -380,10 +381,12 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
             } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
               if (record->flags & GPU_PATCH_READ) {
                 get_temporal_trace(record->pc, thread_id, record->address[j], value, unit_access_type,
-                  read_temporal_trace, read_pc_pairs);
+                                   read_temporal_trace, read_pc_pairs);
+                read_pc_sum[record->pc] += num_units;
               } else {
                 get_temporal_trace(record->pc, thread_id, record->address[j], value, unit_access_type,
-                  write_temporal_trace, write_pc_pairs);
+                                   write_temporal_trace, write_pc_pairs);
+                write_pc_sum[record->pc] += num_units;
               }
             } else {
               // Pass
@@ -765,7 +768,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         record_data.analysis_type = REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY;
         // Read
         record_data.access_type = REDSHOW_ACCESS_READ;
-        record_temporal_trace(kernel.read_pc_pairs, record_data, pc_views_limit);
+        record_temporal_trace(kernel.read_pc_pairs, kernel.read_pc_sum, record_data, pc_views_limit);
         // Transform pcs
         for (auto i = 0; i < record_data.num_views; ++i) {
           uint64_t pc = record_data.views[i].pc_offset;
@@ -779,7 +782,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         record_data_callback(cubin_id, kernel_id, &record_data);
         // Write
         record_data.access_type = REDSHOW_ACCESS_WRITE;
-        record_temporal_trace(kernel.write_pc_pairs, record_data, pc_views_limit);
+        record_temporal_trace(kernel.write_pc_pairs, kernel.write_pc_sum, record_data, pc_views_limit);
         // Transform pcs
         for (auto i = 0; i < record_data.num_views; ++i) {
           uint64_t pc = record_data.views[i].pc_offset;

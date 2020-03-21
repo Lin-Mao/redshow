@@ -34,7 +34,7 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType ac
 }
 
 
-void record_temporal_trace(PCPairs &pc_pairs,
+void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum,
                            redshow_record_data_t &record_data, uint32_t num_views_limit) {
   // Pick top record data views
   TopViews top_views;
@@ -50,6 +50,7 @@ void record_temporal_trace(PCPairs &pc_pairs,
         view.pc_offset = to_pc;
         view.memory_id = 0;
         view.count = count;
+        view.access_sum_count = pc_access_sum[to_pc];
         if (top_views.size() < num_views_limit) {
           top_views.push(view);
         } else {
