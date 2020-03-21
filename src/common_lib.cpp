@@ -156,16 +156,17 @@ show_spatial_trace(uint32_t thread_id, SpatialStatistic &spatial_statistic, uint
       }
     }
     out << "sum_count," << all_count << endl;
-    out << "value,count,rate,type,unit_size" << endl;
+    out << "value,count,rate,type" << endl;
 //    write to file
     while (not top_statistic.empty()) {
       auto top = top_statistic.top();
       top_statistic.pop();
-
-      output_corresponding_type_value(get<0>(top), get<2>(top), out.rdbuf(), true);
+      auto value = get<0>(top);
+      auto count = get<1>(top);
+      auto atype = get<2>(top);
+      output_corresponding_type_value(value, atype, out.rdbuf(), true);
 //      out<<std::hex<<get<0>(top)<<std::dec;
-      out << "," << get<1>(top) << "," << (double) get<1>(top) / all_count << "," << get<2>(top).type << ","
-          << get<2>(top).unit_size << endl;
+      out << "," << count << "," << (double) count / all_count << "," << combine_type_unitsize(atype) << endl;
     }
     out << endl;
   }
@@ -276,4 +277,17 @@ u64 store2float(u64 a, int decimal_degree_f32) {
   u64 b = 0;
   memcpy(&b, &c, sizeof(c));
   return b;
+}
+
+std::string combine_type_unitsize(AccessType atype) {
+  using std::to_string;
+  switch (atype.type) {
+    case AccessType::UNKNOWN:
+      break;
+    case AccessType::INTEGER:
+      return "int" + to_string(atype.unit_size);
+    case AccessType::FLOAT:
+      return "float" + to_string(atype.unit_size);
+  }
+  return "null";
 }

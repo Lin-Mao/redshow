@@ -192,6 +192,7 @@ u64 store2basictype(u64 a, AccessType atype, int decimal_degree_f32, int decimal
 
 void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *buf, bool is_signed);
 
+std::string combine_type_unitsize(AccessType atype);
 #endif  // REDSHOW_COMMON_LIB_H
 
 
