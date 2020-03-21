@@ -44,24 +44,24 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
   }
   visited.insert(inst.pc);
 
+  AccessKind access_kind;
   // Determine the vec size of data,
   if (inst.op.find(".128") != std::string::npos) {
-    inst.access_kind->vec_size = 128;
+    access_kind.vec_size = 128;
   } else if (inst.op.find(".64") != std::string::npos) {
-    inst.access_kind->vec_size = 64;
+    access_kind.vec_size = 64;
   } else if (inst.op.find(".32") != std::string::npos) { 
-    inst.access_kind->vec_size = 32;
+    access_kind.vec_size = 32;
   } else if (inst.op.find(".16") != std::string::npos) {
-    inst.access_kind->vec_size = 16;
+    access_kind.vec_size = 16;
   } else if (inst.op.find(".8") != std::string::npos) {
-    inst.access_kind->vec_size = 8;
+    access_kind.vec_size = 8;
   } else {
-    inst.access_kind->vec_size = 32;
+    access_kind.vec_size = 32;
   }
 
   auto &neighbors = load ? inst_graph.outgoing_nodes(inst.pc) : inst_graph.incoming_nodes(inst.pc);
 
-  AccessKind access_kind;
   for (auto iter = neighbors.begin(); iter != neighbors.end(); ++iter) {
     auto pc = *iter;
     auto &neighbor_inst = inst_graph.node(pc);
