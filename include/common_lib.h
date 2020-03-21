@@ -41,17 +41,17 @@ struct ThreadId {
   }
 };
 
-// {<memory_op_id, AccessType::DataType> : {pc: {value: count}}}
-typedef std::map<std::tuple<u64, AccessType>, std::map<u64, std::map<u64, u64>>> SpatialTrace;
+// {<memory_op_id, AccessKind::DataType> : {pc: {value: count}}}
+typedef std::map<std::tuple<u64, AccessKind>, std::map<u64, std::map<u64, u64>>> SpatialTrace;
 
 // {memory_op_id: {value: count}}
-typedef std::map<std::tuple<u64, AccessType>, std::map<u64, u64>> SpatialStatistic;
+typedef std::map<std::tuple<u64, AccessKind>, std::map<u64, u64>> SpatialStatistic;
 
 // {ThreadId : {address : {<pc, value>}}}
 typedef std::map<ThreadId, std::map<u64, std::tuple<u64, u64>>> TemporalTrace;
 
-// {pc1 : {pc2 : {<value, AccessType::DataType> : count}}}
-typedef std::map<u64, std::map<u64, std::map<std::tuple<u64, AccessType>, u64>>> PCPairs;
+// {pc1 : {pc2 : {<value, AccessKind::DataType> : count}}}
+typedef std::map<u64, std::map<u64, std::map<std::tuple<u64, AccessKind>, u64>>> PCPairs;
 
 struct CompareView {
   bool operator()(redshow_record_view_t const &d1, redshow_record_view_t const &d2) {
@@ -60,7 +60,7 @@ struct CompareView {
 };
 
 struct CompareStatistic {
-  bool operator()(std::tuple<u64, u64, AccessType> const &d1, std::tuple<u64, u64, AccessType> const &d2) {
+  bool operator()(std::tuple<u64, u64, AccessKind> const &d1, std::tuple<u64, u64, AccessKind> const &d2) {
     return std::get<1>(d1) > std::get<1>(d2);
   }
 };
@@ -70,8 +70,8 @@ typedef std::priority_queue<redshow_record_view_t,
     CompareView> TopViews;
 
 // {value, count, Accesstype}
-typedef std::priority_queue<std::tuple<u64, u64, AccessType>,
-    std::vector<std::tuple<u64, u64, AccessType>>,
+typedef std::priority_queue<std::tuple<u64, u64, AccessKind>,
+    std::vector<std::tuple<u64, u64, AccessKind>>,
     CompareStatistic> TopStatistic;
 
 /* 
@@ -109,7 +109,7 @@ typedef std::priority_queue<std::tuple<u64, u64, AccessType>,
  * pc_pairs:
  * {pc1 : {pc2 : {<value, type>}}}
  */
-void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType access_type,
+void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessKind access_type,
                         TemporalTrace &temporal_trace, PCPairs &pc_pairs);
 
 /*
@@ -142,17 +142,17 @@ void show_temporal_trace();
  * How a thread accesses memory (e.g. float/int, vector/scalar)
  *
  * spatial_trace:
- * {<memory_op_id, AccessType::DataType> : {pc: {value: count}}}
+ * {<memory_op_id, AccessKind::DataType> : {pc: {value: count}}}
  *
  */
-void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessType access_type,
+void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_type,
                        SpatialTrace &spatial_trace);
 
 /*
  * Record frequent spatial records
  *
  * spatial_trace:
- * {<memory_op_id, AccessType::DataType> : {pc: {value: count}}}
+ * {<memory_op_id, AccessKind::DataType> : {pc: {value: count}}}
  *
  * record_data:
  * Data returned to the runtime
@@ -188,9 +188,9 @@ u64 store2double(u64 a, int decimal_degree_f64);
 /**
  * Change raw data to formatted value.
  * */
-u64 store2basictype(u64 a, AccessType atype, int decimal_degree_f32, int decimal_degree_f64);
+u64 store2basictype(u64 a, AccessKind atype, int decimal_degree_f32, int decimal_degree_f64);
 
-void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *buf, bool is_signed);
+void output_corresponding_type_value(u64 a, AccessKind atype, std::streambuf *buf, bool is_signed);
 
 #endif  // REDSHOW_COMMON_LIB_H
 

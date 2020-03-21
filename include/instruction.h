@@ -29,7 +29,7 @@ struct Symbol {
 };
 
 
-struct AccessType {
+struct AccessKind {
   enum DataType {
     UNKNOWN = 0,
     INTEGER = 1,
@@ -42,10 +42,10 @@ struct AccessType {
   uint32_t unit_size;
   DataType type;
 
-  AccessType(uint32_t unit_size, uint32_t vec_size, DataType type) :
+  AccessKind(uint32_t unit_size, uint32_t vec_size, DataType type) :
       unit_size(unit_size), vec_size(vec_size), type(type) {}
 
-  AccessType() : AccessType(0, 0, UNKNOWN) {}
+  AccessKind() : AccessKind(0, 0, UNKNOWN) {}
 
   std::string to_string() {
     std::stringstream ss;
@@ -62,7 +62,7 @@ struct AccessType {
     return ss.str();
   }
 
-  bool operator<(const AccessType &b) const {
+  bool operator<(const AccessKind &b) const {
     if (this->vec_size == b.vec_size) {
       if (this->unit_size == b.unit_size) {
         return this->type < b.type;
@@ -85,16 +85,16 @@ struct Instruction {
   std::vector<int> dsts;  // R0-R255: only records normal registers
   std::vector<int> srcs;  // R0-R255, only records normal registers
   std::map<int, std::vector<int> > assign_pcs;
-  std::shared_ptr<AccessType> access_type;
+  std::shared_ptr<AccessKind> access_kind;
 
   Instruction(const std::string &op, unsigned int pc, int predicate,
               std::vector<int> &dsts, std::vector<int> &srcs,
               std::map<int, std::vector<int> > &assign_pcs) :
       op(op), pc(pc), predicate(predicate),
       dsts(dsts), srcs(srcs), assign_pcs(assign_pcs),
-      access_type(NULL) {}
+      access_kind(NULL) {}
 
-  Instruction() : access_type(NULL) {}
+  Instruction() : access_kind(NULL) {}
 
   bool operator<(const Instruction &other) const {
     return this->pc < other.pc;
@@ -174,8 +174,8 @@ class InstructionGraph {
  */
 bool parse_instructions(const std::string &file_path, std::vector<Symbol> &symbols, InstructionGraph &graph);
 
-AccessType load_data_type(unsigned int pc, InstructionGraph &graph);
+AccessKind load_data_type(unsigned int pc, InstructionGraph &graph);
 
-AccessType store_data_type(unsigned int pc, InstructionGraph &graph);
+AccessKind store_data_type(unsigned int pc, InstructionGraph &graph);
 
 #endif  // REDSHOW_INSTRUCTION_H

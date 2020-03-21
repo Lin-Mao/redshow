@@ -6,7 +6,7 @@
 #include "redshow.h"
 
 
-void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType access_type,
+void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessKind access_kind,
                         TemporalTrace &temporal_trace, PCPairs &pc_pairs) {
   auto tmr_it = temporal_trace.find(tid);
   // Record current operation.
@@ -26,7 +26,7 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType ac
       auto prev_pc = std::get<0>(m_it->second);
       auto prev_value = std::get<1>(m_it->second);
       if (prev_value == value) {
-        pc_pairs[prev_pc][pc][std::make_tuple(prev_value, access_type)] += 1;
+        pc_pairs[prev_pc][pc][std::make_tuple(prev_value, access_kind)] += 1;
       }
       m_it->second = record[addr];
     }
@@ -78,9 +78,9 @@ void show_temporal_trace() {
 }
 
 
-void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessType access_type,
+void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_kind,
                        SpatialTrace &spatial_trace) {
-  spatial_trace[std::make_tuple(memory_op_id, access_type)][pc][value] += 1;
+  spatial_trace[std::make_tuple(memory_op_id, access_kind)][pc][value] += 1;
 }
 
 
@@ -89,7 +89,7 @@ void record_spatial_trace(SpatialTrace &spatial_trace,
                           SpatialStatistic &spatial_statistic) {
   // Pick top record data views
   TopViews top_views;
-  // memory_iter: {<memory_op_id, AccessType> : {pc: {value: counter}}}
+  // memory_iter: {<memory_op_id, AccessKind> : {pc: {value: counter}}}
   for (auto &memory_iter : spatial_trace) {
     // pc_iter: {pc: {value: counter}}
     for (auto &pc_iter : memory_iter.second) {
@@ -136,7 +136,7 @@ show_spatial_trace(uint32_t thread_id, SpatialStatistic &spatial_statistic, uint
                     std::ios::app);
   out << "size;";
   out << spatial_statistic.size() << endl;
-  // {<memory_op_id, AccessType>: {value: count}}
+  // {<memory_op_id, AccessKind>: {value: count}}
   for (auto &memory_iter: spatial_statistic) {
     out << "memory_id," << get<0>(memory_iter.first) << ",";
 //  [(value, count, Accesstype)]
@@ -173,11 +173,11 @@ show_spatial_trace(uint32_t thread_id, SpatialStatistic &spatial_statistic, uint
 }
 
 
-u64 store2basictype(u64 a, AccessType atype, int decimal_degree_f32, int decimal_degree_f64) {
+u64 store2basictype(u64 a, AccessKind atype, int decimal_degree_f32, int decimal_degree_f64) {
   switch (atype.type) {
-    case AccessType::UNKNOWN:
+    case AccessKind::UNKNOWN:
       break;
-    case AccessType::INTEGER:
+    case AccessKind::INTEGER:
       switch (atype.unit_size) {
         case 8:
           return a & 0xffu;
@@ -189,7 +189,7 @@ u64 store2basictype(u64 a, AccessType atype, int decimal_degree_f32, int decimal
           return a;
       }
       break;
-    case AccessType::FLOAT:
+    case AccessKind::FLOAT:
       switch (atype.unit_size) {
         case 32:
           return store2float(a, decimal_degree_f32);
@@ -202,9 +202,9 @@ u64 store2basictype(u64 a, AccessType atype, int decimal_degree_f32, int decimal
 }
 
 
-void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *buf, bool is_signed) {
+void output_corresponding_type_value(u64 a, AccessKind atype, std::streambuf *buf, bool is_signed) {
   std::ostream out(buf);
-  if (atype.type == AccessType::INTEGER) {
+  if (atype.type == AccessKind::INTEGER) {
     if (atype.unit_size == 8) {
       if (is_signed) {
         char b6;
@@ -245,7 +245,7 @@ void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *bu
       }
     }
 //    At this time, it must be float
-  } else if (atype.type == AccessType::FLOAT) {
+  } else if (atype.type == AccessKind::FLOAT) {
     if (atype.unit_size == 32) {
       float b1;
       memcpy(&b1, &a, sizeof(b1));

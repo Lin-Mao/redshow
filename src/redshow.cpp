@@ -307,25 +307,25 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
       transform_pc(*symbols, record->pc, function_index, cubin_offset, pc_offset);
 
       // record->size * 8, byte to bits
-      AccessType access_type;
+      AccessKind access_kind;
 
       if (inst_graph->size() != 0) {
         // Accurate mode, when we have instruction information
         auto &inst = inst_graph->node(cubin_offset);
 
         if (record->flags & GPU_PATCH_READ) {
-          access_type = load_data_type(inst.pc, *inst_graph);
+          access_kind = load_data_type(inst.pc, *inst_graph);
         } else if (record->flags & GPU_PATCH_WRITE) {
-          access_type = store_data_type(inst.pc, *inst_graph);
+          access_kind = store_data_type(inst.pc, *inst_graph);
         }
         // Fall back to default mode if failed
       }
 
-      if (access_type.type == AccessType::UNKNOWN) {
+      if (access_kind.type == AccessKind::UNKNOWN) {
         // Default mode, we identify every data as 32 bits unit size, 32 bits vec size, float type
-        access_type.type = AccessType::FLOAT;
-        access_type.vec_size = record->size * 8;
-        access_type.unit_size = MIN2(GPU_PATCH_WARP_SIZE, access_type.vec_size * 8);
+        access_kind.type = AccessKind::FLOAT;
+        access_kind.vec_size = record->size * 8;
+        access_kind.unit_size = MIN2(GPU_PATCH_WARP_SIZE, access_kind.vec_size * 8);
       }
 
       // TODO: accelerate by handling all threads in a warp together
@@ -360,29 +360,29 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
           continue;
         }
 
-        auto num_units = access_type.vec_size / access_type.unit_size;
-        AccessType unit_access_type = access_type;
+        auto num_units = access_kind.vec_size / access_kind.unit_size;
+        AccessKind unit_access_kind = access_kind;
         // We iterate through all the units such that every unit's vec_size = unit_size
-        unit_access_type.vec_size = unit_access_type.unit_size;
+        unit_access_kind.vec_size = unit_access_kind.unit_size;
         for (size_t m = 0; m < num_units; m++) {
           uint64_t value = 0;
-          uint32_t byte_size = unit_access_type.unit_size >> 3u;
+          uint32_t byte_size = unit_access_kind.unit_size >> 3u;
           memcpy(&value, &record->value[j][m * byte_size], byte_size);
-          value = store2basictype(value, unit_access_type, decimal_degree_f32, decimal_degree_f64);
+          value = store2basictype(value, unit_access_kind, decimal_degree_f32, decimal_degree_f64);
 
           for (auto analysis : analysis_enabled) {
             if (analysis == REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) {
               if (record->flags & GPU_PATCH_READ) {
-                get_spatial_trace(record->pc, value, memory_op_id, unit_access_type, read_spatial_trace);
+                get_spatial_trace(record->pc, value, memory_op_id, unit_access_kind, read_spatial_trace);
               } else {
-                get_spatial_trace(record->pc, value, memory_op_id, unit_access_type, write_spatial_trace);
+                get_spatial_trace(record->pc, value, memory_op_id, unit_access_kind, write_spatial_trace);
               }
             } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
               if (record->flags & GPU_PATCH_READ) {
-                get_temporal_trace(record->pc, thread_id, record->address[j], value, unit_access_type,
+                get_temporal_trace(record->pc, thread_id, record->address[j], value, unit_access_kind,
                   read_temporal_trace, read_pc_pairs);
               } else {
-                get_temporal_trace(record->pc, thread_id, record->address[j], value, unit_access_type,
+                get_temporal_trace(record->pc, thread_id, record->address[j], value, unit_access_kind,
                   write_temporal_trace, write_pc_pairs);
               }
             } else {

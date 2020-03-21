@@ -101,21 +101,21 @@ bool parse_instructions(const std::string &file_path,
 }
 
 
-static AccessType init_access_type(Instruction &inst, InstructionGraph &inst_graph,
+static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_graph,
   const std::set<unsigned int> &neighbors, bool load) {
   // Determine the vec size of data,
   if (inst.op.find(".128") != std::string::npos) {
-    inst.access_type->vec_size = 128;
+    inst.access_kind->vec_size = 128;
   } else if (inst.op.find(".64") != std::string::npos) {
-    inst.access_type->vec_size = 64;
+    inst.access_kind->vec_size = 64;
   } else if (inst.op.find(".32") != std::string::npos) { 
-    inst.access_type->vec_size = 32;
+    inst.access_kind->vec_size = 32;
   } else if (inst.op.find(".16") != std::string::npos) {
-    inst.access_type->vec_size = 16;
+    inst.access_kind->vec_size = 16;
   } else if (inst.op.find(".8") != std::string::npos) {
-    inst.access_type->vec_size = 8;
+    inst.access_kind->vec_size = 8;
   } else {
-    inst.access_type->vec_size = 32;
+    inst.access_kind->vec_size = 32;
   }
 
   // Determine the unit size of data,
@@ -134,60 +134,60 @@ static AccessType init_access_type(Instruction &inst, InstructionGraph &inst_gra
     queue.pop();
     auto &dst_inst = inst_graph.node(pc);
 
-    if (inst.access_type->unit_size == 0) {
+    if (inst.access_kind->unit_size == 0) {
       if (dst_inst.op.find(".64") != std::string::npos) {
-        inst.access_type->unit_size = MIN2(64, inst.access_type->vec_size);
+        inst.access_kind->unit_size = MIN2(64, inst.access_kind->vec_size);
       } else if (dst_inst.op.find(".32") != std::string::npos) {
-        inst.access_type->unit_size = MIN2(32, inst.access_type->vec_size);
+        inst.access_kind->unit_size = MIN2(32, inst.access_kind->vec_size);
       } else if (dst_inst.op.find(".16") != std::string::npos) {
-        inst.access_type->unit_size = MIN2(16, inst.access_type->vec_size);
+        inst.access_kind->unit_size = MIN2(16, inst.access_kind->vec_size);
       } else if (dst_inst.op.find(".8") != std::string::npos) {
-        inst.access_type->unit_size = MIN2(8, inst.access_type->vec_size);
+        inst.access_kind->unit_size = MIN2(8, inst.access_kind->vec_size);
       } else if (dst_inst.op.find("._64_TO_32") != std::string::npos) {
         if (load) {
-          inst.access_type->unit_size = MIN2(64, inst.access_type->vec_size);
+          inst.access_kind->unit_size = MIN2(64, inst.access_kind->vec_size);
         } else {
-          inst.access_type->unit_size = MIN2(32, inst.access_type->vec_size);
+          inst.access_kind->unit_size = MIN2(32, inst.access_kind->vec_size);
         }
       } else if (dst_inst.op.find("._32_TO_64") != std::string::npos) {
         if (load) {
-          inst.access_type->unit_size = MIN2(32, inst.access_type->vec_size);
+          inst.access_kind->unit_size = MIN2(32, inst.access_kind->vec_size);
         } else {
-          inst.access_type->unit_size = MIN2(64, inst.access_type->vec_size);
+          inst.access_kind->unit_size = MIN2(64, inst.access_kind->vec_size);
         }
       }
     }
 
-    if (inst.access_type->type == AccessType::UNKNOWN) {
+    if (inst.access_kind->type == AccessKind::UNKNOWN) {
       if (dst_inst.op.find("FLOAT") != std::string::npos) {
-        inst.access_type->type = AccessType::FLOAT;
+        inst.access_kind->type = AccessKind::FLOAT;
       } else if (dst_inst.op.find("INTEGER") != std::string::npos) {
-        inst.access_type->type = AccessType::INTEGER;
+        inst.access_kind->type = AccessKind::INTEGER;
       } else if (dst_inst.op.find("CONTROL") != std::string::npos) {
-        inst.access_type->type = AccessType::INTEGER;
+        inst.access_kind->type = AccessKind::INTEGER;
       } else if (dst_inst.op.find(".CONVERT") != std::string::npos) {
         if (dst_inst.op.find(".I2F") != std::string::npos) {
           if (load) {
-            inst.access_type->type = AccessType::INTEGER;
+            inst.access_kind->type = AccessKind::INTEGER;
           } else {
-            inst.access_type->type = AccessType::FLOAT;
+            inst.access_kind->type = AccessKind::FLOAT;
           }
         } else if (dst_inst.op.find(".F2F") != std::string::npos) {
-          inst.access_type->type = AccessType::FLOAT;
+          inst.access_kind->type = AccessKind::FLOAT;
         } else if (dst_inst.op.find(".F2I") != std::string::npos) {
           if (load) {
-            inst.access_type->type = AccessType::FLOAT;
+            inst.access_kind->type = AccessKind::FLOAT;
           } else {
-            inst.access_type->type = AccessType::INTEGER;
+            inst.access_kind->type = AccessKind::INTEGER;
           }
         } else if (dst_inst.op.find(".I2I") != std::string::npos) {
-          inst.access_type->type = AccessType::INTEGER;
+          inst.access_kind->type = AccessKind::INTEGER;
         }
       } else if (dst_inst.op.find("MOVE") != std::string::npos) {
         if (dst_inst.op.find(".I") != std::string::npos) {
           // Can identify both data type and unit size
-          inst.access_type->type = AccessType::INTEGER;
-          inst.access_type->unit_size = MIN2(32, inst.access_type->vec_size);
+          inst.access_kind->type = AccessKind::INTEGER;
+          inst.access_kind->unit_size = MIN2(32, inst.access_kind->vec_size);
         } else {
           // Look forward
           if (load) {
@@ -209,33 +209,33 @@ static AccessType init_access_type(Instruction &inst, InstructionGraph &inst_gra
       }
     }
 
-    if (inst.access_type->unit_size != 0 && inst.access_type->type != AccessType::UNKNOWN) {
+    if (inst.access_kind->unit_size != 0 && inst.access_kind->type != AccessKind::UNKNOWN) {
       break;
     }
   }
 
-  if (inst.access_type->unit_size == 0) {
+  if (inst.access_kind->unit_size == 0) {
     // If unit size is not determined
-    inst.access_type->unit_size = MIN2(32, inst.access_type->vec_size);
+    inst.access_kind->unit_size = MIN2(32, inst.access_kind->vec_size);
   }
 
-  if (inst.access_type->type == AccessType::UNKNOWN) {
+  if (inst.access_kind->type == AccessKind::UNKNOWN) {
     // If type is not determined
-    inst.access_type->type = AccessType::FLOAT;
+    inst.access_kind->type = AccessKind::FLOAT;
   }
 }
 
 
-AccessType load_data_type(unsigned int pc, InstructionGraph &inst_graph) {
+AccessKind load_data_type(unsigned int pc, InstructionGraph &inst_graph) {
   auto &inst = inst_graph.node(pc);
 
-  if (inst.access_type.get() != NULL) {
+  if (inst.access_kind.get() != NULL) {
     // If access type is cached
-    return *(inst.access_type);
+    return *(inst.access_kind);
   }
 
   // If access type is undetermined, allocate one
-  inst.access_type = std::make_shared<AccessType>();
+  inst.access_kind = std::make_shared<AccessKind>();
 
   // If we cannot determine the access type
   if (inst.op.find(".LOAD") != std::string::npos &&
@@ -243,30 +243,30 @@ AccessType load_data_type(unsigned int pc, InstructionGraph &inst_graph) {
     auto &outgoing_nodes = inst_graph.outgoing_nodes(pc);
 
     // Associate access type with instruction
-    init_access_type(inst, inst_graph, outgoing_nodes, true);
+    init_access_kind(inst, inst_graph, outgoing_nodes, true);
   }
 
-  return *(inst.access_type);
+  return *(inst.access_kind);
 }
 
 
-AccessType store_data_type(unsigned int pc, InstructionGraph &inst_graph) {
+AccessKind store_data_type(unsigned int pc, InstructionGraph &inst_graph) {
   auto &inst = inst_graph.node(pc);
 
-  if (inst.access_type.get() != NULL) {
+  if (inst.access_kind.get() != NULL) {
     // If access type is cached
-    return *(inst.access_type);
+    return *(inst.access_kind);
   }
 
   // If access type is undetermined, allocate one
-  inst.access_type = std::make_shared<AccessType>();
+  inst.access_kind = std::make_shared<AccessKind>();
 
   // If we cannot determine the access type
   if (inst.op.find(".STORE") != std::string::npos &&
       inst_graph.incoming_nodes_size(pc) != 0) {
     auto &incoming_nodes = inst_graph.incoming_nodes(pc);
     // Associate access type with instruction
-    init_access_type(inst, inst_graph, incoming_nodes, false);
+    init_access_kind(inst, inst_graph, incoming_nodes, false);
   }
-  return *(inst.access_type);
+  return *(inst.access_kind);
 }
