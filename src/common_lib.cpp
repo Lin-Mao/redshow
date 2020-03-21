@@ -164,7 +164,7 @@ show_spatial_trace(uint32_t thread_id, SpatialStatistic &spatial_statistic, uint
 
       output_corresponding_type_value(get<0>(top), get<2>(top), out.rdbuf(), true);
 //      out<<std::hex<<get<0>(top)<<std::dec;
-      out << "," << get<1>(top) << "," << (double) get<1>(top) / all_count << "," << get<2>(top).type << ","
+      out << "," << get<1>(top) << "," << (double) get<1>(top) / all_count << "," << get<2>(top).data_type << ","
           << get<2>(top).unit_size << endl;
     }
     out << endl;
@@ -173,12 +173,12 @@ show_spatial_trace(uint32_t thread_id, SpatialStatistic &spatial_statistic, uint
 }
 
 
-u64 store2basictype(u64 a, AccessKind atype, int decimal_degree_f32, int decimal_degree_f64) {
-  switch (atype.type) {
+u64 store2basictype(u64 a, AccessKind akind, int decimal_degree_f32, int decimal_degree_f64) {
+  switch (akind.data_type) {
     case AccessKind::UNKNOWN:
       break;
     case AccessKind::INTEGER:
-      switch (atype.unit_size) {
+      switch (akind.unit_size) {
         case 8:
           return a & 0xffu;
         case 16:
@@ -190,7 +190,7 @@ u64 store2basictype(u64 a, AccessKind atype, int decimal_degree_f32, int decimal
       }
       break;
     case AccessKind::FLOAT:
-      switch (atype.unit_size) {
+      switch (akind.unit_size) {
         case 32:
           return store2float(a, decimal_degree_f32);
         case 64:
@@ -202,10 +202,10 @@ u64 store2basictype(u64 a, AccessKind atype, int decimal_degree_f32, int decimal
 }
 
 
-void output_corresponding_type_value(u64 a, AccessKind atype, std::streambuf *buf, bool is_signed) {
+void output_corresponding_type_value(u64 a, AccessKind akind, std::streambuf *buf, bool is_signed) {
   std::ostream out(buf);
-  if (atype.type == AccessKind::INTEGER) {
-    if (atype.unit_size == 8) {
+  if (akind.data_type == AccessKind::INTEGER) {
+    if (akind.unit_size == 8) {
       if (is_signed) {
         char b6;
         memcpy(&b6, &a, sizeof(b6));
@@ -215,7 +215,7 @@ void output_corresponding_type_value(u64 a, AccessKind atype, std::streambuf *bu
         memcpy(&b7, &a, sizeof(b7));
         out << b7;
       }
-    } else if (atype.unit_size == 16) {
+    } else if (akind.unit_size == 16) {
       if (is_signed) {
         short int b8;
         memcpy(&b8, &a, sizeof(b8));
@@ -225,7 +225,7 @@ void output_corresponding_type_value(u64 a, AccessKind atype, std::streambuf *bu
         memcpy(&b9, &a, sizeof(b9));
         out << b9;
       }
-    } else if (atype.unit_size == 32) {
+    } else if (akind.unit_size == 32) {
       if (is_signed) {
         int b4;
         memcpy(&b4, &a, sizeof(b4));
@@ -235,7 +235,7 @@ void output_corresponding_type_value(u64 a, AccessKind atype, std::streambuf *bu
         memcpy(&b5, &a, sizeof(b5));
         out << b5;
       }
-    } else if (atype.unit_size == 64) {
+    } else if (akind.unit_size == 64) {
       if (is_signed) {
         long long b3;
         memcpy(&b3, &a, sizeof(b3));
@@ -245,12 +245,12 @@ void output_corresponding_type_value(u64 a, AccessKind atype, std::streambuf *bu
       }
     }
 //    At this time, it must be float
-  } else if (atype.type == AccessKind::FLOAT) {
-    if (atype.unit_size == 32) {
+  } else if (akind.data_type == AccessKind::FLOAT) {
+    if (akind.unit_size == 32) {
       float b1;
       memcpy(&b1, &a, sizeof(b1));
       out << b1;
-    } else if (atype.unit_size == 64) {
+    } else if (akind.unit_size == 64) {
       double b2;
       memcpy(&b2, &a, sizeof(b2));
       out << b2;

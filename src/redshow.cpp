@@ -312,18 +312,13 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
       if (inst_graph->size() != 0) {
         // Accurate mode, when we have instruction information
         auto &inst = inst_graph->node(cubin_offset);
-
-        if (record->flags & GPU_PATCH_READ) {
-          access_kind = load_data_type(inst.pc, *inst_graph);
-        } else if (record->flags & GPU_PATCH_WRITE) {
-          access_kind = store_data_type(inst.pc, *inst_graph);
-        }
+        access_kind = *inst.access_kind;
         // Fall back to default mode if failed
       }
 
-      if (access_kind.type == AccessKind::UNKNOWN) {
+      if (access_kind.data_type == AccessKind::UNKNOWN) {
         // Default mode, we identify every data as 32 bits unit size, 32 bits vec size, float type
-        access_kind.type = AccessKind::FLOAT;
+        access_kind.data_type = AccessKind::FLOAT;
         access_kind.vec_size = record->size * 8;
         access_kind.unit_size = MIN2(GPU_PATCH_WARP_SIZE, access_kind.vec_size * 8);
       }

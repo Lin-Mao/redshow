@@ -22,6 +22,153 @@
 #define MIN2(x, y) (x > y ? y : x)
 
 
+static void default_access_kind(Instruction &inst) {
+  // Default mode
+  if (inst.access_kind->unit_size == 0) {
+    // If unit size is not determined
+    inst.access_kind->unit_size = MIN2(32, inst.access_kind->vec_size);
+  }
+
+  if (inst.access_kind->data_type == AccessKind::UNKNOWN) {
+    // If type is not determined
+    // TODO(Keren): it makes more sense to classify it as INT
+    inst.access_kind->data_type = AccessKind::FLOAT;
+  }
+}
+
+
+static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_graph,
+  std::set<unsigned int> &visited, bool load) {
+  if (visited.find(inst.pc) != visited.end()) {
+    return AccessKind();
+  }
+  visited.insert(inst.pc);
+
+  // Determine the vec size of data,
+  if (inst.op.find(".128") != std::string::npos) {
+    inst.access_kind->vec_size = 128;
+  } else if (inst.op.find(".64") != std::string::npos) {
+    inst.access_kind->vec_size = 64;
+  } else if (inst.op.find(".32") != std::string::npos) { 
+    inst.access_kind->vec_size = 32;
+  } else if (inst.op.find(".16") != std::string::npos) {
+    inst.access_kind->vec_size = 16;
+  } else if (inst.op.find(".8") != std::string::npos) {
+    inst.access_kind->vec_size = 8;
+  } else {
+    inst.access_kind->vec_size = 32;
+  }
+
+  auto &neighbors = load ? inst_graph.outgoing_nodes(inst.pc) : inst_graph.incoming_nodes(inst.pc);
+
+  AccessKind access_kind;
+  for (auto iter = neighbors.begin(); iter != neighbors.end(); ++iter) {
+    auto pc = *iter;
+    auto &neighbor_inst = inst_graph.node(pc);
+    AccessKind neighbor_access_kind;
+
+    // Direct unit size detect
+    if (access_kind.unit_size == 0) {
+      if (neighbor_inst.op.find(".64") != std::string::npos) {
+        access_kind.unit_size = MIN2(64, access_kind.vec_size);
+      } else if (neighbor_inst.op.find(".32") != std::string::npos) {
+        access_kind.unit_size = MIN2(32, access_kind.vec_size);
+      } else if (neighbor_inst.op.find(".16") != std::string::npos) {
+        access_kind.unit_size = MIN2(16, access_kind.vec_size);
+      } else if (neighbor_inst.op.find(".8") != std::string::npos) {
+        access_kind.unit_size = MIN2(8, access_kind.vec_size);
+      } else if (neighbor_inst.op.find("._64_TO_32") != std::string::npos) {
+        if (load) {
+          access_kind.unit_size = MIN2(64, access_kind.vec_size);
+        } else {
+          access_kind.unit_size = MIN2(32, access_kind.vec_size);
+        }
+      } else if (neighbor_inst.op.find("._32_TO_64") != std::string::npos) {
+        if (load) {
+          access_kind.unit_size = MIN2(32, access_kind.vec_size);
+        } else {
+          access_kind.unit_size = MIN2(64, access_kind.vec_size);
+        }
+      }
+    }
+
+    if (neighbor_inst.op.find("MOVE") != std::string::npos) {
+      // Transit node
+      // INTEGER.IMAD.MOVE is handled here
+      neighbor_access_kind = init_access_kind(neighbor_inst, inst_graph, visited, load);
+      if (access_kind.data_type == AccessKind::UNKNOWN) {
+        access_kind.data_type = neighbor_access_kind.data_type;
+      }
+      if (access_kind.unit_size == 0) {
+        access_kind.unit_size = neighbor_access_kind.unit_size;
+      }
+    } else if (neighbor_inst.op.find("MEMORY") != std::string::npos) { 
+      if (load) {
+        // Decided by memory hierarchy
+        access_kind.data_type = AccessKind::INTEGER;
+        if (neighbor_inst.op.find(".SHARED") != std::string::npos ||
+          neighbor_inst.op.find(".LOCAL") != std::string::npos) {
+          access_kind.unit_size = 32;
+        } else {
+          access_kind.unit_size = 64;
+        }
+      } else {
+        // Transit node and reverse search direction
+        if (neighbor_inst.access_kind.get() == NULL) {
+          // Cache result
+          neighbor_inst.access_kind = std::make_shared<AccessKind>(
+            init_access_kind(neighbor_inst, inst_graph, visited, !load));
+          default_access_kind(neighbor_inst);
+        }
+        neighbor_access_kind = *neighbor_inst.access_kind;
+
+        if (access_kind.data_type == AccessKind::UNKNOWN) {
+          access_kind.data_type = neighbor_access_kind.data_type;
+        }
+        if (access_kind.unit_size == 0) {
+          access_kind.unit_size = neighbor_access_kind.unit_size;
+        }
+      }
+    } else if (neighbor_inst.op.find("INTEGER") != std::string::npos) {
+      access_kind.data_type = AccessKind::INTEGER;
+    } else if (neighbor_inst.op.find("FLOAT") != std::string::npos) {
+      access_kind.data_type = AccessKind::FLOAT;
+    } else if (neighbor_inst.op.find("CONVERT") != std::string::npos) {
+      if (neighbor_inst.op.find(".I2F") != std::string::npos) {
+        if (load) {
+          access_kind.data_type = AccessKind::INTEGER;
+        } else {
+          access_kind.data_type = AccessKind::FLOAT;
+        }
+      } else if (neighbor_inst.op.find(".F2F") != std::string::npos) {
+        access_kind.data_type = AccessKind::FLOAT;
+      } else if (neighbor_inst.op.find(".F2I") != std::string::npos) {
+        if (load) {
+          access_kind.data_type = AccessKind::FLOAT;
+        } else {
+          access_kind.data_type = AccessKind::INTEGER;
+        }
+      } else if (neighbor_inst.op.find(".I2I") != std::string::npos) {
+        access_kind.data_type = AccessKind::INTEGER;
+      }
+    } else {
+      if (access_kind.data_type == AccessKind::UNKNOWN) {
+        access_kind.data_type = AccessKind::INTEGER;
+      }
+      if (access_kind.unit_size == 0) {
+        access_kind.unit_size = 32;
+      }
+    }
+
+    if (access_kind.data_type != AccessKind::UNKNOWN && access_kind.unit_size != 0) {
+      break;
+    }
+  }
+  
+  return access_kind;
+}
+
+
 bool parse_instructions(const std::string &file_path,
   std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
   boost::property_tree::ptree root;
@@ -97,176 +244,35 @@ bool parse_instructions(const std::string &file_path,
     }
   }
 
+  // Analyze memory instruction's access kind
+  for (auto iter = inst_graph.nodes_begin(); iter != inst_graph.nodes_end(); ++iter) {
+    auto &inst = iter->second;
+
+    if (inst.op.find("MEMORY") == std::string::npos) {
+      continue;
+    }
+
+    if (inst.access_kind.get() != NULL) {
+      // If access kind is cached
+      continue;
+    }
+
+    // If access kind is undetermined, allocate one
+    inst.access_kind = std::make_shared<AccessKind>();
+    std::set<unsigned int> visited;
+
+    // Associate access type with instruction
+    if (inst.op.find(".STORE") != std::string::npos &&
+      inst_graph.incoming_nodes_size(inst.pc) != 0) {
+      *inst.access_kind = init_access_kind(inst, inst_graph, visited, false);
+    } else if (inst.op.find(".LOAD") != std::string::npos &&
+      inst_graph.outgoing_nodes_size(inst.pc) != 0) {
+      *inst.access_kind = init_access_kind(inst, inst_graph, visited, true);
+    }
+
+    default_access_kind(inst); 
+  }
+
   return true;
 }
 
-
-static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_graph,
-  const std::set<unsigned int> &neighbors, bool load) {
-  // Determine the vec size of data,
-  if (inst.op.find(".128") != std::string::npos) {
-    inst.access_kind->vec_size = 128;
-  } else if (inst.op.find(".64") != std::string::npos) {
-    inst.access_kind->vec_size = 64;
-  } else if (inst.op.find(".32") != std::string::npos) { 
-    inst.access_kind->vec_size = 32;
-  } else if (inst.op.find(".16") != std::string::npos) {
-    inst.access_kind->vec_size = 16;
-  } else if (inst.op.find(".8") != std::string::npos) {
-    inst.access_kind->vec_size = 8;
-  } else {
-    inst.access_kind->vec_size = 32;
-  }
-
-  // Determine the unit size of data,
-  // STORE: check the usage of its src regs
-  // LOAD: check the usage of its dst regs
-  // Use BFS to find the closest neighbor with explicit data type
-  std::queue<unsigned int> queue;
-
-  // Init queue
-  for (auto iter = neighbors.begin(); iter != neighbors.end(); ++iter) {
-    queue.push(*iter);
-  }
-
-  while (queue.empty() == false) {
-    auto pc = queue.front();
-    queue.pop();
-    auto &dst_inst = inst_graph.node(pc);
-
-    if (inst.access_kind->unit_size == 0) {
-      if (dst_inst.op.find(".64") != std::string::npos) {
-        inst.access_kind->unit_size = MIN2(64, inst.access_kind->vec_size);
-      } else if (dst_inst.op.find(".32") != std::string::npos) {
-        inst.access_kind->unit_size = MIN2(32, inst.access_kind->vec_size);
-      } else if (dst_inst.op.find(".16") != std::string::npos) {
-        inst.access_kind->unit_size = MIN2(16, inst.access_kind->vec_size);
-      } else if (dst_inst.op.find(".8") != std::string::npos) {
-        inst.access_kind->unit_size = MIN2(8, inst.access_kind->vec_size);
-      } else if (dst_inst.op.find("._64_TO_32") != std::string::npos) {
-        if (load) {
-          inst.access_kind->unit_size = MIN2(64, inst.access_kind->vec_size);
-        } else {
-          inst.access_kind->unit_size = MIN2(32, inst.access_kind->vec_size);
-        }
-      } else if (dst_inst.op.find("._32_TO_64") != std::string::npos) {
-        if (load) {
-          inst.access_kind->unit_size = MIN2(32, inst.access_kind->vec_size);
-        } else {
-          inst.access_kind->unit_size = MIN2(64, inst.access_kind->vec_size);
-        }
-      }
-    }
-
-    if (inst.access_kind->type == AccessKind::UNKNOWN) {
-      if (dst_inst.op.find("FLOAT") != std::string::npos) {
-        inst.access_kind->type = AccessKind::FLOAT;
-      } else if (dst_inst.op.find("INTEGER") != std::string::npos) {
-        inst.access_kind->type = AccessKind::INTEGER;
-      } else if (dst_inst.op.find("CONTROL") != std::string::npos) {
-        inst.access_kind->type = AccessKind::INTEGER;
-      } else if (dst_inst.op.find(".CONVERT") != std::string::npos) {
-        if (dst_inst.op.find(".I2F") != std::string::npos) {
-          if (load) {
-            inst.access_kind->type = AccessKind::INTEGER;
-          } else {
-            inst.access_kind->type = AccessKind::FLOAT;
-          }
-        } else if (dst_inst.op.find(".F2F") != std::string::npos) {
-          inst.access_kind->type = AccessKind::FLOAT;
-        } else if (dst_inst.op.find(".F2I") != std::string::npos) {
-          if (load) {
-            inst.access_kind->type = AccessKind::FLOAT;
-          } else {
-            inst.access_kind->type = AccessKind::INTEGER;
-          }
-        } else if (dst_inst.op.find(".I2I") != std::string::npos) {
-          inst.access_kind->type = AccessKind::INTEGER;
-        }
-      } else if (dst_inst.op.find("MOVE") != std::string::npos) {
-        if (dst_inst.op.find(".I") != std::string::npos) {
-          // Can identify both data type and unit size
-          inst.access_kind->type = AccessKind::INTEGER;
-          inst.access_kind->unit_size = MIN2(32, inst.access_kind->vec_size);
-        } else {
-          // Look forward
-          if (load) {
-            if (inst_graph.outgoing_nodes_size(pc) != 0) {
-              auto &outgoing_nodes = inst_graph.outgoing_nodes(pc);
-              for (auto iter = outgoing_nodes.begin(); iter != outgoing_nodes.end(); ++iter) {
-                queue.push(*iter);
-              }
-            }
-          } else {
-            if (inst_graph.incoming_nodes_size(pc) != 0) {
-              auto &incoming_nodes = inst_graph.incoming_nodes(pc);
-              for (auto iter = incoming_nodes.begin(); iter != incoming_nodes.end(); ++iter) {
-                queue.push(*iter);
-              }
-            }
-          }
-        }
-      }
-    }
-
-    if (inst.access_kind->unit_size != 0 && inst.access_kind->type != AccessKind::UNKNOWN) {
-      break;
-    }
-  }
-
-  if (inst.access_kind->unit_size == 0) {
-    // If unit size is not determined
-    inst.access_kind->unit_size = MIN2(32, inst.access_kind->vec_size);
-  }
-
-  if (inst.access_kind->type == AccessKind::UNKNOWN) {
-    // If type is not determined
-    inst.access_kind->type = AccessKind::FLOAT;
-  }
-}
-
-
-AccessKind load_data_type(unsigned int pc, InstructionGraph &inst_graph) {
-  auto &inst = inst_graph.node(pc);
-
-  if (inst.access_kind.get() != NULL) {
-    // If access type is cached
-    return *(inst.access_kind);
-  }
-
-  // If access type is undetermined, allocate one
-  inst.access_kind = std::make_shared<AccessKind>();
-
-  // If we cannot determine the access type
-  if (inst.op.find(".LOAD") != std::string::npos &&
-      inst_graph.outgoing_nodes_size(pc) != 0) {
-    auto &outgoing_nodes = inst_graph.outgoing_nodes(pc);
-
-    // Associate access type with instruction
-    init_access_kind(inst, inst_graph, outgoing_nodes, true);
-  }
-
-  return *(inst.access_kind);
-}
-
-
-AccessKind store_data_type(unsigned int pc, InstructionGraph &inst_graph) {
-  auto &inst = inst_graph.node(pc);
-
-  if (inst.access_kind.get() != NULL) {
-    // If access type is cached
-    return *(inst.access_kind);
-  }
-
-  // If access type is undetermined, allocate one
-  inst.access_kind = std::make_shared<AccessKind>();
-
-  // If we cannot determine the access type
-  if (inst.op.find(".STORE") != std::string::npos &&
-      inst_graph.incoming_nodes_size(pc) != 0) {
-    auto &incoming_nodes = inst_graph.incoming_nodes(pc);
-    // Associate access type with instruction
-    init_access_kind(inst, inst_graph, incoming_nodes, false);
-  }
-  return *(inst.access_kind);
-}

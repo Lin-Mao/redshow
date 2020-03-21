@@ -40,21 +40,21 @@ struct AccessKind {
   uint32_t vec_size;
   // 8, 16, 32, 64
   uint32_t unit_size;
-  DataType type;
+  DataType data_type;
 
-  AccessKind(uint32_t unit_size, uint32_t vec_size, DataType type) :
-      unit_size(unit_size), vec_size(vec_size), type(type) {}
+  AccessKind(uint32_t unit_size, uint32_t vec_size, DataType data_type) :
+      unit_size(unit_size), vec_size(vec_size), data_type(data_type) {}
 
   AccessKind() : AccessKind(0, 0, UNKNOWN) {}
 
   std::string to_string() {
     std::stringstream ss;
     ss << "{";
-    if (type == UNKNOWN) {
+    if (data_type == UNKNOWN) {
       ss << "UNKNOWN";
-    } else if (type == INTEGER) {
+    } else if (data_type == INTEGER) {
       ss << "INTEGER";
-    } else if (type == FLOAT) {
+    } else if (data_type == FLOAT) {
       ss << "FLOAT";
     }
     ss << ", v: " << vec_size;
@@ -65,7 +65,7 @@ struct AccessKind {
   bool operator<(const AccessKind &b) const {
     if (this->vec_size == b.vec_size) {
       if (this->unit_size == b.unit_size) {
-        return this->type < b.type;
+        return this->data_type < b.data_type;
       }
       return this->unit_size < b.unit_size;
     }
@@ -173,9 +173,5 @@ class InstructionGraph {
  * A function modified from hpctoolkit
  */
 bool parse_instructions(const std::string &file_path, std::vector<Symbol> &symbols, InstructionGraph &graph);
-
-AccessKind load_data_type(unsigned int pc, InstructionGraph &graph);
-
-AccessKind store_data_type(unsigned int pc, InstructionGraph &graph);
 
 #endif  // REDSHOW_INSTRUCTION_H
