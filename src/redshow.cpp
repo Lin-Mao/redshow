@@ -817,7 +817,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
                             kernel_red_load_count, kernel_load_count);
       }
       if (kernel_write_count != 0) {
-        show_temporal_trace(kernel_id, kernel.write_pc_pairs, kernel.write_pc_sum, true, pc_views_limit, thread_id,
+        show_temporal_trace(kernel_id, kernel.write_pc_pairs, kernel.write_pc_sum, false, pc_views_limit, thread_id,
                             kernel_red_write_count, kernel_write_count);
       }
     }
