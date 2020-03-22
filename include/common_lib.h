@@ -42,18 +42,20 @@ struct ThreadId {
 };
 
 // {<memory_op_id, AccessType::DataType> : {pc: {value: count}}}
-typedef std::map<std::tuple<u64, AccessType>, std::map<u64, std::map<u64, u64>>> SpatialTrace;
+typedef std::map<std::pair<u64, AccessType>, std::map<u64, std::map<u64, u64>>> SpatialTrace;
 
 // {memory_op_id: {value: count}}
-typedef std::map<std::tuple<u64, AccessType>, std::map<u64, u64>> SpatialStatistic;
+typedef std::map<std::pair<u64, AccessType>, std::map<u64, u64>> SpatialStatistic;
 
 // {ThreadId : {address : {<pc, value>}}}
-typedef std::map<ThreadId, std::map<u64, std::tuple<u64, u64>>> TemporalTrace;
+typedef std::map<ThreadId, std::map<u64, std::pair<u64, u64>>> TemporalTrace;
 
 // {pc1 : {pc2 : {<value, AccessType::DataType> : count}}}
-typedef std::map<u64, std::map<u64, std::map<std::tuple<u64, AccessType>, u64>>> PCPairs;
+typedef std::map<u64, std::map<u64, std::map<std::pair<u64, AccessType>, u64>>> PCPairs;
 // {pc: access_sum_count}
 typedef std::map<u64, u64> PCAccessSum;
+// <pc_from, pc_to, value, Accesstype, count>
+typedef std::tuple<u64, u64, u64, AccessType, u64> TopPair;
 
 struct CompareView {
   bool operator()(redshow_record_view_t const &d1, redshow_record_view_t const &d2) {
@@ -67,16 +69,18 @@ struct CompareStatistic {
   }
 };
 
-typedef std::priority_queue<redshow_record_view_t,
-    std::vector<redshow_record_view_t>,
-    CompareView> TopViews;
+struct CompareTopPairs {
+  bool operator()(TopPair const &d1, TopPair const &d2) {
+    return std::get<4>(d1) > std::get<4>(d2);
+  }
+};
 
+typedef std::priority_queue<redshow_record_view_t, std::vector<redshow_record_view_t>, CompareView> TopViews;
 // {value, count, Accesstype}
-typedef std::priority_queue<std::tuple<u64, u64, AccessType>,
-    std::vector<std::tuple<u64, u64, AccessType>>,
-    CompareStatistic> TopStatistic;
-
-/* 
+typedef std::priority_queue<std::tuple<u64, u64, AccessType>, std::vector<std::tuple<u64, u64, AccessType>>, CompareStatistic> TopStatistic;
+// <pc_from, pc_to, value, Accesstype, count>
+typedef std::priority_queue<TopPair, std::vector<TopPair>, CompareTopPairs> TopPairs;
+/*
  * Interface:
  *
  * Each analysis type has three methods
@@ -126,10 +130,12 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType ac
  * num_views_limit:
  * Number of entries the runtime needs to know
  */
-void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum,
-                           redshow_record_data_t &record_data, uint32_t num_views_limit);
+void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum, redshow_record_data_t &record_data,
+                           uint32_t num_views_limit, uint64_t &kernel_red_count, uint64_t &kernel_count);
 
-void show_temporal_trace();
+void show_temporal_trace(u64 kernel_id, PCPairs &pc_pairs, PCAccessSum &pc_access_sum, bool is_read,
+                         uint32_t num_views_limit, uint32_t thread_id, uint64_t &kernel_red_count,
+                         uint64_t &kernel_count);
 
 /*
  * Analyze spatial trace
@@ -195,6 +201,7 @@ u64 store2basictype(u64 a, AccessType atype, int decimal_degree_f32, int decimal
 void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *buf, bool is_signed);
 
 std::string combine_type_unitsize(AccessType atype);
+
 #endif  // REDSHOW_COMMON_LIB_H
 
 

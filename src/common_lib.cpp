@@ -10,8 +10,8 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType ac
                         TemporalTrace &temporal_trace, PCPairs &pc_pairs) {
   auto tmr_it = temporal_trace.find(tid);
   // Record current operation.
-  std::map<u64, std::tuple<u64, u64>> record;
-  record[addr] = std::make_tuple(pc, value);
+  std::map<u64, std::pair<u64, u64>> record;
+  record[addr] = std::make_pair(pc, value);
   if (tmr_it == temporal_trace.end()) {
     // The trace doesn't have the thread's record
     temporal_trace[tid] = record;
@@ -23,10 +23,10 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType ac
       // The trace's thread record doesn't have the current addr record.
       tmr_it->second[addr] = record[addr];
     } else {
-      auto prev_pc = std::get<0>(m_it->second);
-      auto prev_value = std::get<1>(m_it->second);
+      auto prev_pc = m_it->second.first;
+      auto prev_value = m_it->second.second;
       if (prev_value == value) {
-        pc_pairs[prev_pc][pc][std::make_tuple(prev_value, access_type)] += 1;
+        pc_pairs[prev_pc][pc][std::make_pair(prev_value, access_type)] += 1;
       }
       m_it->second = record[addr];
     }
@@ -34,8 +34,8 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType ac
 }
 
 
-void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum,
-                           redshow_record_data_t &record_data, uint32_t num_views_limit) {
+void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum, redshow_record_data_t &record_data,
+                           uint32_t num_views_limit, uint64_t &kernel_red_count, uint64_t &kernel_count) {
   // Pick top record data views
   TopViews top_views;
   // {pc1 : {pc2 : {<value, type>}}}
@@ -44,13 +44,15 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum,
       auto to_pc = to_pc_iter.first;
       // {<value, type> : count}
       for (auto &val_iter : to_pc_iter.second) {
-        auto val = std::get<0>(val_iter.first);
+        auto val = val_iter.first.first;
         auto count = val_iter.second;
         redshow_record_view_t view;
         view.pc_offset = to_pc;
         view.memory_id = 0;
         view.count = count;
+        kernel_red_count += count;
         view.access_sum_count = pc_access_sum[to_pc];
+        kernel_count += view.access_sum_count;
         if (top_views.size() < num_views_limit) {
           top_views.push(view);
         } else {
@@ -75,13 +77,72 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum,
 }
 
 
-void show_temporal_trace() {
+void
+show_temporal_trace(u64 kernel_id, PCPairs &pc_pairs, PCAccessSum &pc_access_sum, bool is_read,
+                    uint32_t num_views_limit, uint32_t thread_id, uint64_t &kernel_red_count,
+                    uint64_t &kernel_count) {
+  using std::string;
+  using std::to_string;
+  using std::map;
+  using std::pair;
+  using std::tuple;
+  using std::make_tuple;
+  using std::get;
+  using std::endl;
+  string r = is_read ? "read" : "write";
+  std::ofstream out("temporal_" + r + "_top" + to_string(num_views_limit) + "_" + to_string(thread_id) + ".csv",
+                    std::ios::app);
+  out << "kernel id," << kernel_id << endl;
+//<pc_from, pc_to, value, Accesstype, count>
+  TopPairs top_pairs;
+  for (auto &from_pc_iter: pc_pairs) {
+    for (auto &to_pc_iter: from_pc_iter.second) {
+//      {<value, AccessType> : count}}
+      for (auto &value_iter: to_pc_iter.second) {
+        if (top_pairs.size() < num_views_limit) {
+          top_pairs.push(
+              make_tuple(from_pc_iter.first, to_pc_iter.first, value_iter.first.first, value_iter.first.second,
+                         value_iter.second));
+        } else {
+          auto &top = top_pairs.top();
+          if (get<4>(top) < value_iter.second) {
+            top_pairs.pop();
+            top_pairs.push(
+                make_tuple(from_pc_iter.first, to_pc_iter.first, value_iter.first.first, value_iter.first.second,
+                           value_iter.second));
+          }
+        }
+      }
+    }
+  }
+  out << "redundant access num, all access num, redundancy rate" << endl;
+  out << kernel_red_count << "," << kernel_count << "," << (double) kernel_red_count / kernel_count
+      << endl;
+  if (not top_pairs.empty()) {
+    out << "from_pc,to_pc,value,type,count" << endl;
+    while (not top_pairs.empty()) {
+      // <pc_from, pc_to, value, Accesstype, count>
+      auto top = top_pairs.top();
+      top_pairs.pop();
+      auto pc_from = get<0>(top);
+      auto pc_to = get<1>(top);
+      auto value = get<2>(top);
+      auto atype = get<3>(top);
+      auto count = get<4>(top);
+      out << pc_from << "," << pc_to << ",";
+      output_corresponding_type_value(value, atype, out.rdbuf(), true);
+      out << "," << combine_type_unitsize(atype) << "," << count << endl;
+    }
+    out << endl;
+  }
+  out.close();
+
 }
 
 
 void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessType access_type,
                        SpatialTrace &spatial_trace) {
-  spatial_trace[std::make_tuple(memory_op_id, access_type)][pc][value] += 1;
+  spatial_trace[std::make_pair(memory_op_id, access_type)][pc][value] += 1;
 }
 
 
@@ -139,7 +200,7 @@ show_spatial_trace(uint32_t thread_id, SpatialStatistic &spatial_statistic, uint
   out << spatial_statistic.size() << endl;
   // {<memory_op_id, AccessType>: {value: count}}
   for (auto &memory_iter: spatial_statistic) {
-    out << "memory_id," << get<0>(memory_iter.first) << ",";
+    out << "memory_op_id," << memory_iter.first.first << ",";
 //  [(value, count, Accesstype)]
     TopStatistic top_statistic;
     u64 all_count = 0;
