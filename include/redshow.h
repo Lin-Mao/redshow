@@ -45,6 +45,7 @@ typedef struct redshow_record_view {
   uint64_t pc_offset;
   uint64_t memory_id;
   uint64_t count;
+  uint64_t access_sum_count;
 } redshow_record_view_t;
 
 typedef struct redshow_record_data {
