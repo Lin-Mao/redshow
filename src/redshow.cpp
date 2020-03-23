@@ -312,7 +312,9 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
       if (inst_graph->size() != 0) {
         // Accurate mode, when we have instruction information
         auto &inst = inst_graph->node(cubin_offset);
-        access_kind = *inst.access_kind;
+        if (inst.access_kind.get() != NULL) {
+          access_kind = *inst.access_kind;
+        }
         // Fall back to default mode if failed
       }
 

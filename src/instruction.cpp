@@ -60,6 +60,11 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
     access_kind.vec_size = 32;
   }
 
+  if ((load && inst_graph.outgoing_nodes_size(inst.pc) == 0) ||
+    (!load && inst_graph.incoming_nodes_size(inst.pc) == 0)) {
+    return AccessKind();
+  }
+
   auto &neighbors = load ? inst_graph.outgoing_nodes(inst.pc) : inst_graph.incoming_nodes(inst.pc);
 
   for (auto iter = neighbors.begin(); iter != neighbors.end(); ++iter) {
@@ -154,9 +159,6 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
     } else {
       if (access_kind.data_type == AccessKind::UNKNOWN) {
         access_kind.data_type = AccessKind::INTEGER;
-      }
-      if (access_kind.unit_size == 0) {
-        access_kind.unit_size = 32;
       }
     }
 
@@ -257,7 +259,7 @@ bool parse_instructions(const std::string &file_path,
       continue;
     }
 
-    // If access kind is undetermined, allocate one
+    // If access kind is not determined, allocate one
     inst.access_kind = std::make_shared<AccessKind>();
     std::set<unsigned int> visited;
 
