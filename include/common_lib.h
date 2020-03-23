@@ -170,7 +170,7 @@ void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessType access_ty
  */
 void record_spatial_trace(SpatialTrace &spatial_trace,
                           redshow_record_data_t &record_data, uint32_t num_views_limit,
-                          SpatialStatistic &spatial_statistic);
+                          SpatialStatistic &spatial_statistic, SpatialStatistic &thread_spatial_statistic);
 
 /**
  * Write array's value statistic data into files.
@@ -179,8 +179,8 @@ void record_spatial_trace(SpatialTrace &spatial_trace,
  * @arg num_write_limit: numer of entries will be written into files.
  * @arg is_read: the spatial_statistic is for reading or writing accesses.
  * */
-void show_spatial_trace(uint32_t thread_id, SpatialStatistic &spatial_statistic, uint32_t num_write_limit,
-                        bool is_read);
+void show_spatial_trace(uint32_t thread_id, uint64_t kernel_id, SpatialStatistic &spatial_statistic,
+                        uint32_t num_write_limit, bool is_read, bool is_kernel);
 
 /**
  * Use decimal_degree_f32 bits to cut the valid floating number bits.

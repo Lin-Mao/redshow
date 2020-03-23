@@ -730,14 +730,15 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
 
   record_data.views = new redshow_record_view_t[pc_views_limit];
 
-  SpatialStatistic spatial_read_statistic;
-  SpatialStatistic spatial_write_statistic;
+  SpatialStatistic thread_spatial_read_statistic;
+  SpatialStatistic thread_spatial_write_statistic;
   for (auto &kernel_iter : thread_kernel_map) {
     auto kernel_id = kernel_iter.first;
     auto &kernel = kernel_iter.second;
     auto cubin_id = kernel.cubin_id;
     auto cubin_offset = 0;
-
+    SpatialStatistic kernel_spatial_read_statistic;
+    SpatialStatistic kernel_spatial_write_statistic;
     u64 kernel_red_load_count = 0;
     u64 kernel_red_write_count = 0;
     u64 kernel_load_count = 0;
@@ -750,7 +751,8 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         record_data.analysis_type = REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY;
         // Read
         record_data.access_type = REDSHOW_ACCESS_READ;
-        record_spatial_trace(kernel.read_spatial_trace, record_data, pc_views_limit, spatial_read_statistic);
+        record_spatial_trace(kernel.read_spatial_trace, record_data, pc_views_limit, kernel_spatial_read_statistic,
+                             thread_spatial_read_statistic);
         // Transform pcs
         for (auto i = 0; i < record_data.num_views; ++i) {
           uint64_t pc = record_data.views[i].pc_offset;
@@ -764,7 +766,8 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         record_data_callback(cubin_id, kernel_id, &record_data);
         // Write
         record_data.access_type = REDSHOW_ACCESS_WRITE;
-        record_spatial_trace(kernel.write_spatial_trace, record_data, pc_views_limit, spatial_write_statistic);
+        record_spatial_trace(kernel.write_spatial_trace, record_data, pc_views_limit, kernel_spatial_write_statistic,
+                             thread_spatial_write_statistic);
         // Transform pcs
         for (auto i = 0; i < record_data.num_views; ++i) {
           uint64_t pc = record_data.views[i].pc_offset;
@@ -821,14 +824,20 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
                             kernel_red_write_count, kernel_write_count);
       }
     }
+    if (mem_views_limit != 0) {
+      if (kernel_spatial_read_statistic.size() != 0)
+        show_spatial_trace(thread_id, kernel_id, kernel_spatial_read_statistic, mem_views_limit, true, true);
+      if (kernel_spatial_write_statistic.size() != 0)
+        show_spatial_trace(thread_id, kernel_id, kernel_spatial_write_statistic, mem_views_limit, false, true);
+    }
 
   }
 
   if (mem_views_limit != 0) {
-    if (spatial_read_statistic.size() != 0)
-      show_spatial_trace(thread_id, spatial_read_statistic, mem_views_limit, true);
-    if (spatial_write_statistic.size() != 0)
-      show_spatial_trace(thread_id, spatial_write_statistic, mem_views_limit, false);
+    if (thread_spatial_read_statistic.size() != 0)
+      show_spatial_trace(thread_id, 0, thread_spatial_read_statistic, mem_views_limit, true, false);
+    if (thread_spatial_write_statistic.size() != 0)
+      show_spatial_trace(thread_id, 0, thread_spatial_write_statistic, mem_views_limit, false, false);
   }
   // Remove all kernel records
   kernel_map_lock.lock();

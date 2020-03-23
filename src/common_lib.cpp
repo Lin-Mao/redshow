@@ -148,7 +148,7 @@ void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessType access_ty
 
 void record_spatial_trace(SpatialTrace &spatial_trace,
                           redshow_record_data_t &record_data, uint32_t num_views_limit,
-                          SpatialStatistic &spatial_statistic) {
+                          SpatialStatistic &spatial_statistic, SpatialStatistic &thread_spatial_statistic) {
   // Pick top record data views
   TopViews top_views;
   // memory_iter: {<memory_op_id, AccessType> : {pc: {value: counter}}}
@@ -160,6 +160,7 @@ void record_spatial_trace(SpatialTrace &spatial_trace,
       for (auto &val_iter : pc_iter.second) {
         auto count = val_iter.second;
         spatial_statistic[memory_iter.first][val_iter.first] = count;
+        thread_spatial_statistic[memory_iter.first][val_iter.first] = count;
         redshow_record_view_t view;
         view.pc_offset = pc;
         view.memory_id = 0;
@@ -189,14 +190,21 @@ void record_spatial_trace(SpatialTrace &spatial_trace,
 
 
 void
-show_spatial_trace(uint32_t thread_id, SpatialStatistic &spatial_statistic, uint32_t num_write_limit, bool is_read) {
+show_spatial_trace(uint32_t thread_id, uint64_t kernel_id, SpatialStatistic &spatial_statistic,
+                   uint32_t num_write_limit, bool is_read, bool is_kernel) {
   using std::endl;
   using std::to_string;
   using std::get;
   std::string r = is_read ? "read" : "write";
   std::ofstream out("spatial_" + r + "_top" + to_string(num_write_limit) + "_" + to_string(thread_id) + ".csv",
                     std::ios::app);
-  out << "size;";
+  if (!is_kernel) {
+    out << "===========↓↓↓↓summary for the a cpu thread↓↓↓↓===========" << endl;
+  } else {
+    out << "=======================" << endl;
+    out << "kernel id," << kernel_id << ",";
+  }
+  out << "size,";
   out << spatial_statistic.size() << endl;
   // {<memory_op_id, AccessType>: {value: count}}
   for (auto &memory_iter: spatial_statistic) {
@@ -231,6 +239,9 @@ show_spatial_trace(uint32_t thread_id, SpatialStatistic &spatial_statistic, uint
       out << "," << count << "," << (double) count / all_count << "," << combine_type_unitsize(atype) << endl;
     }
     out << endl;
+  }
+  if (!is_kernel) {
+    out << "===========↑↑↑↑summary for the a cpu thread↑↑↑↑===========" << endl;
   }
   out.close();
 }
