@@ -52,10 +52,23 @@ typedef std::map<ThreadId, std::map<u64, std::pair<u64, u64>>> TemporalTrace;
 
 // {pc1 : {pc2 : {<value, AccessKind> : count}}}
 typedef std::map<u64, std::map<u64, std::map<std::pair<u64, AccessKind>, u64>>> PCPairs;
+
 // {pc: access_sum_count}
 typedef std::map<u64, u64> PCAccessSum;
-// <pc_from, pc_to, value, AccessKind, count>
-typedef std::tuple<u64, u64, u64, AccessKind, u64> TopPair;
+
+struct RealPC {
+  u64 cubin_id;
+  uint32_t function_index;
+  u64 pc;
+};
+
+struct TopPair {
+  RealPC from_pc;
+  RealPC to_pc;
+  uint64_t value;
+  AccessKind kind;
+  uint64_t count;
+};
 
 struct CompareView {
   bool operator()(redshow_record_view_t const &d1, redshow_record_view_t const &d2) {
@@ -71,7 +84,7 @@ struct CompareStatistic {
 
 struct CompareTopPairs {
   bool operator()(TopPair const &d1, TopPair const &d2) {
-    return std::get<4>(d1) > std::get<4>(d2);
+    return d1.count > d2.count;
   }
 };
 
@@ -115,16 +128,16 @@ typedef std::priority_queue<TopPair, std::vector<TopPair>, CompareTopPairs> TopP
  * {ThreadId : {address : {<pc, value>}}}
  *
  * pc_pairs:
- * {pc1 : {pc2 : {<value, type>}}}
+ * {pc1 : {pc2 : {<value, kind>}}}
  */
-void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessKind access_type,
+void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessKind access_kind,
                         TemporalTrace &temporal_trace, PCPairs &pc_pairs);
 
 /*
  * Record frequent temporal records
  *
  * pc_pairs:
- * {pc1 : {pc2 : {<value, type>}}}
+ * {pc1 : {pc2 : {<value, kind>}}}
  *
  * record_data:
  * Data returned to the runtime
@@ -133,11 +146,12 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessKind ac
  * Number of entries the runtime needs to know
  */
 void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum, redshow_record_data_t &record_data,
-                           uint32_t num_views_limit, uint64_t &kernel_red_count, uint64_t &kernel_count);
+                           uint32_t num_views_limit, uint64_t &kernel_red_count, uint64_t &kernel_count,
+                           std::vector<TopPair> &top_pairs);
 
-void show_temporal_trace(u64 kernel_id, PCPairs &pc_pairs, PCAccessSum &pc_access_sum, bool is_read,
-                         uint32_t num_views_limit, uint32_t thread_id, uint64_t &kernel_red_count,
-                         uint64_t &kernel_count);
+void show_temporal_trace(std::vector<Symbol> &symbols, u64 kernel_id, PCAccessSum &pc_access_sum,
+                         bool is_read, uint32_t num_views_limit, uint32_t thread_id, uint64_t &kernel_red_count,
+                         uint64_t &kernel_count, std::vector<TopPair> &top_pairs);
 
 /*
  * Analyze spatial trace
@@ -148,14 +162,14 @@ void show_temporal_trace(u64 kernel_id, PCPairs &pc_pairs, PCAccessSum &pc_acces
  * memory_op_id:
  * Current record's memory identifier
  *
- * access_type:
+ * access_kind:
  * How a thread accesses memory (e.g. float/int, vector/scalar)
  *
  * spatial_trace:
  * {<memory_op_id, AccessKind> : {pc: {value: count}}}
  *
  */
-void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_type,
+void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_kind,
                        SpatialTrace &spatial_trace);
 
 /*
@@ -200,9 +214,7 @@ u64 store2double(u64 a, int decimal_degree_f64);
  * */
 u64 store2basictype(u64 a, AccessKind akind, int decimal_degree_f32, int decimal_degree_f64);
 
-void output_corresponding_type_value(u64 a, AccessKind akind, std::streambuf *buf, bool is_signed);
-
-std::string combine_type_unitsize(AccessKind akind);
+void output_kind_value(u64 a, AccessKind akind, std::streambuf *buf, bool is_signed);
 
 #endif  // REDSHOW_COMMON_LIB_H
 
