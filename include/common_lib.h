@@ -41,7 +41,7 @@ struct ThreadId {
   }
 };
 
-// {<memory_op_id, AccessKind::DataType> : {pc: {value: count}}}
+// {<memory_op_id, AccessKind> : {pc: {value: count}}}
 typedef std::map<std::pair<u64, AccessKind>, std::map<u64, std::map<u64, u64>>> SpatialTrace;
 
 // {memory_op_id: {value: count}}
@@ -50,7 +50,7 @@ typedef std::map<std::pair<u64, AccessKind>, std::map<u64, u64>> SpatialStatisti
 // {ThreadId : {address : {<pc, value>}}}
 typedef std::map<ThreadId, std::map<u64, std::pair<u64, u64>>> TemporalTrace;
 
-// {pc1 : {pc2 : {<value, AccessKind::DataType> : count}}}
+// {pc1 : {pc2 : {<value, AccessKind> : count}}}
 typedef std::map<u64, std::map<u64, std::map<std::pair<u64, AccessKind>, u64>>> PCPairs;
 // {pc: access_sum_count}
 typedef std::map<u64, u64> PCAccessSum;
@@ -152,7 +152,7 @@ void show_temporal_trace(u64 kernel_id, PCPairs &pc_pairs, PCAccessSum &pc_acces
  * How a thread accesses memory (e.g. float/int, vector/scalar)
  *
  * spatial_trace:
- * {<memory_op_id, AccessKind::DataType> : {pc: {value: count}}}
+ * {<memory_op_id, AccessKind> : {pc: {value: count}}}
  *
  */
 void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_type,
@@ -162,7 +162,7 @@ void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_ty
  * Record frequent spatial records
  *
  * spatial_trace:
- * {<memory_op_id, AccessKind::DataType> : {pc: {value: count}}}
+ * {<memory_op_id, AccessKind> : {pc: {value: count}}}
  *
  * record_data:
  * Data returned to the runtime

@@ -133,6 +133,8 @@ static uint32_t mem_views_limit = 0;
 static int decimal_degree_f32 = VALID_FLOAT_DIGITS;
 static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
 
+static redshow_data_type_t default_data_type = REDSHOW_DATA_FLOAT;
+
 enum {
   MEMORY_ID_SHARED = 1,
   MEMORY_ID_LOCAL = 2
@@ -320,13 +322,16 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
         // Fall back to default mode if failed
       }
 
-      if (access_kind.data_type == AccessKind::UNKNOWN) {
+      if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
         // Default mode, we identify every data as 32 bits unit size, 32 bits vec size, float type
-        access_kind.data_type = AccessKind::FLOAT;
+        access_kind.data_type = default_data_type;
         access_kind.vec_size = record->size * 8;
         access_kind.unit_size = MIN2(GPU_PATCH_WARP_SIZE, access_kind.vec_size * 8);
       }
 
+      //// Reserved for debugging
+      //std::cout << "function_index: " << function_index << ", pc_offset: " <<
+      //  pc_offset << ", " << access_kind.to_string() << std::endl;
       // TODO: accelerate by handling all threads in a warp together
       for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
         if ((record->active & (0x1u << j)) == 0) {
@@ -407,40 +412,64 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
  * Interface methods
  */
 
-redshow_result_t redshow_analysis_output(const char *path) {
-  PRINT("\nredshow->Enter redshow_analysis_output\npath: %s\n", path);
+redshow_result_t redshow_data_type_config(redshow_data_type_t data_type) {
+  PRINT("\nredshow->Enter redshow_data_type_config\n data_type: %u\n", data_type);
 
-  return REDSHOW_SUCCESS;
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  switch (data_type) {
+    case REDSHOW_DATA_FLOAT:
+      default_data_type = REDSHOW_DATA_FLOAT;
+      break;
+    case REDSHOW_DATA_INT:
+      default_data_type = REDSHOW_DATA_INT;
+      break;
+    default:
+      result = REDSHOW_ERROR_NO_SUCH_DATA_TYPE;
+      break;
+  }
+
+  return result;
 };
 
 
-redshow_result_t redshow_approx_level_config(uint32_t level) {
+redshow_result_t redshow_data_type_get(redshow_data_type_t *data_type) {
+  PRINT("\nredshow->Enter redshow_data_type_get\n");
+
+  *data_type = default_data_type;
+  return REDSHOW_SUCCESS;
+}
+
+
+redshow_result_t redshow_approx_level_config(redshow_approx_level_t level) {
+  PRINT("\nredshow->Enter redshow_approx_level_config\n level: %u\n", level);
+
   redshow_result_t result = REDSHOW_SUCCESS;
-  // TODO(Yueming)
+
   switch (level) {
     case REDSHOW_APPROX_NONE:
       decimal_degree_f32 = VALID_FLOAT_DIGITS;
       decimal_degree_f64 = VALID_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_MIN:
-      decimal_degree_f32 = 20;
-      decimal_degree_f64 = 46;
+      decimal_degree_f32 = MIN_FLOAT_DIGITS;
+      decimal_degree_f64 = MIN_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_LOW:
-      decimal_degree_f32 = 17;
-      decimal_degree_f64 = 40;
+      decimal_degree_f32 = LOW_FLOAT_DIGITS;
+      decimal_degree_f64 = LOW_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_MID:
-      decimal_degree_f32 = 14;
-      decimal_degree_f64 = 34;
+      decimal_degree_f32 = MID_FLOAT_DIGITS;
+      decimal_degree_f64 = MID_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_HIGH:
-      decimal_degree_f32 = 11;
-      decimal_degree_f64 = 28;
+      decimal_degree_f32 = HIGH_FLOAT_DIGITS;
+      decimal_degree_f64 = HIGH_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_MAX:
-      decimal_degree_f32 = 8;
-      decimal_degree_f64 = 22;
+      decimal_degree_f32 = MAX_FLOAT_DIGITS;
+      decimal_degree_f64 = MAX_DOUBLE_DIGITS;
       break;
     default:
       result = REDSHOW_ERROR_NO_SUCH_APPROX;
@@ -635,7 +664,7 @@ redshow_record_data_callback_register(redshow_record_data_callback_func func, ui
 
 redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint64_t kernel_id, uint64_t host_op_id,
                                  gpu_patch_buffer_t *trace_data) {
-  PRINT("\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %p\nhost_op_id: %lu\ntrace_data: %p\n",
+  PRINT("\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %lu\nhost_op_id: %lu\ntrace_data: %p\n",
         cubin_id, kernel_id, host_op_id, trace_data);
 
   redshow_result_t result;

@@ -8,6 +8,8 @@
 #include <sstream>
 #include <vector>
 
+#include "redshow.h"
+
 struct Symbol {
   uint32_t index;
   uint64_t cubin_offset;
@@ -30,31 +32,25 @@ struct Symbol {
 
 
 struct AccessKind {
-  enum DataType {
-    UNKNOWN = 0,
-    INTEGER = 1,
-    FLOAT = 2
-  };
-
   // 8, 16, 32, 64, 128
   uint32_t vec_size;
   // 8, 16, 32, 64
   uint32_t unit_size;
-  DataType data_type;
+  redshow_data_type_t data_type;
 
-  AccessKind(uint32_t unit_size, uint32_t vec_size, DataType data_type) :
+  AccessKind(uint32_t unit_size, uint32_t vec_size, redshow_data_type_t data_type) :
       unit_size(unit_size), vec_size(vec_size), data_type(data_type) {}
 
-  AccessKind() : AccessKind(0, 0, UNKNOWN) {}
+  AccessKind() : AccessKind(0, 0, REDSHOW_DATA_UNKNOWN) {}
 
   std::string to_string() {
     std::stringstream ss;
     ss << "{";
-    if (data_type == UNKNOWN) {
+    if (data_type == REDSHOW_DATA_UNKNOWN) {
       ss << "UNKNOWN";
-    } else if (data_type == INTEGER) {
+    } else if (data_type == REDSHOW_DATA_INT) {
       ss << "INTEGER";
-    } else if (data_type == FLOAT) {
+    } else if (data_type == REDSHOW_DATA_FLOAT) {
       ss << "FLOAT";
     }
     ss << ", v: " << vec_size;

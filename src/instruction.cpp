@@ -23,16 +23,33 @@
 
 
 static void default_access_kind(Instruction &inst) {
+  if (inst.access_kind->vec_size == 0) {
+    // Determine the vec size of data,
+    if (inst.op.find(".128") != std::string::npos) {
+      inst.access_kind->vec_size = 128;
+    } else if (inst.op.find(".64") != std::string::npos) {
+      inst.access_kind->vec_size = 64;
+    } else if (inst.op.find(".32") != std::string::npos) { 
+      inst.access_kind->vec_size = 32;
+    } else if (inst.op.find(".16") != std::string::npos) {
+      inst.access_kind->vec_size = 16;
+    } else if (inst.op.find(".8") != std::string::npos) {
+      inst.access_kind->vec_size = 8;
+    } else {
+      inst.access_kind->vec_size = 32;
+    }
+  }
+
   // Default mode
   if (inst.access_kind->unit_size == 0) {
     // If unit size is not determined
     inst.access_kind->unit_size = MIN2(32, inst.access_kind->vec_size);
   }
 
-  if (inst.access_kind->data_type == AccessKind::UNKNOWN) {
+  if (inst.access_kind->data_type == REDSHOW_DATA_UNKNOWN) {
     // If type is not determined
     // TODO(Keren): it makes more sense to classify it as INT
-    inst.access_kind->data_type = AccessKind::FLOAT;
+    redshow_data_type_get(&(inst.access_kind->data_type));
   }
 }
 
@@ -101,7 +118,7 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
       // Transit node
       // INTEGER.IMAD.MOVE is handled here
       neighbor_access_kind = init_access_kind(neighbor_inst, inst_graph, visited, load);
-      if (access_kind.data_type == AccessKind::UNKNOWN) {
+      if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
         access_kind.data_type = neighbor_access_kind.data_type;
       }
       if (access_kind.unit_size == 0) {
@@ -114,13 +131,13 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
           neighbor_inst.op.find(".LOCAL") != std::string::npos) {
           if (std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[0]) != inst.dsts.end()) {
             // Used as a
-            access_kind.data_type = AccessKind::INTEGER;
+            access_kind.data_type = REDSHOW_DATA_INT;
             access_kind.unit_size = 32;
           }
         } else {
           if (std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[0]) != inst.dsts.end() ||
             std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[1]) != inst.dsts.end()) {
-            access_kind.data_type = AccessKind::INTEGER;
+            access_kind.data_type = REDSHOW_DATA_INT;
             access_kind.unit_size = 64;
           }
         }
@@ -134,7 +151,7 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
         }
         neighbor_access_kind = *neighbor_inst.access_kind;
 
-        if (access_kind.data_type == AccessKind::UNKNOWN) {
+        if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
           access_kind.data_type = neighbor_access_kind.data_type;
         }
         if (access_kind.unit_size == 0) {
@@ -142,34 +159,34 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
         }
       }
     } else if (neighbor_inst.op.find("INTEGER") != std::string::npos) {
-      access_kind.data_type = AccessKind::INTEGER;
+      access_kind.data_type = REDSHOW_DATA_INT;
     } else if (neighbor_inst.op.find("FLOAT") != std::string::npos) {
-      access_kind.data_type = AccessKind::FLOAT;
+      access_kind.data_type = REDSHOW_DATA_FLOAT;
     } else if (neighbor_inst.op.find("CONVERT") != std::string::npos) {
       if (neighbor_inst.op.find(".I2F") != std::string::npos) {
         if (load) {
-          access_kind.data_type = AccessKind::INTEGER;
+          access_kind.data_type = REDSHOW_DATA_INT;
         } else {
-          access_kind.data_type = AccessKind::FLOAT;
+          access_kind.data_type = REDSHOW_DATA_FLOAT;
         }
       } else if (neighbor_inst.op.find(".F2F") != std::string::npos) {
-        access_kind.data_type = AccessKind::FLOAT;
+        access_kind.data_type = REDSHOW_DATA_FLOAT;
       } else if (neighbor_inst.op.find(".F2I") != std::string::npos) {
         if (load) {
-          access_kind.data_type = AccessKind::FLOAT;
+          access_kind.data_type = REDSHOW_DATA_FLOAT;
         } else {
-          access_kind.data_type = AccessKind::INTEGER;
+          access_kind.data_type = REDSHOW_DATA_INT;
         }
       } else if (neighbor_inst.op.find(".I2I") != std::string::npos) {
-        access_kind.data_type = AccessKind::INTEGER;
+        access_kind.data_type = REDSHOW_DATA_INT;
       }
     } else {
-      if (access_kind.data_type == AccessKind::UNKNOWN) {
-        access_kind.data_type = AccessKind::INTEGER;
+      if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
+        access_kind.data_type = REDSHOW_DATA_INT;
       }
     }
 
-    if (access_kind.data_type != AccessKind::UNKNOWN && access_kind.unit_size != 0) {
+    if (access_kind.data_type != REDSHOW_DATA_UNKNOWN && access_kind.unit_size != 0) {
       break;
     }
   }

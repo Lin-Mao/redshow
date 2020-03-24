@@ -248,9 +248,9 @@ show_spatial_trace(uint32_t thread_id, uint64_t kernel_id, SpatialStatistic &spa
 
 u64 store2basictype(u64 a, AccessKind akind, int decimal_degree_f32, int decimal_degree_f64) {
   switch (akind.data_type) {
-    case AccessKind::UNKNOWN:
+    case REDSHOW_DATA_UNKNOWN:
       break;
-    case AccessKind::INTEGER:
+    case REDSHOW_DATA_INT:
       switch (akind.unit_size) {
         case 8:
           return a & 0xffu;
@@ -262,7 +262,7 @@ u64 store2basictype(u64 a, AccessKind akind, int decimal_degree_f32, int decimal
           return a;
       }
       break;
-    case AccessKind::FLOAT:
+    case REDSHOW_DATA_FLOAT:
       switch (akind.unit_size) {
         case 32:
           return store2float(a, decimal_degree_f32);
@@ -277,7 +277,7 @@ u64 store2basictype(u64 a, AccessKind akind, int decimal_degree_f32, int decimal
 
 void output_corresponding_type_value(u64 a, AccessKind akind, std::streambuf *buf, bool is_signed) {
   std::ostream out(buf);
-  if (akind.data_type == AccessKind::INTEGER) {
+  if (akind.data_type == REDSHOW_DATA_INT) {
     if (akind.unit_size == 8) {
       if (is_signed) {
         char b6;
@@ -317,7 +317,7 @@ void output_corresponding_type_value(u64 a, AccessKind akind, std::streambuf *bu
         out << a;
       }
     }
-  } else if (akind.data_type == AccessKind::FLOAT) {
+  } else if (akind.data_type == REDSHOW_DATA_FLOAT) {
     // At this time, it must be float
     if (akind.unit_size == 32) {
       float b1;
@@ -355,11 +355,11 @@ u64 store2float(u64 a, int decimal_degree_f32) {
 std::string combine_type_unitsize(AccessKind akind) {
   using std::to_string;
   switch (akind.data_type) {
-    case AccessKind::UNKNOWN:
+    case REDSHOW_DATA_UNKNOWN:
       break;
-    case AccessKind::INTEGER:
+    case REDSHOW_DATA_INT:
       return "int" + to_string(akind.unit_size);
-    case AccessKind::FLOAT:
+    case REDSHOW_DATA_FLOAT:
       return "float" + to_string(akind.unit_size);
   }
   return "null";
