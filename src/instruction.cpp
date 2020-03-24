@@ -110,12 +110,19 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
     } else if (neighbor_inst.op.find("MEMORY") != std::string::npos) { 
       if (load) {
         // Decided by memory hierarchy
-        access_kind.data_type = AccessKind::INTEGER;
         if (neighbor_inst.op.find(".SHARED") != std::string::npos ||
           neighbor_inst.op.find(".LOCAL") != std::string::npos) {
-          access_kind.unit_size = 32;
+          if (std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[0]) != inst.dsts.end()) {
+            // Used as a
+            access_kind.data_type = AccessKind::INTEGER;
+            access_kind.unit_size = 32;
+          }
         } else {
-          access_kind.unit_size = 64;
+          if (std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[0]) != inst.dsts.end() ||
+            std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[1]) != inst.dsts.end()) {
+            access_kind.data_type = AccessKind::INTEGER;
+            access_kind.unit_size = 64;
+          }
         }
       } else {
         // Transit node and reverse search direction
