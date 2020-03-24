@@ -152,6 +152,7 @@ typedef void (*redshow_record_data_callback_func)(uint32_t cubin_id, uint64_t ke
 
 EXTERNC redshow_result_t redshow_record_data_callback_register(redshow_record_data_callback_func func, uint32_t pc_views_limit, uint32_t mem_views_limit);
 
+
 /*
  * Apply registered analysis to a gpu trace, analysis results are buffered.
  * redshow_callback_func is called when the analysis is done.

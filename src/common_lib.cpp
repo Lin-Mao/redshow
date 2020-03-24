@@ -35,9 +35,11 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType ac
 
 
 void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum, redshow_record_data_t &record_data,
-                           uint32_t num_views_limit, uint64_t &kernel_red_count, uint64_t &kernel_count) {
+                           uint32_t num_views_limit, uint64_t &kernel_red_count, uint64_t &kernel_count,
+                           std::vector<TopPair> &top_pairs) {
   // Pick top record data views
   TopViews top_views;
+  TopPairs temp_top_pairs;
   // {pc1 : {pc2 : {<value, type>}}}
   for (auto &from_pc_iter : pc_pairs) {
     for (auto &to_pc_iter : from_pc_iter.second) {
@@ -45,6 +47,7 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum, redsho
       // {<value, type> : count}
       for (auto &val_iter : to_pc_iter.second) {
         auto val = val_iter.first.first;
+        auto atype = val_iter.first.second;
         auto count = val_iter.second;
         redshow_record_view_t view;
         view.pc_offset = to_pc;
@@ -53,13 +56,30 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum, redsho
         kernel_red_count += count;
         view.access_sum_count = pc_access_sum[to_pc];
         kernel_count += view.access_sum_count;
+        RealPC f_pc;
+        f_pc.function_index = 0;
+        f_pc.cubin_id = 0;
+        f_pc.pc = from_pc_iter.first;
+        RealPC t_pc;
+        t_pc.function_index = 0;
+        t_pc.cubin_id = 0;
+        t_pc.pc = to_pc;
+        TopPair apair;
+        apair.from_pc = f_pc;
+        apair.to_pc = t_pc;
+        apair.value = val;
+        apair.type = atype;
+        apair.count = count;
         if (top_views.size() < num_views_limit) {
           top_views.push(view);
+          temp_top_pairs.push(apair);
         } else {
           auto &top = top_views.top();
           if (top.count < view.count) {
             top_views.pop();
             top_views.push(view);
+            temp_top_pairs.pop();
+            temp_top_pairs.push(apair);
           }
         }
       }
@@ -68,24 +88,26 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum, redsho
 
   auto num_views = 0;
   // Put top record data views into record_data
-  while (top_views.empty() == false) {
+  while (!top_views.empty()) {
     auto &view = top_views.top();
     record_data.views[num_views++] = view;
     top_views.pop();
+  }
+  while (!temp_top_pairs.empty()) {
+    auto &pair = temp_top_pairs.top();
+    top_pairs.push_back(pair);
+    temp_top_pairs.pop();
   }
   record_data.num_views = num_views;
 }
 
 
 void
-show_temporal_trace(u64 kernel_id, PCPairs &pc_pairs, PCAccessSum &pc_access_sum, bool is_read,
-                    uint32_t num_views_limit, uint32_t thread_id, uint64_t &kernel_red_count,
-                    uint64_t &kernel_count) {
+show_temporal_trace(std::vector<Symbol> &symbols, u64 kernel_id, PCAccessSum &pc_access_sum,
+                    bool is_read, uint32_t num_views_limit, uint32_t thread_id, uint64_t &kernel_red_count,
+                    uint64_t &kernel_count, std::vector<TopPair> &top_pairs) {
   using std::string;
   using std::to_string;
-  using std::map;
-  using std::pair;
-  using std::tuple;
   using std::make_tuple;
   using std::get;
   using std::endl;
@@ -93,50 +115,24 @@ show_temporal_trace(u64 kernel_id, PCPairs &pc_pairs, PCAccessSum &pc_access_sum
   std::ofstream out("temporal_" + r + "_top" + to_string(num_views_limit) + "_" + to_string(thread_id) + ".csv",
                     std::ios::app);
   out << "kernel id," << kernel_id << endl;
-//<pc_from, pc_to, value, Accesstype, count>
-  TopPairs top_pairs;
-  for (auto &from_pc_iter: pc_pairs) {
-    for (auto &to_pc_iter: from_pc_iter.second) {
-//      {<value, AccessType> : count}}
-      for (auto &value_iter: to_pc_iter.second) {
-        if (top_pairs.size() < num_views_limit) {
-          top_pairs.push(
-              make_tuple(from_pc_iter.first, to_pc_iter.first, value_iter.first.first, value_iter.first.second,
-                         value_iter.second));
-        } else {
-          auto &top = top_pairs.top();
-          if (get<4>(top) < value_iter.second) {
-            top_pairs.pop();
-            top_pairs.push(
-                make_tuple(from_pc_iter.first, to_pc_iter.first, value_iter.first.first, value_iter.first.second,
-                           value_iter.second));
-          }
-        }
-      }
-    }
-  }
-  out << "redundant access num, all access num, redundancy rate" << endl;
+  out << "redundant access num,all access num,redundancy rate" << endl;
   out << kernel_red_count << "," << kernel_count << "," << (double) kernel_red_count / kernel_count
       << endl;
   if (not top_pairs.empty()) {
-    out << "from_pc,to_pc,value,type,count" << endl;
-    while (not top_pairs.empty()) {
+    out
+        << "f_cubin_id,f_function_index,f_pc_offset, t_cubin_id,t_function_index,t_pc_offest,value,type,num_units, count"
+        << endl;
+    for (auto &apair: top_pairs) {
       // <pc_from, pc_to, value, Accesstype, count>
-      auto top = top_pairs.top();
-      top_pairs.pop();
-      auto pc_from = get<0>(top);
-      auto pc_to = get<1>(top);
-      auto value = get<2>(top);
-      auto atype = get<3>(top);
-      auto count = get<4>(top);
-      out << pc_from << "," << pc_to << ",";
-      output_corresponding_type_value(value, atype, out.rdbuf(), true);
-      out << "," << combine_type_unitsize(atype) << "," << count << endl;
+      out << apair.from_pc.cubin_id << "," << apair.from_pc.function_index << "," << apair.from_pc.pc << ","
+          << apair.to_pc.cubin_id << "," << apair.to_pc.function_index << "," << apair.to_pc.pc << ",";
+      output_corresponding_type_value(apair.value, apair.type, out.rdbuf(), true);
+      out << "," << combine_type_unitsize(apair.type) << ",x" << apair.type.vec_size / apair.type.unit_size << ","
+          << apair.count << endl;
     }
-    out << endl;
-  }
-  out.close();
+    out.close();
 
+  }
 }
 
 
@@ -199,9 +195,8 @@ show_spatial_trace(uint32_t thread_id, uint64_t kernel_id, SpatialStatistic &spa
   std::ofstream out("spatial_" + r + "_top" + to_string(num_write_limit) + "_" + to_string(thread_id) + ".csv",
                     std::ios::app);
   if (!is_kernel) {
-    out << "===========↓↓↓↓summary for the a cpu thread↓↓↓↓===========" << endl;
+    out << "===========,summary for the a cpu thread,===========" << endl;
   } else {
-    out << "=======================" << endl;
     out << "kernel id," << kernel_id << ",";
   }
   out << "size,";
@@ -226,7 +221,7 @@ show_spatial_trace(uint32_t thread_id, uint64_t kernel_id, SpatialStatistic &spa
       }
     }
     out << "sum_count," << all_count << endl;
-    out << "value,count,rate,type" << endl;
+    out << "value,count,rate,type,num_units" << endl;
 //    write to file
     while (not top_statistic.empty()) {
       auto top = top_statistic.top();
@@ -236,12 +231,9 @@ show_spatial_trace(uint32_t thread_id, uint64_t kernel_id, SpatialStatistic &spa
       auto atype = get<2>(top);
       output_corresponding_type_value(value, atype, out.rdbuf(), true);
 //      out<<std::hex<<get<0>(top)<<std::dec;
-      out << "," << count << "," << (double) count / all_count << "," << combine_type_unitsize(atype) << endl;
+      out << "," << count << "," << (double) count / all_count << "," << combine_type_unitsize(atype) << ",x"
+          << atype.vec_size / atype.unit_size << endl;
     }
-    out << endl;
-  }
-  if (!is_kernel) {
-    out << "===========↑↑↑↑summary for the a cpu thread↑↑↑↑===========" << endl;
   }
   out.close();
 }
@@ -281,9 +273,9 @@ void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *bu
   if (atype.type == AccessType::INTEGER) {
     if (atype.unit_size == 8) {
       if (is_signed) {
-        char b6;
+        int8_t b6;
         memcpy(&b6, &a, sizeof(b6));
-        out << b6;
+        out << (int) b6;
       } else {
         u8 b7;
         memcpy(&b7, &a, sizeof(b7));
