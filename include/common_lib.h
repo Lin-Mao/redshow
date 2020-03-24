@@ -54,8 +54,23 @@ typedef std::map<ThreadId, std::map<u64, std::pair<u64, u64>>> TemporalTrace;
 typedef std::map<u64, std::map<u64, std::map<std::pair<u64, AccessType>, u64>>> PCPairs;
 // {pc: access_sum_count}
 typedef std::map<u64, u64> PCAccessSum;
+// <cubin_id, function_index, virtual pc>
+//typedef std::tuple<u64, int, u64> RealPC;
 // <pc_from, pc_to, value, Accesstype, count>
-typedef std::tuple<u64, u64, u64, AccessType, u64> TopPair;
+//typedef std::tuple<RealPC, RealPC, u64, AccessType, u64> TopPair;
+typedef struct RealPC_tt {
+  u64 cubin_id;
+  uint32_t function_index;
+  u64 pc;
+} RealPC;
+typedef struct TopPair_tt {
+  RealPC from_pc;
+  RealPC to_pc;
+  uint64_t value;
+  AccessType type;
+  uint64_t count;
+} TopPair;
+
 
 struct CompareView {
   bool operator()(redshow_record_view_t const &d1, redshow_record_view_t const &d2) {
@@ -71,7 +86,7 @@ struct CompareStatistic {
 
 struct CompareTopPairs {
   bool operator()(TopPair const &d1, TopPair const &d2) {
-    return std::get<4>(d1) > std::get<4>(d2);
+    return d1.count > d2.count;
   }
 };
 
@@ -131,11 +146,12 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType ac
  * Number of entries the runtime needs to know
  */
 void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum, redshow_record_data_t &record_data,
-                           uint32_t num_views_limit, uint64_t &kernel_red_count, uint64_t &kernel_count);
+                           uint32_t num_views_limit, uint64_t &kernel_red_count, uint64_t &kernel_count,
+                           std::vector<TopPair> &top_pairs);
 
-void show_temporal_trace(u64 kernel_id, PCPairs &pc_pairs, PCAccessSum &pc_access_sum, bool is_read,
-                         uint32_t num_views_limit, uint32_t thread_id, uint64_t &kernel_red_count,
-                         uint64_t &kernel_count);
+void show_temporal_trace(std::vector<Symbol> &symbols, u64 kernel_id, PCAccessSum &pc_access_sum,
+                         bool is_read, uint32_t num_views_limit, uint32_t thread_id, uint64_t &kernel_red_count,
+                         uint64_t &kernel_count, std::vector<TopPair> &top_pairs);
 
 /*
  * Analyze spatial trace
