@@ -140,7 +140,7 @@ void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_ki
 }
 
 
-void record_spatial_trace(SpatialTrace &spatial_trace,
+void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessSum &pc_access_sum,
                           redshow_record_data_t &record_data, uint32_t num_views_limit,
                           SpatialStatistic &spatial_statistic, SpatialStatistic &thread_spatial_statistic) {
   // Pick top record data views
@@ -159,6 +159,7 @@ void record_spatial_trace(SpatialTrace &spatial_trace,
         view.pc_offset = pc;
         view.memory_id = 0;
         view.count = count;
+        view.access_sum_count = pc_access_sum[pc];
         if (top_views.size() < num_views_limit) {
           top_views.push(view);
         } else {

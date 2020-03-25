@@ -91,7 +91,7 @@ struct CompareTopPairs {
 typedef std::priority_queue<redshow_record_view_t, std::vector<redshow_record_view_t>, CompareView> TopViews;
 // {value, count, AccessKind}
 typedef std::priority_queue<std::tuple<u64, u64, AccessKind>,
-        std::vector<std::tuple<u64, u64, AccessKind>>, CompareStatistic> TopStatistic;
+    std::vector<std::tuple<u64, u64, AccessKind>>, CompareStatistic> TopStatistic;
 // <pc_from, pc_to, value, AccessKind, count>
 typedef std::priority_queue<TopPair, std::vector<TopPair>, CompareTopPairs> TopPairs;
 
@@ -184,7 +184,7 @@ void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_ki
  * num_views_limit:
  * Number of entries the runtime needs to know
  */
-void record_spatial_trace(SpatialTrace &spatial_trace,
+void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessSum &pc_access_sum,
                           redshow_record_data_t &record_data, uint32_t num_views_limit,
                           SpatialStatistic &spatial_statistic, SpatialStatistic &thread_spatial_statistic);
 

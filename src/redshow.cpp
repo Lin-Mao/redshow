@@ -396,10 +396,12 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
               }
             } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
               if (record->flags & GPU_PATCH_READ) {
-                get_temporal_trace(record->pc, thread_id, record->address[j] + m * address_offset, value, unit_access_kind,
+                get_temporal_trace(record->pc, thread_id, record->address[j] + m * address_offset, value,
+                                   unit_access_kind,
                                    read_temporal_trace, read_pc_pairs);
               } else {
-                get_temporal_trace(record->pc, thread_id, record->address[j] + m * address_offset, value, unit_access_kind,
+                get_temporal_trace(record->pc, thread_id, record->address[j] + m * address_offset, value,
+                                   unit_access_kind,
                                    write_temporal_trace, write_pc_pairs);
               }
             } else {
@@ -766,7 +768,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
 
   SpatialStatistic thread_spatial_read_statistic;
   SpatialStatistic thread_spatial_write_statistic;
-  
+
   for (auto &kernel_iter : thread_kernel_map) {
     auto kernel_id = kernel_iter.first;
     auto &kernel = kernel_iter.second;
@@ -787,8 +789,8 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         record_data.analysis_type = REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY;
         // Read
         record_data.access_type = REDSHOW_ACCESS_READ;
-        record_spatial_trace(kernel.read_spatial_trace, record_data, pc_views_limit, kernel_spatial_read_statistic,
-                             thread_spatial_read_statistic);
+        record_spatial_trace(kernel.read_spatial_trace, kernel.read_pc_sum, record_data, pc_views_limit,
+                             kernel_spatial_read_statistic, thread_spatial_read_statistic);
         // Transform pcs
         for (auto i = 0; i < record_data.num_views; ++i) {
           uint64_t pc = record_data.views[i].pc_offset;
@@ -802,8 +804,8 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         record_data_callback(cubin_id, kernel_id, &record_data);
         // Write
         record_data.access_type = REDSHOW_ACCESS_WRITE;
-        record_spatial_trace(kernel.write_spatial_trace, record_data, pc_views_limit, kernel_spatial_write_statistic,
-                             thread_spatial_write_statistic);
+        record_spatial_trace(kernel.write_spatial_trace, kernel.write_pc_sum, record_data, pc_views_limit,
+                             kernel_spatial_write_statistic, thread_spatial_write_statistic);
         // Transform pcs
         for (auto i = 0; i < record_data.num_views; ++i) {
           uint64_t pc = record_data.views[i].pc_offset;
