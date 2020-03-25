@@ -19,6 +19,12 @@ typedef enum redshow_access_type {
   REDSHOW_ACCESS_WRITE = 1
 } redshow_access_type_t;
 
+typedef enum redshow_data_type {
+  REDSHOW_DATA_UNKNOWN = 0,
+  REDSHOW_DATA_FLOAT = 1,
+  REDSHOW_DATA_INT = 2
+} redshow_data_type_t;
+
 typedef enum redshow_result {
   REDSHOW_SUCCESS = 0,
   REDSHOW_ERROR_NOT_IMPL = 1,
@@ -28,7 +34,8 @@ typedef enum redshow_result {
   REDSHOW_ERROR_NO_SUCH_FILE = 5,
   REDSHOW_ERROR_FAILED_ANALYZE_CUBIN = 6,
   REDSHOW_ERROR_FAILED_ANALYZE_TRACE = 7,
-  REDSHOW_ERROR_NO_SUCH_APPROX = 8
+  REDSHOW_ERROR_NO_SUCH_APPROX = 8,
+  REDSHOW_ERROR_NO_SUCH_DATA_TYPE = 9
 } redshow_result_t;
 
 typedef enum redshow_approx_level {
@@ -56,18 +63,25 @@ typedef struct redshow_record_data {
 } redshow_record_data_t;
 
 /*
- * Output detailed analysis result
+ * Config default data type
  * 
  * Thread-Safety: NO
  */
-EXTERNC redshow_result_t redshow_analysis_output();
+EXTERNC redshow_result_t redshow_data_type_config(redshow_data_type_t data_type);
+
+/*
+ * Get default data type
+ * 
+ * Thread-Safety: NO
+ */
+EXTERNC redshow_result_t redshow_data_type_get(redshow_data_type_t *data_type);
 
 /*
  * Config floating point redundancy approximate level
  * 
  * Thread-Safety: NO
  */
-EXTERNC redshow_result_t redshow_approx_level_config(uint32_t level);
+EXTERNC redshow_result_t redshow_approx_level_config(redshow_approx_level_t level);
 
 /*
  * This function is used to setup specific analysis types.

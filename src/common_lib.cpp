@@ -6,7 +6,7 @@
 #include "redshow.h"
 
 
-void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType access_type,
+void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessKind access_kind,
                         TemporalTrace &temporal_trace, PCPairs &pc_pairs) {
   auto tmr_it = temporal_trace.find(tid);
   // Record current operation.
@@ -26,7 +26,7 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessType ac
       auto prev_pc = m_it->second.first;
       auto prev_value = m_it->second.second;
       if (prev_value == value) {
-        pc_pairs[prev_pc][pc][std::make_pair(prev_value, access_type)] += 1;
+        pc_pairs[prev_pc][pc][std::make_pair(prev_value, access_kind)] += 1;
       }
       m_it->second = record[addr];
     }
@@ -40,14 +40,14 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum, redsho
   // Pick top record data views
   TopViews top_views;
   TopPairs temp_top_pairs;
-  // {pc1 : {pc2 : {<value, type>}}}
+  // {pc1 : {pc2 : {<value, kind>}}}
   for (auto &from_pc_iter : pc_pairs) {
     for (auto &to_pc_iter : from_pc_iter.second) {
       auto to_pc = to_pc_iter.first;
-      // {<value, type> : count}
+      // {<value, kind> : count}
       for (auto &val_iter : to_pc_iter.second) {
         auto val = val_iter.first.first;
-        auto atype = val_iter.first.second;
+        auto akind = val_iter.first.second;
         auto count = val_iter.second;
         redshow_record_view_t view;
         view.pc_offset = to_pc;
@@ -68,7 +68,7 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum, redsho
         apair.from_pc = f_pc;
         apair.to_pc = t_pc;
         apair.value = val;
-        apair.type = atype;
+        apair.kind = akind;
         apair.count = count;
         if (top_views.size() < num_views_limit) {
           top_views.push(view);
@@ -119,26 +119,24 @@ show_temporal_trace(std::vector<Symbol> &symbols, u64 kernel_id, PCAccessSum &pc
   out << kernel_red_count << "," << kernel_count << "," << (double) kernel_red_count / kernel_count
       << endl;
   if (not top_pairs.empty()) {
-    out
-        << "f_cubin_id,f_function_index,f_pc_offset, t_cubin_id,t_function_index,t_pc_offest,value,type,num_units, count"
+    out << "f_cubin_id,f_function_index,f_pc_offset,t_cubin_id,t_function_index,t_pc_offest,value,kind,num_units,count"
         << endl;
     for (auto &apair: top_pairs) {
-      // <pc_from, pc_to, value, Accesstype, count>
+      // <pc_from, pc_to, value, Accesskind, count>
       out << apair.from_pc.cubin_id << "," << apair.from_pc.function_index << "," << apair.from_pc.pc << ","
           << apair.to_pc.cubin_id << "," << apair.to_pc.function_index << "," << apair.to_pc.pc << ",";
-      output_corresponding_type_value(apair.value, apair.type, out.rdbuf(), true);
-      out << "," << combine_type_unitsize(apair.type) << ",x" << apair.type.vec_size / apair.type.unit_size << ","
+      output_kind_value(apair.value, apair.kind, out.rdbuf(), true);
+      out << "," << apair.kind.to_string() << ",x" << apair.kind.vec_size / apair.kind.unit_size << ","
           << apair.count << endl;
     }
     out.close();
-
   }
 }
 
 
-void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessType access_type,
+void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_kind,
                        SpatialTrace &spatial_trace) {
-  spatial_trace[std::make_pair(memory_op_id, access_type)][pc][value] += 1;
+  spatial_trace[std::make_pair(memory_op_id, access_kind)][pc][value] += 1;
 }
 
 
@@ -147,7 +145,7 @@ void record_spatial_trace(SpatialTrace &spatial_trace,
                           SpatialStatistic &spatial_statistic, SpatialStatistic &thread_spatial_statistic) {
   // Pick top record data views
   TopViews top_views;
-  // memory_iter: {<memory_op_id, AccessType> : {pc: {value: counter}}}
+  // memory_iter: {<memory_op_id, AccessKind> : {pc: {value: counter}}}
   for (auto &memory_iter : spatial_trace) {
     // pc_iter: {pc: {value: counter}}
     for (auto &pc_iter : memory_iter.second) {
@@ -201,13 +199,13 @@ show_spatial_trace(uint32_t thread_id, uint64_t kernel_id, SpatialStatistic &spa
   }
   out << "size,";
   out << spatial_statistic.size() << endl;
-  // {<memory_op_id, AccessType>: {value: count}}
+  // {<memory_op_id, AccessKind>: {value: count}}
   for (auto &memory_iter: spatial_statistic) {
     out << "memory_op_id," << memory_iter.first.first << ",";
-//  [(value, count, Accesstype)]
+    // [(value, count, AccessKind)]
     TopStatistic top_statistic;
     u64 all_count = 0;
-//  value_iter:  {value: count}
+    // value_iter:  {value: count}
     for (auto &value_iter: memory_iter.second) {
       all_count += value_iter.second;
       if (top_statistic.size() < num_write_limit) {
@@ -221,30 +219,30 @@ show_spatial_trace(uint32_t thread_id, uint64_t kernel_id, SpatialStatistic &spa
       }
     }
     out << "sum_count," << all_count << endl;
-    out << "value,count,rate,type,num_units" << endl;
-//    write to file
+    out << "value,count,rate,kind,num_units" << endl;
+    // write to file
     while (not top_statistic.empty()) {
       auto top = top_statistic.top();
       top_statistic.pop();
       auto value = get<0>(top);
       auto count = get<1>(top);
-      auto atype = get<2>(top);
-      output_corresponding_type_value(value, atype, out.rdbuf(), true);
-//      out<<std::hex<<get<0>(top)<<std::dec;
-      out << "," << count << "," << (double) count / all_count << "," << combine_type_unitsize(atype) << ",x"
-          << atype.vec_size / atype.unit_size << endl;
+      auto akind = get<2>(top);
+      output_kind_value(value, akind, out.rdbuf(), true);
+      // out<<std::hex<<get<0>(top)<<std::dec;
+      out << "," << count << "," << (double) count / all_count << "," << akind.to_string() << ",x"
+          << akind.vec_size / akind.unit_size << endl;
     }
   }
   out.close();
 }
 
 
-u64 store2basictype(u64 a, AccessType atype, int decimal_degree_f32, int decimal_degree_f64) {
-  switch (atype.type) {
-    case AccessType::UNKNOWN:
+u64 store2basictype(u64 a, AccessKind akind, int decimal_degree_f32, int decimal_degree_f64) {
+  switch (akind.data_type) {
+    case REDSHOW_DATA_UNKNOWN:
       break;
-    case AccessType::INTEGER:
-      switch (atype.unit_size) {
+    case REDSHOW_DATA_INT:
+      switch (akind.unit_size) {
         case 8:
           return a & 0xffu;
         case 16:
@@ -255,8 +253,8 @@ u64 store2basictype(u64 a, AccessType atype, int decimal_degree_f32, int decimal
           return a;
       }
       break;
-    case AccessType::FLOAT:
-      switch (atype.unit_size) {
+    case REDSHOW_DATA_FLOAT:
+      switch (akind.unit_size) {
         case 32:
           return store2float(a, decimal_degree_f32);
         case 64:
@@ -268,10 +266,10 @@ u64 store2basictype(u64 a, AccessType atype, int decimal_degree_f32, int decimal
 }
 
 
-void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *buf, bool is_signed) {
+void output_kind_value(u64 a, AccessKind akind, std::streambuf *buf, bool is_signed) {
   std::ostream out(buf);
-  if (atype.type == AccessType::INTEGER) {
-    if (atype.unit_size == 8) {
+  if (akind.data_type == REDSHOW_DATA_INT) {
+    if (akind.unit_size == 8) {
       if (is_signed) {
         int8_t b6;
         memcpy(&b6, &a, sizeof(b6));
@@ -281,7 +279,7 @@ void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *bu
         memcpy(&b7, &a, sizeof(b7));
         out << b7;
       }
-    } else if (atype.unit_size == 16) {
+    } else if (akind.unit_size == 16) {
       if (is_signed) {
         short int b8;
         memcpy(&b8, &a, sizeof(b8));
@@ -291,7 +289,7 @@ void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *bu
         memcpy(&b9, &a, sizeof(b9));
         out << b9;
       }
-    } else if (atype.unit_size == 32) {
+    } else if (akind.unit_size == 32) {
       if (is_signed) {
         int b4;
         memcpy(&b4, &a, sizeof(b4));
@@ -301,7 +299,7 @@ void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *bu
         memcpy(&b5, &a, sizeof(b5));
         out << b5;
       }
-    } else if (atype.unit_size == 64) {
+    } else if (akind.unit_size == 64) {
       if (is_signed) {
         long long b3;
         memcpy(&b3, &a, sizeof(b3));
@@ -310,13 +308,13 @@ void output_corresponding_type_value(u64 a, AccessType atype, std::streambuf *bu
         out << a;
       }
     }
-//    At this time, it must be float
-  } else if (atype.type == AccessType::FLOAT) {
-    if (atype.unit_size == 32) {
+  } else if (akind.data_type == REDSHOW_DATA_FLOAT) {
+    // At this time, it must be float
+    if (akind.unit_size == 32) {
       float b1;
       memcpy(&b1, &a, sizeof(b1));
       out << b1;
-    } else if (atype.unit_size == 64) {
+    } else if (akind.unit_size == 64) {
       double b2;
       memcpy(&b2, &a, sizeof(b2));
       out << b2;
@@ -342,17 +340,4 @@ u64 store2float(u64 a, int decimal_degree_f32) {
   u64 b = 0;
   memcpy(&b, &c, sizeof(c));
   return b;
-}
-
-std::string combine_type_unitsize(AccessType atype) {
-  using std::to_string;
-  switch (atype.type) {
-    case AccessType::UNKNOWN:
-      break;
-    case AccessType::INTEGER:
-      return "int" + to_string(atype.unit_size);
-    case AccessType::FLOAT:
-      return "float" + to_string(atype.unit_size);
-  }
-  return "null";
 }
