@@ -358,7 +358,8 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
           } else if (record->flags & GPU_PATCH_SHARED) {
             memory_op_id = MEMORY_ID_SHARED;
             address_offset = SHARED_MEMORY_OFFSET;
-          } else if (record->flags & GPU_PATCH_GLOBAL) {
+          } else if (record->flags != 0) {
+            // Must be either atomic or global
             address_offset = GLOBAL_MEMORY_OFFSET;
           } else {
             // Unknown allocation
