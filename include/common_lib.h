@@ -60,6 +60,18 @@ struct RealPC {
   u64 cubin_id;
   uint32_t function_index;
   u64 pc;
+
+  RealPC() {
+    cubin_id = 0;
+    function_index = 0;
+    pc = 0;
+  }
+
+  RealPC(u64 cid, uint32_t f_index, u64 pc) {
+    this->cubin_id = cid;
+    this->function_index = f_index;
+    this->pc = pc;
+  }
 };
 
 struct TopPair {
@@ -68,6 +80,16 @@ struct TopPair {
   uint64_t value;
   AccessKind kind;
   uint64_t count;
+  uint64_t to_pc_access_sum_count;
+
+  TopPair(RealPC f_pc, RealPC t_pc, u64 value, AccessKind kind, u64 count, u64 to_pc_sum) {
+    this->from_pc = f_pc;
+    this->to_pc = t_pc;
+    this->value = value;
+    this->kind = kind;
+    this->count = count;
+    this->to_pc_access_sum_count = to_pc_sum;
+  }
 };
 
 struct CompareView {

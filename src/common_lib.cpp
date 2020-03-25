@@ -56,20 +56,9 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum, redsho
         kernel_red_count += count;
         view.access_sum_count = pc_access_sum[to_pc];
         kernel_count += view.access_sum_count;
-        RealPC f_pc;
-        f_pc.function_index = 0;
-        f_pc.cubin_id = 0;
-        f_pc.pc = from_pc_iter.first;
-        RealPC t_pc;
-        t_pc.function_index = 0;
-        t_pc.cubin_id = 0;
-        t_pc.pc = to_pc;
-        TopPair apair;
-        apair.from_pc = f_pc;
-        apair.to_pc = t_pc;
-        apair.value = val;
-        apair.kind = akind;
-        apair.count = count;
+        RealPC f_pc(0, 0, from_pc_iter.first);
+        RealPC t_pc(0, 0, to_pc);
+        TopPair apair(f_pc, t_pc, val, akind, count, 0);
         if (top_views.size() < num_views_limit) {
           top_views.push(view);
           temp_top_pairs.push(apair);
@@ -119,15 +108,15 @@ show_temporal_trace(std::vector<Symbol> &symbols, u64 kernel_id, PCAccessSum &pc
   out << kernel_red_count << "," << kernel_count << "," << (double) kernel_red_count / kernel_count
       << endl;
   if (not top_pairs.empty()) {
-    out << "f_cubin_id,f_function_index,f_pc_offset,t_cubin_id,t_function_index,t_pc_offest,value,kind,num_units,count"
+    out << "cubin_id,f_function_index,f_pc_offset,t_function_index, t_pc_offest,value,kind,num_units,count,rate"
         << endl;
     for (auto &apair: top_pairs) {
       // <pc_from, pc_to, value, Accesskind, count>
       out << apair.from_pc.cubin_id << "," << apair.from_pc.function_index << "," << apair.from_pc.pc << ","
-          << apair.to_pc.cubin_id << "," << apair.to_pc.function_index << "," << apair.to_pc.pc << ",";
+          << apair.to_pc.function_index << "," << apair.to_pc.pc << ",";
       output_kind_value(apair.value, apair.kind, out.rdbuf(), true);
       out << "," << apair.kind.to_string() << ",x" << apair.kind.vec_size / apair.kind.unit_size << ","
-          << apair.count << endl;
+          << apair.count << "," << (double) apair.count / apair.to_pc_access_sum_count << endl;
     }
     out.close();
   }

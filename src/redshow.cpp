@@ -825,6 +825,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
                               kernel_red_load_count, kernel_load_count, read_top_pairs);
         // Transform pcs
         for (auto i = 0; i < record_data.num_views; ++i) {
+          read_top_pairs[i].to_pc_access_sum_count = kernel.read_pc_sum[read_top_pairs[i].to_pc.pc];
           uint64_t pc = record_data.views[i].pc_offset;
           uint32_t function_index = 0;
           uint64_t cubin_offset = 0;
@@ -832,16 +833,10 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
           transform_pc(*symbols, pc, function_index, cubin_offset, pc_offset);
           record_data.views[i].function_index = function_index;
           record_data.views[i].pc_offset = pc_offset;
-          RealPC to_realpc;
-          to_realpc.cubin_id = cubin_id;
-          to_realpc.function_index = function_index;
-          to_realpc.pc = pc_offset;
+          RealPC to_realpc(cubin_id, function_index, pc_offset);
           uint64_t from_virtual_pc = read_top_pairs[i].from_pc.pc;
           transform_pc(*symbols, from_virtual_pc, function_index, cubin_offset, pc_offset);
-          RealPC from_realpc;
-          from_realpc.cubin_id = cubin_id;
-          from_realpc.function_index = function_index;
-          from_realpc.pc = pc_offset;
+          RealPC from_realpc(cubin_id, function_index, pc_offset);
           read_top_pairs[i].from_pc = from_realpc;
           read_top_pairs[i].to_pc = to_realpc;
         }
@@ -852,6 +847,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
                               kernel_red_write_count, kernel_write_count, write_top_pairs);
         // Transform pcs
         for (auto i = 0; i < record_data.num_views; ++i) {
+          write_top_pairs[i].to_pc_access_sum_count = kernel.write_pc_sum[write_top_pairs[i].to_pc.pc];
           uint64_t pc = record_data.views[i].pc_offset;
           uint32_t function_index = 0;
           uint64_t cubin_offset = 0;
@@ -859,16 +855,10 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
           transform_pc(*symbols, pc, function_index, cubin_offset, pc_offset);
           record_data.views[i].function_index = function_index;
           record_data.views[i].pc_offset = pc_offset;
-          RealPC to_realpc;
-          to_realpc.cubin_id = cubin_id;
-          to_realpc.function_index = function_index;
-          to_realpc.pc = pc_offset;
+          RealPC to_realpc(cubin_id, function_index, pc_offset);
           uint64_t from_virtual_pc = write_top_pairs[i].from_pc.pc;
           transform_pc(*symbols, from_virtual_pc, function_index, cubin_offset, pc_offset);
-          RealPC from_realpc;
-          from_realpc.cubin_id = cubin_id;
-          from_realpc.function_index = function_index;
-          from_realpc.pc = pc_offset;
+          RealPC from_realpc(cubin_id, function_index, pc_offset);
           write_top_pairs[i].from_pc = from_realpc;
           write_top_pairs[i].to_pc = to_realpc;
         }
