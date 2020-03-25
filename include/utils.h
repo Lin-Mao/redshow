@@ -4,6 +4,10 @@
 #include <tuple>
 #include <string>
 
+typedef int8_t i8;
+typedef int32_t i32;
+typedef int64_t i64;
+
 typedef uint8_t u8;
 typedef uint32_t u32;
 typedef uint64_t u64;
@@ -26,5 +30,9 @@ const int HIGH_DOUBLE_DIGITS = 28;
 
 const int MAX_FLOAT_DIGITS = 8;
 const int MAX_DOUBLE_DIGITS = 22;
+
+const int SHARED_MEMORY_OFFSET = 4;
+const int LOCAL_MEMORY_OFFSET = 4;
+const int GLOBAL_MEMORY_OFFSET = 8;
 
 #endif  // REDSHOW_UTILS_H

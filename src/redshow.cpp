@@ -349,12 +349,17 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
           memory_op_id = iter->second.memory_op_id;
         }
 
+        uint32_t address_offset = 0;
         if (memory_op_id == 0 || memory_op_id == 1) {
           // It means the memory is local, shared, or allocated in an unknown way
           if (record->flags & GPU_PATCH_LOCAL) {
             memory_op_id = MEMORY_ID_LOCAL;
+            address_offset = LOCAL_MEMORY_OFFSET;
           } else if (record->flags & GPU_PATCH_SHARED) {
             memory_op_id = MEMORY_ID_SHARED;
+            address_offset = SHARED_MEMORY_OFFSET;
+          } else if (record->flags & GPU_PATCH_GLOBAL) {
+            address_offset = GLOBAL_MEMORY_OFFSET;
           } else {
             // Unknown allocation
           }
@@ -390,10 +395,10 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
               }
             } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
               if (record->flags & GPU_PATCH_READ) {
-                get_temporal_trace(record->pc, thread_id, record->address[j], value, unit_access_kind,
+                get_temporal_trace(record->pc, thread_id, record->address[j] + m * address_offset, value, unit_access_kind,
                                    read_temporal_trace, read_pc_pairs);
               } else {
-                get_temporal_trace(record->pc, thread_id, record->address[j], value, unit_access_kind,
+                get_temporal_trace(record->pc, thread_id, record->address[j] + m * address_offset, value, unit_access_kind,
                                    write_temporal_trace, write_pc_pairs);
               }
             } else {
