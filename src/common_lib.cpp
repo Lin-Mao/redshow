@@ -142,8 +142,8 @@ void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessSum &pc_access_su
       // vale_iter: {value: counter}
       for (auto &val_iter : pc_iter.second) {
         auto count = val_iter.second;
-        spatial_statistic[memory_iter.first][val_iter.first] = count;
-        thread_spatial_statistic[memory_iter.first][val_iter.first] = count;
+        spatial_statistic[memory_iter.first][val_iter.first] += count;
+        thread_spatial_statistic[memory_iter.first][val_iter.first] += count;
         redshow_record_view_t view;
         view.pc_offset = pc;
         view.memory_id = 0;
