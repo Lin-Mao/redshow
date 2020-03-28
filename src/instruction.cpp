@@ -299,6 +299,16 @@ bool parse_instructions(const std::string &file_path,
     default_access_kind(inst); 
   }
 
+#ifdef DEBUG_INSTRUCTION
+  // Analyze memory instruction's access kind
+  for (auto iter = inst_graph.nodes_begin(); iter != inst_graph.nodes_end(); ++iter) {
+    auto &inst = iter->second;
+    if (inst.op.find(".SHARED") != std::string::npos) {
+      std::cout << std::hex << inst.pc << " " << inst.access_kind->to_string() << std::dec << std::endl;
+    }
+  }
+#endif
+
   return true;
 }
 
