@@ -108,15 +108,15 @@ show_temporal_trace(std::vector<Symbol> &symbols, u64 kernel_id, PCAccessSum &pc
   out << kernel_red_count << "," << kernel_count << "," << (double) kernel_red_count / kernel_count
       << endl;
   if (not top_pairs.empty()) {
-    out << "cubin_id,f_function_index,f_pc_offset,t_function_index, t_pc_offest,value,kind,num_units,count,rate"
+    out << "cubin_id,f_function_index,f_pc_offset,t_function_index, t_pc_offest,value,data_type,vector_size,unit_size,count,rate"
         << endl;
     for (auto &apair: top_pairs) {
       // <pc_from, pc_to, value, Accesskind, count>
       out << apair.from_pc.cubin_id << "," << apair.from_pc.function_index << "," << apair.from_pc.pc << ","
           << apair.to_pc.function_index << "," << apair.to_pc.pc << ",";
       output_kind_value(apair.value, apair.kind, out.rdbuf(), true);
-      out << "," << apair.kind.to_string() << ",x" << apair.kind.vec_size / apair.kind.unit_size << ","
-          << apair.count << "," << (double) apair.count / apair.to_pc_access_sum_count << endl;
+      out << "," << apair.kind.to_string() << "," << apair.count << "," <<
+        (double) apair.count / apair.to_pc_access_sum_count << endl;
     }
     out.close();
   }
@@ -136,6 +136,8 @@ void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessSum &pc_access_su
   TopViews top_views;
   // memory_iter: {<memory_op_id, AccessKind> : {pc: {value: counter}}}
   for (auto &memory_iter : spatial_trace) {
+    // Only return the toppest value for a pc
+    std::map<uint64_t, uint64_t> top_pc_count;
     // pc_iter: {pc: {value: counter}}
     for (auto &pc_iter : memory_iter.second) {
       auto pc = pc_iter.first;
@@ -149,13 +151,16 @@ void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessSum &pc_access_su
         view.memory_id = 0;
         view.count = count;
         view.access_sum_count = pc_access_sum[pc];
-        if (top_views.size() < num_views_limit) {
-          top_views.push(view);
-        } else {
-          auto &top = top_views.top();
-          if (top.count < view.count) {
-            top_views.pop();
+        if (count > top_pc_count[pc]) {
+          top_pc_count[pc] = count;
+          if (top_views.size() < num_views_limit) {
             top_views.push(view);
+          } else {
+            auto &top = top_views.top();
+            if (top.count < view.count) {
+              top_views.pop();
+              top_views.push(view);
+            }
           }
         }
       }
@@ -209,7 +214,7 @@ show_spatial_trace(uint32_t thread_id, uint64_t kernel_id, SpatialStatistic &spa
       }
     }
     out << "sum_count," << all_count << endl;
-    out << "value,count,rate,kind,num_units" << endl;
+    out << "value,count,rate,data_type,vector_size,unit_size" << endl;
     // write to file
     while (not top_statistic.empty()) {
       auto top = top_statistic.top();
@@ -219,8 +224,7 @@ show_spatial_trace(uint32_t thread_id, uint64_t kernel_id, SpatialStatistic &spa
       auto akind = get<2>(top);
       output_kind_value(value, akind, out.rdbuf(), true);
       // out<<std::hex<<get<0>(top)<<std::dec;
-      out << "," << count << "," << (double) count / all_count << "," << akind.to_string() << ",x"
-          << akind.vec_size / akind.unit_size << endl;
+      out << "," << count << "," << (double) count / all_count << "," << akind.to_string() << endl;
     }
   }
   out.close();
