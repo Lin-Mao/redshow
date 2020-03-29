@@ -45,7 +45,6 @@ struct AccessKind {
 
   std::string to_string() {
     std::stringstream ss;
-    ss << "{";
     if (data_type == REDSHOW_DATA_UNKNOWN) {
       ss << "UNKNOWN";
     } else if (data_type == REDSHOW_DATA_INT) {
@@ -53,8 +52,8 @@ struct AccessKind {
     } else if (data_type == REDSHOW_DATA_FLOAT) {
       ss << "FLOAT";
     }
-    ss << ", v: " << vec_size;
-    ss << ", u: " << unit_size << "}";
+    ss << ",v:" << vec_size;
+    ss << ",u:" << unit_size;
     return ss.str();
   }
 
