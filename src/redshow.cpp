@@ -138,7 +138,7 @@ enum {
 };
 
 
-static redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
+static redshow_result_t analyze_cubin(const char *path, std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
   std::string cubin_path = std::string(path);
@@ -568,7 +568,7 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, ui
 
   InstructionGraph inst_graph;
   std::vector<Symbol> symbols(nsymbols);
-  result = cubin_analyze(path, symbols, inst_graph);
+  result = analyze_cubin(path, symbols, inst_graph);
 
   if (result == REDSHOW_SUCCESS || result == REDSHOW_ERROR_NO_SUCH_FILE) {
     // We must have found an instruction file, no matter nvdisasm failed or not
@@ -819,7 +819,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
 
   kernel_map_lock.unlock();
 
-  record_data.views = new redshow_record_view_t[pc_views_limit];
+  record_data.views = new redshow_record_view_t[pc_views_limit]();
 
   for (auto &kernel_iter : thread_kernel_map) {
     auto kernel_id = kernel_iter.first;

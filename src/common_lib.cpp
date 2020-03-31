@@ -47,6 +47,7 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessCount &pc_access_count, u3
     view.pc_offset = to_pc;
     view.memory_op_id = 0;
     view.memory_id = 0;
+    view.red_count = 0;
     view.access_count = pc_access_count[view.pc_offset];
 
     for (auto &from_pc_iter : to_pc_iter.second) {
