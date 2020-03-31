@@ -41,81 +41,78 @@ struct ThreadId {
   }
 };
 
+struct RealPC {
+  u32 cubin_id;
+  u32 function_index;
+  u64 pc_offset;
+
+  RealPC(u32 cubin_id, u32 function_index, u64 pc_offset) :
+    cubin_id(cubin_id), function_index(function_index), pc_offset(pc_offset) {}
+
+  RealPC() : RealPC(0, 0, 0) {}
+
+  bool operator < (const RealPC &other) const {
+    if (this->cubin_id == other.cubin_id) {
+      if (this->function_index == other.function_index) {
+        return this->pc_offset < other.pc_offset;
+      }
+      return this->function_index < other.function_index;
+    }
+    return this->cubin_id < other.cubin_id;
+
+  }
+};
+
+struct RealPCPair {
+  RealPC to_pc;
+  RealPC from_pc;
+  u64 value;
+  AccessKind access_kind;
+  u64 red_count;
+  u64 access_count;
+
+  RealPCPair() = default;
+
+  RealPCPair(RealPC &to_pc, u64 value, AccessKind &access_kind, u64 red_count, u64 access_count) :
+    to_pc(to_pc), value(value), access_kind(access_kind), red_count(red_count), access_count(access_count) {}
+
+  RealPCPair(RealPC &to_pc, RealPC &from_pc, u64 value, AccessKind &access_kind, u64 red_count, u64 access_count) :
+    to_pc(to_pc), from_pc(from_pc), value(value), access_kind(access_kind), red_count(red_count), access_count(access_count) {}
+};
+
 // {<memory_op_id, AccessKind> : {pc: {value: count}}}
 typedef std::map<std::pair<u64, AccessKind>, std::map<u64, std::map<u64, u64>>> SpatialTrace;
 
-// {memory_op_id: {value: count}}
-typedef std::map<std::pair<u64, AccessKind>, std::map<u64, u64>> SpatialStatistic;
+// {<memory_op_id> : {pc: [RealPCPair]}}
+typedef std::map<u64, std::map<u64, std::vector<RealPCPair>>> SpatialStatistics;
 
 // {ThreadId : {address : {<pc, value>}}}
 typedef std::map<ThreadId, std::map<u64, std::pair<u64, u64>>> TemporalTrace;
 
+// {pc : [RealPCPair]}
+typedef std::map<u64, std::vector<RealPCPair>> TemporalStatistics;
+
 // {pc1 : {pc2 : {<value, AccessKind> : count}}}
 typedef std::map<u64, std::map<u64, std::map<std::pair<u64, AccessKind>, u64>>> PCPairs;
 
-// {pc: access_sum_count}
-typedef std::map<u64, u64> PCAccessSum;
+// {pc: access_count}
+typedef std::map<u64, u64> PCAccessCount;
 
-struct RealPC {
-  u64 cubin_id;
-  uint32_t function_index;
-  u64 pc;
-
-  RealPC() {
-    cubin_id = 0;
-    function_index = 0;
-    pc = 0;
-  }
-
-  RealPC(u64 cid, uint32_t f_index, u64 pc) {
-    this->cubin_id = cid;
-    this->function_index = f_index;
-    this->pc = pc;
+struct CompareRealPCPair {
+  bool operator()(RealPCPair const &r1, RealPCPair const &r2) {
+    return r1.red_count > r2.red_count;
   }
 };
 
-struct TopPair {
-  RealPC from_pc;
-  RealPC to_pc;
-  uint64_t value;
-  AccessKind kind;
-  uint64_t count;
-  uint64_t to_pc_access_sum_count;
-
-  TopPair(RealPC f_pc, RealPC t_pc, u64 value, AccessKind kind, u64 count, u64 to_pc_sum) {
-    this->from_pc = f_pc;
-    this->to_pc = t_pc;
-    this->value = value;
-    this->kind = kind;
-    this->count = count;
-    this->to_pc_access_sum_count = to_pc_sum;
-  }
-};
+typedef std::priority_queue<RealPCPair, std::vector<RealPCPair>, CompareRealPCPair> TopRealPCPairs;
 
 struct CompareView {
-  bool operator()(redshow_record_view_t const &d1, redshow_record_view_t const &d2) {
-    return d1.count > d2.count;
-  }
-};
-
-struct CompareStatistic {
-  bool operator()(std::tuple<u64, u64, AccessKind> const &d1, std::tuple<u64, u64, AccessKind> const &d2) {
-    return std::get<1>(d1) > std::get<1>(d2);
-  }
-};
-
-struct CompareTopPairs {
-  bool operator()(TopPair const &d1, TopPair const &d2) {
-    return d1.count > d2.count;
+  bool operator()(redshow_record_view_t const &r1, redshow_record_view_t const &r2) {
+    return r1.red_count > r2.red_count;
   }
 };
 
 typedef std::priority_queue<redshow_record_view_t, std::vector<redshow_record_view_t>, CompareView> TopViews;
-// {value, count, AccessKind}
-typedef std::priority_queue<std::tuple<u64, u64, AccessKind>,
-    std::vector<std::tuple<u64, u64, AccessKind>>, CompareStatistic> TopStatistic;
-// <pc_from, pc_to, value, AccessKind, count>
-typedef std::priority_queue<TopPair, std::vector<TopPair>, CompareTopPairs> TopPairs;
 
 /*
  * Interface:
@@ -167,13 +164,13 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessKind ac
  * num_views_limit:
  * Number of entries the runtime needs to know
  */
-void record_temporal_trace(PCPairs &pc_pairs, PCAccessSum &pc_access_sum, redshow_record_data_t &record_data,
-                           uint32_t num_views_limit, uint64_t &kernel_red_count, uint64_t &kernel_count,
-                           std::vector<TopPair> &top_pairs);
+void record_temporal_trace(PCPairs &pc_pairs, PCAccessCount &pc_access_count,
+                           u32 pc_views_limit, u32 mem_views_limit,
+                           redshow_record_data_t &record_data, TemporalStatistics &temporal_stats,
+                           u64 &kernel_red_count, u64 &kernel_access_count);
 
-void show_temporal_trace(std::vector<Symbol> &symbols, u64 kernel_id, PCAccessSum &pc_access_sum,
-                         bool is_read, uint32_t num_views_limit, uint32_t thread_id, uint64_t &kernel_red_count,
-                         uint64_t &kernel_count, std::vector<TopPair> &top_pairs);
+void show_temporal_trace(u32 thread_id, u64 kernel_id, TemporalStatistics &temporal_stats, bool is_read,
+                         u64 kernel_red_count, u64 kernel_total_count);
 
 /*
  * Analyze spatial trace
@@ -206,19 +203,18 @@ void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_ki
  * num_views_limit:
  * Number of entries the runtime needs to know
  */
-void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessSum &pc_access_sum,
-                          redshow_record_data_t &record_data, uint32_t num_views_limit,
-                          SpatialStatistic &spatial_statistic, SpatialStatistic &thread_spatial_statistic);
+void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessCount &pc_access_count,
+                          u32 pc_views_limit, u32 mem_views_limit,
+                          redshow_record_data_t &record_data, SpatialStatistics &spatial_stats);
 
 /**
  * Write array's value statistic data into files.
  * @arg thread_id: cpu thread id
  * @arg spatial_statistic: {memory_op_id: {value: count}}
- * @arg num_write_limit: numer of entries will be written into files.
+ * @arg num_views_limit: numer of entries will be written into files.
  * @arg is_read: the spatial_statistic is for reading or writing accesses.
  * */
-void show_spatial_trace(uint32_t thread_id, uint64_t kernel_id, SpatialStatistic &spatial_statistic,
-                        uint32_t num_write_limit, bool is_read, bool is_kernel);
+void show_spatial_trace(u32 thread_id, u64 kernel_id, SpatialStatistics &spatial_stats, bool is_read);
 
 /**
  * Use decimal_degree_f32 bits to cut the valid floating number bits.

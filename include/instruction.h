@@ -57,14 +57,14 @@ struct AccessKind {
     return ss.str();
   }
 
-  bool operator<(const AccessKind &b) const {
-    if (this->vec_size == b.vec_size) {
-      if (this->unit_size == b.unit_size) {
-        return this->data_type < b.data_type;
+  bool operator<(const AccessKind &other) const {
+    if (this->vec_size == other.vec_size) {
+      if (this->unit_size == other.unit_size) {
+        return this->data_type < other.data_type;
       }
-      return this->unit_size < b.unit_size;
+      return this->unit_size < other.unit_size;
     }
-    return this->vec_size < b.vec_size;
+    return this->vec_size < other.vec_size;
   }
 
 };
