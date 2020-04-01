@@ -34,7 +34,8 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessKind ac
 }
 
 
-void record_temporal_trace(PCPairs &pc_pairs, PCAccessCount &pc_access_count, u32 pc_views_limit, u32 mem_views_limit,
+void record_temporal_trace(PCPairs &pc_pairs, PCAccessCount &pc_access_count,
+                           u32 pc_views_limit, u32 mem_views_limit,
                            redshow_record_data_t &record_data, TemporalStatistics &temporal_stats,
                            u64 &kernel_red_count, u64 &kernel_access_count) {
   // Pick top record data views
@@ -112,7 +113,6 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessCount &pc_access_count, u3
     top_views.pop();
     ++num_views;
   }
-
   record_data.num_views = num_views;
 }
 
@@ -131,9 +131,9 @@ show_temporal_trace(u32 thread_id, u64 kernel_id, TemporalStatistics &temporal_s
   out << "redundant access count,total access count,redundancy rate" << endl;
   out << kernel_red_count << "," << kernel_total_count << "," << (double) kernel_red_count / kernel_total_count
       << endl;
-  out << "cubin_id,f_function_index,f_pc_offset,t_function_index,t_pc_offest,value,data_type,vector_size,unit_size,count,rate"
-    << endl;
   for (auto temp_iter : temporal_stats) {
+    out << "cubin_id,f_function_index,f_pc_offset,t_function_index,t_pc_offest,value,data_type,vector_size,unit_size,count,rate"
+      << endl;
     for (auto &real_pc_pair : temp_iter.second) {
       auto to_real_pc = real_pc_pair.to_pc;
       auto from_real_pc = real_pc_pair.from_pc;
