@@ -10,13 +10,15 @@
 #endif
 
 typedef enum redshow_analysis_type {
-  REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY = 0,
-  REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY = 1,
+  REDSHOW_ANALYSIS_UNKNOWN = 0,
+  REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY = 1,
+  REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY = 2
 } redshow_analysis_type_t;
 
 typedef enum redshow_access_type {
-  REDSHOW_ACCESS_READ = 0,
-  REDSHOW_ACCESS_WRITE = 1
+  REDSHOW_ACCESS_UNKNOWN = 0,
+  REDSHOW_ACCESS_READ = 1,
+  REDSHOW_ACCESS_WRITE = 2
 } redshow_access_type_t;
 
 typedef enum redshow_data_type {
@@ -51,8 +53,9 @@ typedef struct redshow_record_view {
   uint32_t function_index;
   uint64_t pc_offset;
   uint64_t memory_id;
-  uint64_t count;
-  uint64_t access_sum_count;
+  uint64_t memory_op_id;
+  uint64_t red_count;
+  uint64_t access_count;
 } redshow_record_view_t;
 
 typedef struct redshow_record_data {

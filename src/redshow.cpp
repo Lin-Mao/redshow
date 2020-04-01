@@ -20,9 +20,6 @@
 #define PRINT(...)
 #endif
 
-#define MIN2(x, y) (x > y ? y : x)
-#define MAX2(x, y) (x > y ? x : y)
-
 /*
  * Global data structures
  */
@@ -105,10 +102,10 @@ struct Kernel {
 
   TemporalTrace read_temporal_trace;
   PCPairs read_pc_pairs;
-  PCAccessSum read_pc_sum;
+  PCAccessCount read_pc_count;
   TemporalTrace write_temporal_trace;
   PCPairs write_pc_pairs;
-  PCAccessSum write_pc_sum;
+  PCAccessCount write_pc_count;
 
   Kernel() = default;
 
@@ -141,7 +138,7 @@ enum {
 };
 
 
-redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
+static redshow_result_t analyze_cubin(const char *path, std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
   std::string cubin_path = std::string(path);
@@ -175,8 +172,8 @@ redshow_result_t cubin_analyze(const char *path, std::vector<Symbol> &symbols, I
 }
 
 
-redshow_result_t transform_pc(std::vector<Symbol> &symbols, uint64_t pc,
-                              uint32_t &function_index, uint64_t &cubin_offset, uint64_t &pc_offset) {
+static redshow_result_t transform_pc(std::vector<Symbol> &symbols, uint64_t pc,
+                                     uint32_t &function_index, uint64_t &cubin_offset, uint64_t &pc_offset) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
   Symbol symbol(pc);
@@ -196,7 +193,65 @@ redshow_result_t transform_pc(std::vector<Symbol> &symbols, uint64_t pc,
 }
 
 
-redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_buffer_t *trace_data) {
+static redshow_result_t transform_data_views(std::vector<Symbol> &symbols, redshow_record_data_t &record_data) {
+  // Transform pcs
+  for (auto i = 0; i < record_data.num_views; ++i) {
+    uint64_t pc = record_data.views[i].pc_offset;
+    uint32_t function_index = 0;
+    uint64_t cubin_offset = 0;
+    uint64_t pc_offset = 0;
+    transform_pc(symbols, pc, function_index, cubin_offset, pc_offset);
+    record_data.views[i].function_index = function_index;
+    record_data.views[i].pc_offset = pc_offset;
+  }
+}
+
+
+static redshow_result_t transform_temporal_statistics(uint32_t cubin_id,
+  std::vector<Symbol> &symbols, TemporalStatistics &temporal_stats) {
+  for (auto &temp_stat_iter : temporal_stats) {
+    for (auto &real_pc_pair : temp_stat_iter.second) {
+      auto &to_real_pc = real_pc_pair.to_pc;
+      auto &from_real_pc = real_pc_pair.from_pc;
+      uint32_t function_index = 0;
+      uint64_t cubin_offset = 0;
+      uint64_t pc_offset = 0;
+      // to_real_pc
+      transform_pc(symbols, to_real_pc.pc_offset, function_index, cubin_offset, pc_offset);
+      to_real_pc.cubin_id = cubin_id;
+      to_real_pc.function_index = function_index;
+      to_real_pc.pc_offset = pc_offset;
+      // from_real_pc
+      transform_pc(symbols, from_real_pc.pc_offset, function_index, cubin_offset, pc_offset);
+      from_real_pc.cubin_id = cubin_id;
+      from_real_pc.function_index = function_index;
+      from_real_pc.pc_offset = pc_offset;
+    }
+  }
+}
+
+
+static redshow_result_t transform_spatial_statistics(uint32_t cubin_id,
+  std::vector<Symbol> &symbols, SpatialStatistics &spatial_stats) {
+  for (auto &spatial_stat_iter : spatial_stats) {
+    for (auto &pc_iter : spatial_stat_iter.second) {
+      for (auto &real_pc_pair : pc_iter.second) {
+        auto &to_real_pc = real_pc_pair.to_pc;
+        uint32_t function_index = 0;
+        uint64_t cubin_offset = 0;
+        uint64_t pc_offset = 0;
+        // to_real_pc
+        transform_pc(symbols, to_real_pc.pc_offset, function_index, cubin_offset, pc_offset);
+        to_real_pc.cubin_id = cubin_id;
+        to_real_pc.function_index = function_index;
+        to_real_pc.pc_offset = pc_offset;
+      }
+    }
+  }
+}
+
+
+static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
   auto cubin_id = kernel.cubin_id;
@@ -206,8 +261,8 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
   auto &read_pc_pairs = kernel.read_pc_pairs;
   auto &write_temporal_trace = kernel.write_temporal_trace;
   auto &write_pc_pairs = kernel.write_pc_pairs;
-  auto &read_pc_sum = kernel.read_pc_sum;
-  auto &write_pc_sum = kernel.write_pc_sum;
+  auto &read_pc_count = kernel.read_pc_count;
+  auto &write_pc_count = kernel.write_pc_count;
   std::vector<Symbol> *symbols = NULL;
   InstructionGraph *inst_graph = NULL;
   // Cubin path is added just for debugging purpose
@@ -376,9 +431,9 @@ redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_bu
         unit_access_kind.vec_size = unit_access_kind.unit_size;
 
         if (record->flags & GPU_PATCH_READ) {
-          read_pc_sum[record->pc] += num_units;
+          read_pc_count[record->pc] += num_units;
         } else {
-          write_pc_sum[record->pc] += num_units;
+          write_pc_count[record->pc] += num_units;
         }
 
         for (size_t m = 0; m < num_units; m++) {
@@ -513,7 +568,7 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, ui
 
   InstructionGraph inst_graph;
   std::vector<Symbol> symbols(nsymbols);
-  result = cubin_analyze(path, symbols, inst_graph);
+  result = analyze_cubin(path, symbols, inst_graph);
 
   if (result == REDSHOW_SUCCESS || result == REDSHOW_ERROR_NO_SUCH_FILE) {
     // We must have found an instruction file, no matter nvdisasm failed or not
@@ -764,135 +819,89 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
 
   kernel_map_lock.unlock();
 
-  record_data.views = new redshow_record_view_t[pc_views_limit];
-
-  SpatialStatistic thread_spatial_read_statistic;
-  SpatialStatistic thread_spatial_write_statistic;
+  record_data.views = new redshow_record_view_t[pc_views_limit]();
 
   for (auto &kernel_iter : thread_kernel_map) {
     auto kernel_id = kernel_iter.first;
     auto &kernel = kernel_iter.second;
     auto cubin_id = kernel.cubin_id;
     auto cubin_offset = 0;
-    SpatialStatistic kernel_spatial_read_statistic;
-    SpatialStatistic kernel_spatial_write_statistic;
-    u64 kernel_red_load_count = 0;
+    u64 kernel_red_read_count = 0;
     u64 kernel_red_write_count = 0;
-    u64 kernel_load_count = 0;
+    u64 kernel_read_count = 0;
     u64 kernel_write_count = 0;
-    std::vector<TopPair> read_top_pairs;
-    std::vector<TopPair> write_top_pairs;
-    std::vector<Symbol> *symbols = &(cubin_map[cubin_id].symbols);
+    SpatialStatistics read_spatial_stats;
+    SpatialStatistics write_spatial_stats;
+    TemporalStatistics read_temporal_stats;
+    TemporalStatistics write_temporal_stats;
+    std::vector<Symbol> &symbols = cubin_map[cubin_id].symbols;
 
     for (auto analysis : analysis_enabled) {
       if (analysis == REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) {
         record_data.analysis_type = REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY;
-        // Read
+        // read
         record_data.access_type = REDSHOW_ACCESS_READ;
-        record_spatial_trace(kernel.read_spatial_trace, kernel.read_pc_sum, record_data, pc_views_limit,
-                             kernel_spatial_read_statistic, thread_spatial_read_statistic);
+        record_spatial_trace(kernel.read_spatial_trace, kernel.read_pc_count,
+                             pc_views_limit, mem_views_limit,
+                             record_data, read_spatial_stats);
         // Transform pcs
-        for (auto i = 0; i < record_data.num_views; ++i) {
-          uint64_t pc = record_data.views[i].pc_offset;
-          uint32_t function_index = 0;
-          uint64_t cubin_offset = 0;
-          uint64_t pc_offset = 0;
-          transform_pc(*symbols, pc, function_index, cubin_offset, pc_offset);
-          record_data.views[i].function_index = function_index;
-          record_data.views[i].pc_offset = pc_offset;
-        }
+        transform_data_views(symbols, record_data);
         record_data_callback(cubin_id, kernel_id, &record_data);
+        transform_spatial_statistics(cubin_id, symbols, read_spatial_stats);
+
         // Write
         record_data.access_type = REDSHOW_ACCESS_WRITE;
-        record_spatial_trace(kernel.write_spatial_trace, kernel.write_pc_sum, record_data, pc_views_limit,
-                             kernel_spatial_write_statistic, thread_spatial_write_statistic);
+        record_spatial_trace(kernel.write_spatial_trace, kernel.write_pc_count,
+                             pc_views_limit, mem_views_limit,
+                             record_data, write_spatial_stats);
         // Transform pcs
-        for (auto i = 0; i < record_data.num_views; ++i) {
-          uint64_t pc = record_data.views[i].pc_offset;
-          uint32_t function_index = 0;
-          uint64_t cubin_offset = 0;
-          uint64_t pc_offset = 0;
-          transform_pc(*symbols, pc, function_index, cubin_offset, pc_offset);
-          record_data.views[i].function_index = function_index;
-          record_data.views[i].pc_offset = pc_offset;
-        }
+        transform_data_views(symbols, record_data);
         record_data_callback(cubin_id, kernel_id, &record_data);
+        transform_spatial_statistics(cubin_id, symbols, write_spatial_stats);
       } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
         record_data.analysis_type = REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY;
         // Read
         record_data.access_type = REDSHOW_ACCESS_READ;
-        record_temporal_trace(kernel.read_pc_pairs, kernel.read_pc_sum, record_data, pc_views_limit,
-                              kernel_red_load_count, kernel_load_count, read_top_pairs);
-        // Transform pcs
-        for (auto i = 0; i < record_data.num_views; ++i) {
-          read_top_pairs[i].to_pc_access_sum_count = kernel.read_pc_sum[read_top_pairs[i].to_pc.pc];
-          uint64_t pc = record_data.views[i].pc_offset;
-          uint32_t function_index = 0;
-          uint64_t cubin_offset = 0;
-          uint64_t pc_offset = 0;
-          transform_pc(*symbols, pc, function_index, cubin_offset, pc_offset);
-          record_data.views[i].function_index = function_index;
-          record_data.views[i].pc_offset = pc_offset;
-          RealPC to_realpc(cubin_id, function_index, pc_offset);
-          uint64_t from_virtual_pc = read_top_pairs[i].from_pc.pc;
-          transform_pc(*symbols, from_virtual_pc, function_index, cubin_offset, pc_offset);
-          RealPC from_realpc(cubin_id, function_index, pc_offset);
-          read_top_pairs[i].from_pc = from_realpc;
-          read_top_pairs[i].to_pc = to_realpc;
-        }
+        record_temporal_trace(kernel.read_pc_pairs, kernel.read_pc_count,
+                              pc_views_limit, mem_views_limit, 
+                              record_data, read_temporal_stats,
+                              kernel_red_read_count, kernel_read_count);
+
+        transform_data_views(symbols, record_data);
         record_data_callback(cubin_id, kernel_id, &record_data);
+        transform_temporal_statistics(cubin_id, symbols, read_temporal_stats);
+
         // Write
         record_data.access_type = REDSHOW_ACCESS_WRITE;
-        record_temporal_trace(kernel.write_pc_pairs, kernel.write_pc_sum, record_data, pc_views_limit,
-                              kernel_red_write_count, kernel_write_count, write_top_pairs);
-        // Transform pcs
-        for (auto i = 0; i < record_data.num_views; ++i) {
-          write_top_pairs[i].to_pc_access_sum_count = kernel.write_pc_sum[write_top_pairs[i].to_pc.pc];
-          uint64_t pc = record_data.views[i].pc_offset;
-          uint32_t function_index = 0;
-          uint64_t cubin_offset = 0;
-          uint64_t pc_offset = 0;
-          transform_pc(*symbols, pc, function_index, cubin_offset, pc_offset);
-          record_data.views[i].function_index = function_index;
-          record_data.views[i].pc_offset = pc_offset;
-          RealPC to_realpc(cubin_id, function_index, pc_offset);
-          uint64_t from_virtual_pc = write_top_pairs[i].from_pc.pc;
-          transform_pc(*symbols, from_virtual_pc, function_index, cubin_offset, pc_offset);
-          RealPC from_realpc(cubin_id, function_index, pc_offset);
-          write_top_pairs[i].from_pc = from_realpc;
-          write_top_pairs[i].to_pc = to_realpc;
-        }
-        record_data_callback(cubin_id, kernel_id, &record_data);
-      }
-    }
+        record_temporal_trace(kernel.write_pc_pairs, kernel.write_pc_count,
+                              pc_views_limit, mem_views_limit,
+                              record_data, write_temporal_stats,
+                              kernel_red_write_count, kernel_write_count);
 
-    if (pc_views_limit != 0) {
-      if (kernel_load_count != 0) {
-        show_temporal_trace(*symbols, kernel_id, kernel.read_pc_sum, true, pc_views_limit,
-                            thread_id, kernel_red_load_count, kernel_load_count, read_top_pairs);
-      }
-      if (kernel_write_count != 0) {
-        show_temporal_trace(*symbols, kernel_id, kernel.write_pc_sum, false, pc_views_limit,
-                            thread_id, kernel_red_write_count, kernel_write_count, write_top_pairs);
+        transform_data_views(symbols, record_data);
+        record_data_callback(cubin_id, kernel_id, &record_data);
+        transform_temporal_statistics(cubin_id, symbols, write_temporal_stats);
       }
     }
 
     if (mem_views_limit != 0) {
-      if (!kernel_spatial_read_statistic.empty()) {
-        show_spatial_trace(thread_id, kernel_id, kernel_spatial_read_statistic, mem_views_limit, true, true);
+      if (kernel_read_count != 0) {
+        show_temporal_trace(thread_id, kernel_id, read_temporal_stats, true,
+                            kernel_red_read_count, kernel_read_count);
       }
-      if (!kernel_spatial_write_statistic.empty()) {
-        show_spatial_trace(thread_id, kernel_id, kernel_spatial_write_statistic, mem_views_limit, false, true);
+      if (kernel_write_count != 0) {
+        show_temporal_trace(thread_id, kernel_id, write_temporal_stats, false,
+                            kernel_red_write_count, kernel_write_count);
       }
     }
-  }
 
-  if (mem_views_limit != 0) {
-    if (!thread_spatial_read_statistic.empty()) {
-      show_spatial_trace(thread_id, 0, thread_spatial_read_statistic, mem_views_limit, true, false);
-    }
-    if (!thread_spatial_write_statistic.empty()) {
-      show_spatial_trace(thread_id, 0, thread_spatial_write_statistic, mem_views_limit, false, false);
+    if (mem_views_limit != 0) {
+      if (!read_spatial_stats.empty()) {
+        show_spatial_trace(thread_id, kernel_id, read_spatial_stats, true);
+      }
+      if (!write_spatial_stats.empty()) {
+        show_spatial_trace(thread_id, kernel_id, write_spatial_stats, false);
+      }
     }
   }
 
