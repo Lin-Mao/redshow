@@ -76,32 +76,34 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessCount &pc_access_count,
   while (!top_views.empty()) {
     auto &view = top_views.top();
 
-    TopRealPCPairs top_real_pc_pairs;
-    RealPC to_pc(0, 0, view.pc_offset);
-    for (auto &from_pc_iter : pc_pairs[to_pc.pc_offset]) {
-      RealPC from_pc(0, 0, from_pc_iter.first);
-      for (auto &val_iter : from_pc_iter.second) {
-        auto val = val_iter.first.first;
-        auto akind = val_iter.first.second;
-        auto count = val_iter.second;
+    if (mem_views_limit != 0) {
+      TopRealPCPairs top_real_pc_pairs;
+      RealPC to_pc(0, 0, view.pc_offset);
+      for (auto &from_pc_iter : pc_pairs[to_pc.pc_offset]) {
+        RealPC from_pc(0, 0, from_pc_iter.first);
+        for (auto &val_iter : from_pc_iter.second) {
+          auto val = val_iter.first.first;
+          auto akind = val_iter.first.second;
+          auto count = val_iter.second;
 
-        RealPCPair real_pc_pair(to_pc, from_pc, val, akind, count, view.access_count);
-        if (top_real_pc_pairs.size() < mem_views_limit) {
-          top_real_pc_pairs.push(real_pc_pair);
-        } else {
-          auto &top = top_real_pc_pairs.top();
-          if (top.red_count < real_pc_pair.red_count) {
-            top_real_pc_pairs.pop();
+          RealPCPair real_pc_pair(to_pc, from_pc, val, akind, count, view.access_count);
+          if (top_real_pc_pairs.size() < mem_views_limit) {
             top_real_pc_pairs.push(real_pc_pair);
+          } else {
+            auto &top = top_real_pc_pairs.top();
+            if (top.red_count < real_pc_pair.red_count) {
+              top_real_pc_pairs.pop();
+              top_real_pc_pairs.push(real_pc_pair);
+            }
           }
         }
       }
-    }
 
-    while (top_real_pc_pairs.empty() == false) {
-      auto real_pc_pair = top_real_pc_pairs.top();
-      temporal_stats[view.pc_offset].push_back(real_pc_pair);
-      top_real_pc_pairs.pop();
+      while (top_real_pc_pairs.empty() == false) {
+        auto real_pc_pair = top_real_pc_pairs.top();
+        temporal_stats[view.pc_offset].push_back(real_pc_pair);
+        top_real_pc_pairs.pop();
+      }
     }
 
     kernel_red_count += view.red_count;
@@ -199,39 +201,41 @@ void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessCount &pc_access_
     auto pc = top.pc_offset;
     auto red_count = top.red_count;
     auto access_count = top.access_count;
-    RealPC to_pc(0, 0, pc);
 
-    // Update detailed memory view for each pc
-    for (auto &memory_iter : spatial_trace) {
-      if (memory_iter.first.first != memory_op_id) {
-        continue;
-      }
-      auto akind = memory_iter.first.second;
+    if (mem_views_limit != 0) {
+      RealPC to_pc(0, 0, pc);
+      // Update detailed memory view for each pc
+      for (auto &memory_iter : spatial_trace) {
+        if (memory_iter.first.first != memory_op_id) {
+          continue;
+        }
+        auto akind = memory_iter.first.second;
 
-      // {red_count : value}
-      TopRealPCPairs top_real_pc_pairs;
-      // vale_iter: {value: counter}
-      for (auto &val_iter : memory_iter.second[pc]) {
-        auto value = val_iter.first;
-        auto count = val_iter.second;
-        
-        RealPCPair real_pc_pair(to_pc, value, akind, count, access_count);
-        if (top_real_pc_pairs.size() < mem_views_limit) {
-          top_real_pc_pairs.push(real_pc_pair);
-        } else {
-          auto &top = top_real_pc_pairs.top();
-          if (top.red_count < count) {
-            top_real_pc_pairs.pop();
+        // {red_count : value}
+        TopRealPCPairs top_real_pc_pairs;
+        // vale_iter: {value: counter}
+        for (auto &val_iter : memory_iter.second[pc]) {
+          auto value = val_iter.first;
+          auto count = val_iter.second;
+          
+          RealPCPair real_pc_pair(to_pc, value, akind, count, access_count);
+          if (top_real_pc_pairs.size() < mem_views_limit) {
             top_real_pc_pairs.push(real_pc_pair);
+          } else {
+            auto &top = top_real_pc_pairs.top();
+            if (top.red_count < count) {
+              top_real_pc_pairs.pop();
+              top_real_pc_pairs.push(real_pc_pair);
+            }
           }
         }
-      }
 
-      // {<memory_op_id> : {pc: [RealPCPair]}}
-      while (top_real_pc_pairs.empty() == false) {
-        auto &top = top_real_pc_pairs.top();
-        spatial_stats[memory_op_id][pc].push_back(top);
-        top_real_pc_pairs.pop();
+        // {<memory_op_id> : {pc: [RealPCPair]}}
+        while (top_real_pc_pairs.empty() == false) {
+          auto &top = top_real_pc_pairs.top();
+          spatial_stats[memory_op_id][pc].push_back(top);
+          top_real_pc_pairs.pop();
+        }
       }
     }
 
