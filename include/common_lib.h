@@ -59,7 +59,6 @@ struct RealPC {
       return this->function_index < other.function_index;
     }
     return this->cubin_id < other.cubin_id;
-
   }
 };
 
@@ -167,10 +166,10 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessKind ac
 void record_temporal_trace(PCPairs &pc_pairs, PCAccessCount &pc_access_count,
                            u32 pc_views_limit, u32 mem_views_limit,
                            redshow_record_data_t &record_data, TemporalStatistics &temporal_stats,
-                           u64 &kernel_red_count, u64 &kernel_access_count);
+                           u64 &kernel_temporal_count);
 
-void show_temporal_trace(u32 thread_id, u64 kernel_id, TemporalStatistics &temporal_stats, bool is_read,
-                         u64 kernel_red_count, u64 kernel_total_count);
+void show_temporal_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 total_count,
+                         TemporalStatistics &temporal_stats, bool is_read, bool is_thread);
 
 /*
  * Analyze spatial trace
@@ -205,7 +204,8 @@ void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_ki
  */
 void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessCount &pc_access_count,
                           u32 pc_views_limit, u32 mem_views_limit,
-                          redshow_record_data_t &record_data, SpatialStatistics &spatial_stats);
+                          redshow_record_data_t &record_data, SpatialStatistics &spatial_stats,
+                          u64 &kernel_spatial_count);
 
 /**
  * Write array's value statistic data into files.
@@ -214,7 +214,8 @@ void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessCount &pc_access_
  * @arg num_views_limit: numer of entries will be written into files.
  * @arg is_read: the spatial_statistic is for reading or writing accesses.
  * */
-void show_spatial_trace(u32 thread_id, u64 kernel_id, SpatialStatistics &spatial_stats, bool is_read);
+void show_spatial_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 total_count,
+                        SpatialStatistics &spatial_stats, bool is_read, bool is_thread);
 
 /**
  * Use decimal_degree_f32 bits to cut the valid floating number bits.

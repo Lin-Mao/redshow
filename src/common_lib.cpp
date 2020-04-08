@@ -37,7 +37,7 @@ void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessKind ac
 void record_temporal_trace(PCPairs &pc_pairs, PCAccessCount &pc_access_count,
                            u32 pc_views_limit, u32 mem_views_limit,
                            redshow_record_data_t &record_data, TemporalStatistics &temporal_stats,
-                           u64 &kernel_red_count, u64 &kernel_access_count) {
+                           u64 &kernel_temporal_count) {
   // Pick top record data views
   TopViews top_views;
 
@@ -59,6 +59,8 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessCount &pc_access_count,
         view.red_count += count;
       }
     }
+
+    kernel_temporal_count += view.red_count;
 
     if (top_views.size() < pc_views_limit) {
       top_views.push(view);
@@ -105,9 +107,6 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessCount &pc_access_count,
         top_real_pc_pairs.pop();
       }
     }
-
-    kernel_red_count += view.red_count;
-    kernel_access_count += view.access_count;
     
     record_data.views[num_views].pc_offset = view.pc_offset;
     record_data.views[num_views].red_count = view.red_count;
@@ -120,8 +119,8 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessCount &pc_access_count,
 
 
 void
-show_temporal_trace(u32 thread_id, u64 kernel_id, TemporalStatistics &temporal_stats, bool is_read,
-                    u64 kernel_red_count, u64 kernel_total_count) {
+show_temporal_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 total_count, 
+                    TemporalStatistics &temporal_stats, bool is_read, bool is_thread) {
   using std::string;
   using std::to_string;
   using std::make_tuple;
@@ -129,21 +128,29 @@ show_temporal_trace(u32 thread_id, u64 kernel_id, TemporalStatistics &temporal_s
   using std::endl;
   string r = is_read ? "read" : "write";
   std::ofstream out("temporal_" + r + "_t" + to_string(thread_id) + ".csv", std::ios::app);
-  out << "kernel_id," << kernel_id << endl;
-  out << "redundant access count,total access count,redundancy rate" << endl;
-  out << kernel_red_count << "," << kernel_total_count << "," << (double) kernel_red_count / kernel_total_count
-      << endl;
-  for (auto temp_iter : temporal_stats) {
-    out << "cubin_id,f_function_index,f_pc_offset,t_function_index,t_pc_offest,value,data_type,vector_size,unit_size,count,rate"
-      << endl;
-    for (auto &real_pc_pair : temp_iter.second) {
-      auto to_real_pc = real_pc_pair.to_pc;
-      auto from_real_pc = real_pc_pair.from_pc;
-      out << from_real_pc.cubin_id << "," << from_real_pc.function_index << "," << from_real_pc.pc_offset << "," 
-        << to_real_pc.function_index << "," << to_real_pc.pc_offset << ",";
-      output_kind_value(real_pc_pair.value, real_pc_pair.access_kind, out.rdbuf(), true);
-      out << "," << real_pc_pair.access_kind.to_string() << "," << real_pc_pair.red_count << "," <<
-        (double) real_pc_pair.red_count / real_pc_pair.access_count << endl;
+  if (is_thread) {
+    out << "thread_id," << thread_id << endl;
+    out << "redundant_access_count,total_access_count,redundancy_rate" << endl;
+    out << total_red_count << "," << total_count << "," << (double) total_red_count / total_count
+        << endl;
+  } else {
+    out << "kernel_id," << kernel_id << endl;
+    out << "redundant_access_count,total_access_count,redundancy_rate" << endl;
+    out << total_red_count << "," << total_count << "," << (double) total_red_count / total_count
+        << endl;
+    out << "cubin_id,f_function_index,f_pc_offset,t_function_index,t_pc_offest,value,data_type,vector_size,unit_size,count,rate,norm_rate"
+        << endl;
+    for (auto temp_iter : temporal_stats) {
+      for (auto &real_pc_pair : temp_iter.second) {
+        auto to_real_pc = real_pc_pair.to_pc;
+        auto from_real_pc = real_pc_pair.from_pc;
+        out << from_real_pc.cubin_id << "," << from_real_pc.function_index << "," << from_real_pc.pc_offset << "," 
+          << to_real_pc.function_index << "," << to_real_pc.pc_offset << ",";
+        output_kind_value(real_pc_pair.value, real_pc_pair.access_kind, out.rdbuf(), true);
+        out << "," << real_pc_pair.access_kind.to_string() << "," << real_pc_pair.red_count << "," <<
+          static_cast<double>(real_pc_pair.red_count) / real_pc_pair.access_count << "," <<
+          static_cast<double>(real_pc_pair.red_count) / total_count << endl;
+      }
     }
   }
   out.close();
@@ -158,7 +165,8 @@ void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_ki
 
 void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessCount &pc_access_count,
                           u32 pc_views_limit, u32 mem_views_limit,
-                          redshow_record_data_t &record_data, SpatialStatistics &spatial_stats) {
+                          redshow_record_data_t &record_data, SpatialStatistics &spatial_stats,
+                          u64 &kernel_spatial_count) {
   // Pick top record data views
   TopViews top_views;
   // memory_iter: {<memory_op_id, AccessKind> : {pc: {value: counter}}}
@@ -173,6 +181,8 @@ void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessCount &pc_access_
         auto count = val_iter.second;
         max_count = MAX2(count, max_count);
       }
+
+      kernel_spatial_count += max_count;
 
       // Only record the top count of a pc
       redshow_record_view_t view;
@@ -250,31 +260,43 @@ void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessCount &pc_access_
 
 
 void
-show_spatial_trace(u32 thread_id, u64 kernel_id, SpatialStatistics &spatial_stats, bool is_read) {
+show_spatial_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 total_count,
+                   SpatialStatistics &spatial_stats, bool is_read, bool is_thread) {
   using std::endl;
   using std::to_string;
   using std::get;
   std::string r = is_read ? "read" : "write";
   std::ofstream out("spatial_" + r + "_t" + to_string(thread_id) + ".csv", std::ios::app);
-  out << "kernel_id," << kernel_id << std::endl;
-  // {memory_op_id : {pc : [RealPCPair]}}
-  for (auto &spatial_iter: spatial_stats) {
-    auto memory_op_id = spatial_iter.first;
-    out << "memory_op_id," << memory_op_id << std::endl;
-    for (auto &pc_iter : spatial_iter.second) {
-      out << "cubin_id,function_index,pc_offset,value,data_type,vector_size,unit_size,count,rate" << endl;
-      for (auto &real_pc_pair : pc_iter.second) {
-        auto cubin_id = real_pc_pair.to_pc.cubin_id;
-        auto function_index = real_pc_pair.to_pc.function_index;
-        auto pc_offset = real_pc_pair.to_pc.pc_offset;
-        auto akind = real_pc_pair.access_kind;
-        auto value = real_pc_pair.value;
-        auto red_count = real_pc_pair.red_count;
-        auto access_count = real_pc_pair.access_count;
-        out << cubin_id << "," << function_index << "," << pc_offset << ",";
-        output_kind_value(value, akind, out.rdbuf(), true);
-        out << "," << akind.to_string() << "," << red_count << ","
-          << (double) red_count / access_count << std::endl;
+  if (is_thread) {
+    out << "thread_id," << kernel_id << std::endl;
+    out << "redundant_access_count,total_access_count,redundancy_rate" << endl;
+    out << total_red_count << "," << total_count << "," << (double) total_red_count / total_count
+        << endl;
+  } else {
+    out << "kernel_id," << kernel_id << std::endl;
+    out << "redundant_access_count,total_access_count,redundancy_rate" << endl;
+    out << total_red_count << "," << total_count << "," << (double) total_red_count / total_count
+        << endl;
+    out << "memory_op_id,cubin_id,function_index,pc_offset,value,data_type,vector_size,unit_size,count,rate,norm_rate" << endl;
+    // {memory_op_id : {pc : [RealPCPair]}}
+    for (auto &spatial_iter: spatial_stats) {
+      auto memory_op_id = spatial_iter.first;
+      for (auto &pc_iter : spatial_iter.second) {
+        for (auto &real_pc_pair : pc_iter.second) {
+          auto cubin_id = real_pc_pair.to_pc.cubin_id;
+          auto function_index = real_pc_pair.to_pc.function_index;
+          auto pc_offset = real_pc_pair.to_pc.pc_offset;
+          auto akind = real_pc_pair.access_kind;
+          auto value = real_pc_pair.value;
+          auto red_count = real_pc_pair.red_count;
+          auto access_count = real_pc_pair.access_count;
+          out << memory_op_id << "," << cubin_id << ","
+              << function_index << "," << pc_offset << ",";
+          output_kind_value(value, akind, out.rdbuf(), true);
+          out << "," << akind.to_string() << "," << red_count << ","
+            << static_cast<double>(red_count) / access_count << ","
+            << static_cast<double>(red_count) / total_count << std::endl;
+        }
       }
     }
   }

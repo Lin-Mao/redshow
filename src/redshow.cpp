@@ -821,15 +821,21 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
 
   record_data.views = new redshow_record_view_t[pc_views_limit]();
 
+  u64 thread_count = 0;
+  u64 thread_read_temporal_count = 0;
+  u64 thread_write_temporal_count = 0;
+  u64 thread_read_spatial_count = 0;
+  u64 thread_write_spatial_count = 0;
   for (auto &kernel_iter : thread_kernel_map) {
     auto kernel_id = kernel_iter.first;
     auto &kernel = kernel_iter.second;
     auto cubin_id = kernel.cubin_id;
     auto cubin_offset = 0;
-    u64 kernel_red_read_count = 0;
-    u64 kernel_red_write_count = 0;
-    u64 kernel_read_count = 0;
-    u64 kernel_write_count = 0;
+    u64 kernel_read_temporal_count = 0;
+    u64 kernel_write_temporal_count = 0;
+    u64 kernel_read_spatial_count = 0;
+    u64 kernel_write_spatial_count = 0;
+    u64 kernel_count = 0;
     SpatialStatistics read_spatial_stats;
     SpatialStatistics write_spatial_stats;
     TemporalStatistics read_temporal_stats;
@@ -843,7 +849,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         record_data.access_type = REDSHOW_ACCESS_READ;
         record_spatial_trace(kernel.read_spatial_trace, kernel.read_pc_count,
                              pc_views_limit, mem_views_limit,
-                             record_data, read_spatial_stats);
+                             record_data, read_spatial_stats, kernel_read_temporal_count);
         // Transform pcs
         transform_data_views(symbols, record_data);
         record_data_callback(cubin_id, kernel_id, &record_data);
@@ -853,7 +859,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         record_data.access_type = REDSHOW_ACCESS_WRITE;
         record_spatial_trace(kernel.write_spatial_trace, kernel.write_pc_count,
                              pc_views_limit, mem_views_limit,
-                             record_data, write_spatial_stats);
+                             record_data, write_spatial_stats, kernel_write_temporal_count);
         // Transform pcs
         transform_data_views(symbols, record_data);
         record_data_callback(cubin_id, kernel_id, &record_data);
@@ -864,8 +870,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         record_data.access_type = REDSHOW_ACCESS_READ;
         record_temporal_trace(kernel.read_pc_pairs, kernel.read_pc_count,
                               pc_views_limit, mem_views_limit, 
-                              record_data, read_temporal_stats,
-                              kernel_red_read_count, kernel_read_count);
+                              record_data, read_temporal_stats, kernel_read_spatial_count);
 
         transform_data_views(symbols, record_data);
         record_data_callback(cubin_id, kernel_id, &record_data);
@@ -875,8 +880,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         record_data.access_type = REDSHOW_ACCESS_WRITE;
         record_temporal_trace(kernel.write_pc_pairs, kernel.write_pc_count,
                               pc_views_limit, mem_views_limit,
-                              record_data, write_temporal_stats,
-                              kernel_red_write_count, kernel_write_count);
+                              record_data, write_temporal_stats, kernel_write_spatial_count);
 
         transform_data_views(symbols, record_data);
         record_data_callback(cubin_id, kernel_id, &record_data);
@@ -884,24 +888,60 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
       }
     }
 
+    // Accumulate all access count and red count
+    for (auto &iter : kernel.read_pc_count) {
+      kernel_count += iter.second;
+    }
+
+    for (auto &iter : kernel.write_pc_count) {
+      kernel_count += iter.second;
+    }
+
+    thread_count += kernel_count;
+    thread_read_temporal_count += kernel_read_temporal_count;
+    thread_write_temporal_count += kernel_write_temporal_count;
+    thread_read_spatial_count += kernel_read_spatial_count;
+    thread_write_spatial_count += kernel_write_spatial_count;
+
     if (mem_views_limit != 0) {
-      if (kernel_read_count != 0) {
-        show_temporal_trace(thread_id, kernel_id, read_temporal_stats, true,
-                            kernel_red_read_count, kernel_read_count);
+      if (!read_temporal_stats.empty()) {
+        show_temporal_trace(thread_id, kernel_id, kernel_read_temporal_count, kernel_count,
+                            read_temporal_stats, true, false);
       }
-      if (kernel_write_count != 0) {
-        show_temporal_trace(thread_id, kernel_id, write_temporal_stats, false,
-                            kernel_red_write_count, kernel_write_count);
+      if (!write_temporal_stats.empty()) {
+        show_temporal_trace(thread_id, kernel_id, kernel_write_temporal_count, kernel_count,
+                            write_temporal_stats, false, false);
       }
     }
 
     if (mem_views_limit != 0) {
       if (!read_spatial_stats.empty()) {
-        show_spatial_trace(thread_id, kernel_id, read_spatial_stats, true);
+        show_spatial_trace(thread_id, kernel_id, kernel_read_spatial_count, kernel_count,
+                           read_spatial_stats, true, false);
       }
       if (!write_spatial_stats.empty()) {
-        show_spatial_trace(thread_id, kernel_id, write_spatial_stats, false);
+        show_spatial_trace(thread_id, kernel_id, kernel_write_spatial_count, kernel_count,
+                           write_spatial_stats, false, false);
       }
+    }
+  }
+
+  if (mem_views_limit != 0) {
+    if (thread_count != 0) {
+      // FIXME(Keren): empty stats for placeholder, should be fixed for better style
+      SpatialStatistics read_spatial_stats;
+      SpatialStatistics write_spatial_stats;
+      TemporalStatistics read_temporal_stats;
+      TemporalStatistics write_temporal_stats;
+
+      show_temporal_trace(thread_id, 0, thread_read_temporal_count, thread_count,
+                          read_temporal_stats, true, true);
+      show_temporal_trace(thread_id, 0, thread_write_temporal_count, thread_count,
+                          write_temporal_stats, false, true);
+      show_spatial_trace(thread_id, 0, thread_read_spatial_count, thread_count,
+                         read_spatial_stats, true, true);
+      show_spatial_trace(thread_id, 0, thread_write_spatial_count, thread_count,
+                         write_spatial_stats, false, true);
     }
   }
 
