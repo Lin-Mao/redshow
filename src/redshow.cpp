@@ -849,7 +849,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         record_data.access_type = REDSHOW_ACCESS_READ;
         record_spatial_trace(kernel.read_spatial_trace, kernel.read_pc_count,
                              pc_views_limit, mem_views_limit,
-                             record_data, read_spatial_stats, kernel_read_temporal_count);
+                             record_data, read_spatial_stats, kernel_read_spatial_count);
         // Transform pcs
         transform_data_views(symbols, record_data);
         record_data_callback(cubin_id, kernel_id, &record_data);
@@ -859,7 +859,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         record_data.access_type = REDSHOW_ACCESS_WRITE;
         record_spatial_trace(kernel.write_spatial_trace, kernel.write_pc_count,
                              pc_views_limit, mem_views_limit,
-                             record_data, write_spatial_stats, kernel_write_temporal_count);
+                             record_data, write_spatial_stats, kernel_write_spatial_count);
         // Transform pcs
         transform_data_views(symbols, record_data);
         record_data_callback(cubin_id, kernel_id, &record_data);
@@ -870,7 +870,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         record_data.access_type = REDSHOW_ACCESS_READ;
         record_temporal_trace(kernel.read_pc_pairs, kernel.read_pc_count,
                               pc_views_limit, mem_views_limit, 
-                              record_data, read_temporal_stats, kernel_read_spatial_count);
+                              record_data, read_temporal_stats, kernel_read_temporal_count);
 
         transform_data_views(symbols, record_data);
         record_data_callback(cubin_id, kernel_id, &record_data);
@@ -880,7 +880,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         record_data.access_type = REDSHOW_ACCESS_WRITE;
         record_temporal_trace(kernel.write_pc_pairs, kernel.write_pc_count,
                               pc_views_limit, mem_views_limit,
-                              record_data, write_temporal_stats, kernel_write_spatial_count);
+                              record_data, write_temporal_stats, kernel_write_temporal_count);
 
         transform_data_views(symbols, record_data);
         record_data_callback(cubin_id, kernel_id, &record_data);
