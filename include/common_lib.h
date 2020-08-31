@@ -22,9 +22,10 @@
 #include "utils.h"
 #include "redshow.h"
 
-/*
- * Data type definition
- */
+using std::pair;
+using std::map;
+using std::make_pair;
+
 
 struct ThreadId {
   u32 flat_block_id;
@@ -47,11 +48,11 @@ struct RealPC {
   u64 pc_offset;
 
   RealPC(u32 cubin_id, u32 function_index, u64 pc_offset) :
-    cubin_id(cubin_id), function_index(function_index), pc_offset(pc_offset) {}
+      cubin_id(cubin_id), function_index(function_index), pc_offset(pc_offset) {}
 
   RealPC() : RealPC(0, 0, 0) {}
 
-  bool operator < (const RealPC &other) const {
+  bool operator<(const RealPC &other) const {
     if (this->cubin_id == other.cubin_id) {
       if (this->function_index == other.function_index) {
         return this->pc_offset < other.pc_offset;
@@ -73,10 +74,11 @@ struct RealPCPair {
   RealPCPair() = default;
 
   RealPCPair(RealPC &to_pc, u64 value, AccessKind &access_kind, u64 red_count, u64 access_count) :
-    to_pc(to_pc), value(value), access_kind(access_kind), red_count(red_count), access_count(access_count) {}
+      to_pc(to_pc), value(value), access_kind(access_kind), red_count(red_count), access_count(access_count) {}
 
   RealPCPair(RealPC &to_pc, RealPC &from_pc, u64 value, AccessKind &access_kind, u64 red_count, u64 access_count) :
-    to_pc(to_pc), from_pc(from_pc), value(value), access_kind(access_kind), red_count(red_count), access_count(access_count) {}
+      to_pc(to_pc), from_pc(from_pc), value(value), access_kind(access_kind), red_count(red_count),
+      access_count(access_count) {}
 };
 
 // {<memory_op_id, AccessKind> : {pc: {value: count}}}
@@ -96,6 +98,35 @@ typedef std::map<u64, std::map<u64, std::map<std::pair<u64, AccessKind>, u64>>> 
 
 // {pc: access_count}
 typedef std::map<u64, u64> PCAccessCount;
+
+// Currently, we don't need to consider the relationship between thread index and pc etc.
+// ValueDistribution:  {<memory_op_id, accesskind>: {offset: {value: count}}}}
+typedef std::map<pair<u64, AccessKind>, map<u64, map<u64, u64>>> ValueDist;
+//{offset: {value: count}}
+typedef std::map<u64, map<u64, u64>> ArrayItems;
+//{value: count}. We only save single-value item's value
+typedef std::map<u64, u64> ItemsValueCount;
+
+void get_value_trace(u64 pc, u64 value, u64 memory_op_id, u64 offset, AccessKind access_kind, ValueDist &value_dist);
+
+
+typedef enum value_pattern_type {
+  VP_REDUNDANT_ZEROS = 0,
+  VP_SINGLE_VALUE = 1,
+  VP_DENSE_VALUE = 2,
+  VP_TYPE_OVERUSE = 3,
+  VP_APPROXIMATE_VALUE = 4,
+  VP_SILENT_STORE = 5,
+  VP_SILENT_LOAD = 6
+} value_pattern_type_t;
+
+struct array_pattern_type {
+  redshow_data_type_t data_type;
+  value_pattern_type_t value_pattern_type;
+  pair<redshow_data_type_t, int> type_overuse_before;
+  pair<redshow_data_type_t, int> type_overuse_after;
+  ItemsValueCount value_count;
+};
 
 struct CompareRealPCPair {
   bool operator()(RealPCPair const &r1, RealPCPair const &r2) {

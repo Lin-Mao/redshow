@@ -10,7 +10,6 @@
 #include <fstream>
 
 #include <cstdlib>
-
 #include "common_lib.h"
 #include "utils.h"
 
@@ -106,6 +105,8 @@ struct Kernel {
   TemporalTrace write_temporal_trace;
   PCPairs write_pc_pairs;
   PCAccessCount write_pc_count;
+
+  ValueDist value_dist;
 
   Kernel() = default;
 
@@ -208,7 +209,8 @@ static redshow_result_t transform_data_views(std::vector<Symbol> &symbols, redsh
 
 
 static redshow_result_t transform_temporal_statistics(uint32_t cubin_id,
-  std::vector<Symbol> &symbols, TemporalStatistics &temporal_stats) {
+                                                      std::vector<Symbol> &symbols,
+                                                      TemporalStatistics &temporal_stats) {
   for (auto &temp_stat_iter : temporal_stats) {
     for (auto &real_pc_pair : temp_stat_iter.second) {
       auto &to_real_pc = real_pc_pair.to_pc;
@@ -232,7 +234,7 @@ static redshow_result_t transform_temporal_statistics(uint32_t cubin_id,
 
 
 static redshow_result_t transform_spatial_statistics(uint32_t cubin_id,
-  std::vector<Symbol> &symbols, SpatialStatistics &spatial_stats) {
+                                                     std::vector<Symbol> &symbols, SpatialStatistics &spatial_stats) {
   for (auto &spatial_stat_iter : spatial_stats) {
     for (auto &pc_iter : spatial_stat_iter.second) {
       for (auto &real_pc_pair : pc_iter.second) {
@@ -263,6 +265,7 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
   auto &write_pc_pairs = kernel.write_pc_pairs;
   auto &read_pc_count = kernel.read_pc_count;
   auto &write_pc_count = kernel.write_pc_count;
+  auto &value_dist = kernel.value_dist;
   std::vector<Symbol> *symbols = NULL;
   InstructionGraph *inst_graph = NULL;
   // Cubin path is added just for debugging purpose
@@ -348,7 +351,7 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
     }
 
     if (record->flags & GPU_PATCH_BLOCK_ENTER_FLAG) {
-      // Skip analysis  
+      // Skip analysis
     } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
       // Remove temporal records
       for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
@@ -458,6 +461,12 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
                 get_temporal_trace(record->pc, thread_id, record->address[j] + m * address_offset, value,
                                    unit_access_kind,
                                    write_temporal_trace, write_pc_pairs);
+              }
+            } else if (analysis == REDSHOW_ANALYSIS_VALUE_PATTERN) {
+//              @todo change log2 to if-else?
+              uint64_t item_index = (record->address[j] - iter->first.start) / (unit_access_kind.unit_size / 8);
+              if (record->flags & GPU_PATCH_READ) {
+                get_value_trace(record->pc, value, memory_op_id, item_index, unit_access_kind, value_dist);
               }
             } else {
               // Pass
@@ -869,7 +878,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         // Read
         record_data.access_type = REDSHOW_ACCESS_READ;
         record_temporal_trace(kernel.read_pc_pairs, kernel.read_pc_count,
-                              pc_views_limit, mem_views_limit, 
+                              pc_views_limit, mem_views_limit,
                               record_data, read_temporal_stats, kernel_read_temporal_count);
 
         transform_data_views(symbols, record_data);
@@ -885,6 +894,8 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         transform_data_views(symbols, record_data);
         record_data_callback(cubin_id, kernel_id, &record_data);
         transform_temporal_statistics(cubin_id, symbols, write_temporal_stats);
+      }else if (analysis == REDSHOW_ANALYSIS_VALUE_PATTERN){
+
       }
     }
 

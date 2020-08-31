@@ -107,7 +107,7 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessCount &pc_access_count,
         top_real_pc_pairs.pop();
       }
     }
-    
+
     record_data.views[num_views].pc_offset = view.pc_offset;
     record_data.views[num_views].red_count = view.red_count;
     record_data.views[num_views].access_count = view.access_count;
@@ -119,7 +119,7 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessCount &pc_access_count,
 
 
 void
-show_temporal_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 total_count, 
+show_temporal_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 total_count,
                     TemporalStatistics &temporal_stats, bool is_read, bool is_thread) {
   using std::string;
   using std::to_string;
@@ -138,18 +138,19 @@ show_temporal_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 total
     out << "redundant_access_count,total_access_count,redundancy_rate" << endl;
     out << total_red_count << "," << total_count << "," << (double) total_red_count / total_count
         << endl;
-    out << "cubin_id,f_function_index,f_pc_offset,t_function_index,t_pc_offest,value,data_type,vector_size,unit_size,count,rate,norm_rate"
+    out
+        << "cubin_id,f_function_index,f_pc_offset,t_function_index,t_pc_offest,value,data_type,vector_size,unit_size,count,rate,norm_rate"
         << endl;
     for (auto temp_iter : temporal_stats) {
       for (auto &real_pc_pair : temp_iter.second) {
         auto to_real_pc = real_pc_pair.to_pc;
         auto from_real_pc = real_pc_pair.from_pc;
-        out << from_real_pc.cubin_id << "," << from_real_pc.function_index << "," << from_real_pc.pc_offset << "," 
-          << to_real_pc.function_index << "," << to_real_pc.pc_offset << ",";
+        out << from_real_pc.cubin_id << "," << from_real_pc.function_index << "," << from_real_pc.pc_offset << ","
+            << to_real_pc.function_index << "," << to_real_pc.pc_offset << ",";
         output_kind_value(real_pc_pair.value, real_pc_pair.access_kind, out.rdbuf(), true);
         out << "," << real_pc_pair.access_kind.to_string() << "," << real_pc_pair.red_count << "," <<
-          static_cast<double>(real_pc_pair.red_count) / real_pc_pair.access_count << "," <<
-          static_cast<double>(real_pc_pair.red_count) / total_count << endl;
+            static_cast<double>(real_pc_pair.red_count) / real_pc_pair.access_count << "," <<
+            static_cast<double>(real_pc_pair.red_count) / total_count << endl;
       }
     }
   }
@@ -227,7 +228,7 @@ void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessCount &pc_access_
         for (auto &val_iter : memory_iter.second[pc]) {
           auto value = val_iter.first;
           auto count = val_iter.second;
-          
+
           RealPCPair real_pc_pair(to_pc, value, akind, count, access_count);
           if (top_real_pc_pairs.size() < mem_views_limit) {
             top_real_pc_pairs.push(real_pc_pair);
@@ -277,7 +278,8 @@ show_spatial_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 total_
     out << "redundant_access_count,total_access_count,redundancy_rate" << endl;
     out << total_red_count << "," << total_count << "," << (double) total_red_count / total_count
         << endl;
-    out << "memory_op_id,cubin_id,function_index,pc_offset,value,data_type,vector_size,unit_size,count,rate,norm_rate" << endl;
+    out << "memory_op_id,cubin_id,function_index,pc_offset,value,data_type,vector_size,unit_size,count,rate,norm_rate"
+        << endl;
     // {memory_op_id : {pc : [RealPCPair]}}
     for (auto &spatial_iter: spatial_stats) {
       auto memory_op_id = spatial_iter.first;
@@ -294,8 +296,8 @@ show_spatial_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 total_
               << function_index << "," << pc_offset << ",";
           output_kind_value(value, akind, out.rdbuf(), true);
           out << "," << akind.to_string() << "," << red_count << ","
-            << static_cast<double>(red_count) / access_count << ","
-            << static_cast<double>(red_count) / total_count << std::endl;
+              << static_cast<double>(red_count) / access_count << ","
+              << static_cast<double>(red_count) / total_count << std::endl;
         }
       }
     }
@@ -402,6 +404,7 @@ u64 store2double(u64 a, int decimal_degree_f64) {
 
 
 u64 store2float(u64 a, int decimal_degree_f32) {
+//  valid bits are the lower 32bits.
   u32 c = a & 0xffffffffu;
   u64 bits = 23 - decimal_degree_f32;
   u64 mask = 0xffffffffffffffff << bits;
@@ -409,4 +412,91 @@ u64 store2float(u64 a, int decimal_degree_f32) {
   u64 b = 0;
   memcpy(&b, &c, sizeof(c));
   return b;
+}
+
+void get_value_trace(u64 pc, u64 value, u64 memory_op_id, u64 offset, AccessKind access_kind, ValueDist &value_dist) {
+  value_dist[make_pair(memory_op_id, access_kind)][offset][value] += 1;
+}
+
+bool sortByVal(const pair<u64, u64> &a,
+               const pair<u64, u64> &b) {
+  return (a.second > b.second);
+}
+
+/**Array_items is part of ValueDist which focuses on every offset's value. This function is going to transform offset center to value center.
+ * @arg value_count: {value: count}. We only save single-value item's value
+ * @arg array_items: {offset: {value: count}}
+ * */
+value_pattern_type_t
+dense_value_pattern(ArrayItems &array_items, ItemsValueCount &value_count, AccessKind access_kind) {
+// @todo one array may be considered as multiple types. What if one type is single_value_pattern but another type is not?
+// @todo what if the array item is single-value at read and write with two different values?
+
+// @todo what is the standard of dense value?
+  float THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE = 0.1;
+  float THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 = 0.5;
+
+// Type ArrayItems is part of ValueDist: {offset: {value: count}}
+  for (auto item: array_items) {
+    if (item.second.size() == 1) {
+      value_count[item.second.begin()->first] += 1;
+    }
+  }
+
+  std::vector<std::pair<u64, u64>> value_count_vec;
+  for (auto iter: value_count) {
+    value_count_vec.emplace_back(iter.first, iter.second);
+  }
+  sort(value_count_vec.begin(), value_count_vec.end(), sortByVal);
+
+  array_pattern_type arr_pattern_type;
+  arr_pattern_type.value_count = value_count;
+//  single value pattern, redundant zeros
+  if (value_count.size() == 1) {
+    if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
+      if (access_kind.unit_size == 32) {
+        uint32_t value_hex = value_count.begin()->first & 0xffffffffu;
+        float b = *reinterpret_cast<float *>(&value_hex);
+        if (std::abs(b) < 1e-6) {
+          arr_pattern_type.value_pattern_type = VP_REDUNDANT_ZEROS;
+        } else {
+          arr_pattern_type.value_pattern_type = VP_SINGLE_VALUE;
+        }
+      } else if (access_kind.unit_size == 64) {
+        double b;
+        u64 cur_hex_value = value_count.begin()->first;
+        memcpy(&b, &cur_hex_value, sizeof(cur_hex_value));
+        if (std::abs(b) < 1e-6) {
+          arr_pattern_type.value_pattern_type = VP_REDUNDANT_ZEROS;
+        } else {
+          arr_pattern_type.value_pattern_type = VP_SINGLE_VALUE;
+        }
+      }
+    } else if (access_kind.data_type == REDSHOW_DATA_INT) {
+      if (value_count.begin()->first == 0) {
+        arr_pattern_type.value_pattern_type = VP_REDUNDANT_ZEROS;
+      } else {
+        arr_pattern_type.value_pattern_type = VP_SINGLE_VALUE;
+      }
+    }
+  } else {
+//    Actually array_items.size may not be the size of array. Because array_items only record accessed items.
+    int threshold_number_of_items = THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE * array_items.size();
+    int i=0;
+    u64 sum_of_items = 0;
+    for(auto iter: value_count_vec){
+      sum_of_items += iter.second;
+      i++;
+      if ( i > threshold_number_of_items){
+        break;
+      }
+    }
+    if(sum_of_items > THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 * array_items.size()){
+      arr_pattern_type.value_pattern_type = VP_DENSE_VALUE;
+    }
+
+
+  }
+
+
 }
