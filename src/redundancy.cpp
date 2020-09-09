@@ -2,8 +2,10 @@
 // Created by find on 19-7-1.
 //
 
-#include "common_lib.h"
+#include "redundancy.h"
 #include "redshow.h"
+
+#include <cstring>
 
 
 void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessKind access_kind,

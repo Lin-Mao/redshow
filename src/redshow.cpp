@@ -10,8 +10,9 @@
 #include <fstream>
 
 #include <cstdlib>
+#include <cstring>
 
-#include "common_lib.h"
+#include "redundancy.h"
 #include "utils.h"
 
 #ifdef DEBUG

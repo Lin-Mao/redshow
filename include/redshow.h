@@ -12,7 +12,8 @@
 typedef enum redshow_analysis_type {
   REDSHOW_ANALYSIS_UNKNOWN = 0,
   REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY = 1,
-  REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY = 2
+  REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY = 2,
+  REDSHOW_ANALYSIS_VALUE_FLOW = 3
 } redshow_analysis_type_t;
 
 typedef enum redshow_access_type {

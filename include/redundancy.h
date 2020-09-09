@@ -2,8 +2,8 @@
 // Created by find on 19-7-1.
 //
 
-#ifndef REDSHOW_COMMON_LIB_H
-#define REDSHOW_COMMON_LIB_H
+#ifndef REDSHOW_REDUNDANCY_H
+#define REDSHOW_REDUNDANCY_H
 
 #include <string>
 #include <regex>
@@ -235,6 +235,6 @@ u64 store2basictype(u64 a, AccessKind akind, int decimal_degree_f32, int decimal
 
 void output_kind_value(u64 a, AccessKind akind, std::streambuf *buf, bool is_signed);
 
-#endif  // REDSHOW_COMMON_LIB_H
+#endif  // REDSHOW_REDUNDANCY_H
 
 
