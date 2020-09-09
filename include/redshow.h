@@ -152,6 +152,49 @@ EXTERNC redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, u
 EXTERNC redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_t host_op_id);
 
 /*
+ * This funciton is used to query the address of a shadow memory
+ * 
+ * Thread-Safety: YES
+ */
+EXTERNC redshow_result_t redshow_memory_query(uint64_t op_id, uint64_t start, uint64_t *shadow_start);
+
+/*
+ * This funciton is used to track a memcpy operation
+ * 
+ * memcpy_id: 
+ * Unique identifier of a memcpy operation
+ *
+ * src_memory_id:
+ * Unique identifier of a src memory object except for MEMORY_ID_HOST as we do not track host memory objects
+ *
+ * src_memory_value:
+ * The (shadhow) address of a src memory object
+ *
+ * src_memory_len:
+ * Length of a src memory object
+ *
+ * dst_memory_id:
+ * Unique identifier of a dst memory object except for MEMORY_ID_HOST as we do not track host memory objects
+ *
+ * dst_memory_value:
+ * The (shadhow) address of a dst memory object
+ *
+ * dst_memory_value:
+ * The (shadhow) address of a dst memory object
+ *
+ * Thread-Safety: YES
+ */
+EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t src_memory_id, uint8_t *src_memory_value, uint32_t src_memory_len,
+  uint64_t dst_memory_id, uint8_t *dst_memory_value, uint32_t dst_memory_len);
+
+/*
+ * This funciton is used to track a memset operation
+ * 
+ * Thread-Safety: YES
+ */
+EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memory_id, uint8_t *memory_value, uint32_t memory_len);
+
+/*
  * Let a user handle data when a trace log is done analyzing
  *
  * Thread-Safety: NO

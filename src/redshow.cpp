@@ -3,8 +3,9 @@
 
 #include <algorithm>
 #include <limits>
-#include <mutex>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -45,6 +46,7 @@ static std::mutex cubin_map_lock;
 struct CubinCache {
   uint32_t cubin_id;
   uint32_t nsymbols;
+  // TODO(Keren): refactor with shared_ptr
   uint64_t *symbol_pcs;
   std::string path;
 
@@ -81,6 +83,7 @@ struct Memory {
   MemoryRange memory_range;
   uint64_t memory_op_id;
   uint64_t memory_id;
+  std::shared_ptr<uint8_t> value;
 
   Memory() = default;
 
@@ -91,6 +94,7 @@ struct Memory {
 typedef std::map<MemoryRange, Memory> MemoryMap;
 static std::map<uint64_t, MemoryMap> memory_snapshot;
 static std::mutex memory_snapshot_lock;
+
 
 struct Kernel {
   uint64_t kernel_id;
@@ -114,8 +118,36 @@ struct Kernel {
       kernel_id(kernel_id), cubin_id(cubin_id), func_index(func_index), func_addr(func_addr) {}
 };
 
-static std::map<uint32_t, std::map<uint64_t, Kernel> > kernel_map;
+static std::map<uint32_t, std::map<uint64_t, Kernel>> kernel_map;
 static std::mutex kernel_map_lock;
+
+struct Memcpy {
+  uint64_t memcpy_id;
+  uint64_t src_memory_id;
+  uint64_t dst_memory_id;
+  std::string md5;
+
+  Memcpy() = default;
+
+  Memcpy(uint64_t memcpy_id, uint64_t src_memory_id, uint64_t dst_memory_id, std::string &md5) :
+    memcpy_id(memcpy_id), src_memory_id(src_memory_id), dst_memory_id(dst_memory_id), md5(md5) {}
+};
+
+static std::map<std::string, Memcpy> memcpy_map;
+static std::mutex memcpy_map_lock;
+
+struct Memset {
+  uint64_t memset_id;
+  uint64_t memory_id;
+  std::string md5;
+
+  Memset() = default;
+
+  Memset(uint64_t memset_id, uint64_t memory_id) : memset_id(memset_id), memory_id(memory_id) {}
+};
+
+static std::map<uint64_t, Memset> memset_map;
+static std::mutex memset_map_lock;
 
 static std::set<redshow_analysis_type_t> analysis_enabled;
 
@@ -133,9 +165,10 @@ static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
 
 static redshow_data_type_t default_data_type = REDSHOW_DATA_FLOAT;
 
-enum {
+enum MemoryID {
   MEMORY_ID_SHARED = 1,
-  MEMORY_ID_LOCAL = 2
+  MEMORY_ID_LOCAL = 2,
+  MEMORY_ID_HOST = 3
 };
 
 
@@ -710,6 +743,11 @@ redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_
   memory_snapshot_lock.unlock();
 
   return result;
+}
+
+
+redshow_result_t redshow_memory_query(uint64_t op_id, uint64_t start, uint64_t *shadow_start) {
+  return REDSHOW_SUCCESS;
 }
 
 
