@@ -28,6 +28,16 @@ typedef enum redshow_data_type {
   REDSHOW_DATA_INT = 2
 } redshow_data_type_t;
 
+typedef enum redshow_memory_type {
+  REDSHOW_MEMORY_UNKNOWN = 0,
+  REDSHOW_MEMORY_SHARED = 1,
+  REDSHOW_MEMORY_LOCAL = 2,
+  REDSHOW_MEMORY_GLOBAL = 3,
+  REDSHOW_MEMORY_CONSTANT = 4,
+  REDSHOW_MEMORY_UVM = 5,
+  REDSHOW_MEMORY_HOST = 6
+} redshow_memory_type_t;
+
 typedef enum redshow_result {
   REDSHOW_SUCCESS = 0,
   REDSHOW_ERROR_NOT_IMPL = 1,
@@ -155,8 +165,25 @@ EXTERNC redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end,
  * This funciton is used to query the address of a shadow memory
  * 
  * Thread-Safety: YES
+ *
+ * host_op_id:
+ * Unique identifier of the current timestamp
+ *
+ * start:
+ * The address of the memory object
+ *
+ * memory_id:
+ * The calling context of the memory object
+ *
+ * memory_addr:
+ * The shadow memory address of the memory object
+ *
+ * len:
+ * The size of the memory object
+ *
+ * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_memory_query(uint64_t op_id, uint64_t start, uint64_t *shadow_start);
+EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint64_t *memory_id, uint64_t *memory_addr, uint64_t *len);
 
 /*
  * This funciton is used to track a memcpy operation
@@ -167,32 +194,22 @@ EXTERNC redshow_result_t redshow_memory_query(uint64_t op_id, uint64_t start, ui
  * src_memory_id:
  * Unique identifier of a src memory object except for MEMORY_ID_HOST as we do not track host memory objects
  *
- * src_memory_value:
- * The (shadhow) address of a src memory object
- *
- * src_memory_len:
- * Length of a src memory object
- *
  * dst_memory_id:
  * Unique identifier of a dst memory object except for MEMORY_ID_HOST as we do not track host memory objects
  *
- * dst_memory_value:
- * The (shadhow) address of a dst memory object
- *
- * dst_memory_value:
- * The (shadhow) address of a dst memory object
+ * len:
+ * Number of copied bytes
  *
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t src_memory_id, uint8_t *src_memory_value, uint32_t src_memory_len,
-  uint64_t dst_memory_id, uint8_t *dst_memory_value, uint32_t dst_memory_len);
+EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t src_memory_id, uint64_t dst_memory_id, uint64_t len);
 
 /*
  * This funciton is used to track a memset operation
  * 
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memory_id, uint8_t *memory_value, uint32_t memory_len);
+EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memory_id, uint64_t len);
 
 /*
  * Let a user handle data when a trace log is done analyzing

@@ -88,7 +88,8 @@ struct Memory {
   Memory() = default;
 
   Memory(MemoryRange &memory_range, uint64_t memory_op_id, uint64_t memory_id) :
-      memory_range(memory_range), memory_op_id(memory_op_id), memory_id(memory_id) {}
+      memory_range(memory_range), memory_op_id(memory_op_id), memory_id(memory_id),
+      value(new uint8_t[memory_range.end - memory_range.start], std::default_delete<uint8_t[]>()) {}
 };
 
 typedef std::map<MemoryRange, Memory> MemoryMap;
@@ -164,12 +165,6 @@ static int decimal_degree_f32 = VALID_FLOAT_DIGITS;
 static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
 
 static redshow_data_type_t default_data_type = REDSHOW_DATA_FLOAT;
-
-enum MemoryID {
-  MEMORY_ID_SHARED = 1,
-  MEMORY_ID_LOCAL = 2,
-  MEMORY_ID_HOST = 3
-};
 
 
 static redshow_result_t analyze_cubin(const char *path, std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
@@ -438,24 +433,23 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
           memory_op_id = iter->second.memory_op_id;
         }
 
-        uint32_t address_offset = 0;
-        if (memory_op_id == 0 || memory_op_id == 1) {
-          // It means the memory is local, shared, or allocated in an unknown way
+        uint32_t address_offset = GLOBAL_MEMORY_OFFSET;
+        if (memory_op_id == 0) {
+          // XXX(Keren): memory_op_id == 1 ?
+          // Memory object not found, it means the memory is local, shared, or allocated in an unknown way
           if (record->flags & GPU_PATCH_LOCAL) {
-            memory_op_id = MEMORY_ID_LOCAL;
+            memory_op_id = REDSHOW_MEMORY_SHARED;
             address_offset = LOCAL_MEMORY_OFFSET;
           } else if (record->flags & GPU_PATCH_SHARED) {
-            memory_op_id = MEMORY_ID_SHARED;
+            memory_op_id = REDSHOW_MEMORY_LOCAL;
             address_offset = SHARED_MEMORY_OFFSET;
-          } else if (record->flags != 0) {
-            // Must be either atomic or global
-            address_offset = GLOBAL_MEMORY_OFFSET;
           } else {
             // Unknown allocation
           }
         }
 
         if (memory_op_id == 0) {
+          // Unknown memory object
           continue;
         }
 
@@ -684,9 +678,8 @@ redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t 
   memory_snapshot_lock.lock();
   if (memory_snapshot.size() == 0) {
     // First snapshot
-    memory_map[memory_range].memory_range = memory_range;
-    memory_map[memory_range].memory_id = memory_id;
-    memory_map[memory_range].memory_op_id = host_op_id;
+    Memory memory(memory_range, memory_id, host_op_id);
+    memory_map[memory_range] = memory;
     memory_snapshot[host_op_id] = memory_map;
     result = REDSHOW_SUCCESS;
     PRINT("First host_op_id %lu registered\n", host_op_id);
@@ -697,9 +690,8 @@ redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t 
       // Take a snapshot
       memory_map = iter->second;
       if (memory_map.find(memory_range) == memory_map.end()) {
-        memory_map[memory_range].memory_range = memory_range;
-        memory_map[memory_range].memory_id = memory_id;
-        memory_map[memory_range].memory_op_id = host_op_id;
+        Memory memory(memory_range, memory_id, host_op_id);
+        memory_map[memory_range] = memory;
         memory_snapshot[host_op_id] = memory_map;
         result = REDSHOW_SUCCESS;
         PRINT("host_op_id %lu registered\n", host_op_id);
@@ -746,8 +738,51 @@ redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_
 }
 
 
-redshow_result_t redshow_memory_query(uint64_t op_id, uint64_t start, uint64_t *shadow_start) {
-  return REDSHOW_SUCCESS;
+redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint64_t *memory_id, uint64_t *memory_addr, uint64_t *len) {
+  PRINT("\nredshow->Enter redshow_memory_query\nop_id: %lu\nstart: %p\n", op_id, start, shadow_start);
+
+  redshow_result_t result;
+  MemoryRange memory_range(start, 0);
+
+  memory_snapshot_lock.lock();
+  auto snapshot_iter = memory_snapshot.upper_bound(host_op_id);
+  if (snapshot_iter != memory_snapshot.begin()) {
+    --snapshot_iter;
+    auto &memory_map = snapshot_iter->second;
+    auto memory_map_iter = memory_map.find(memory_range);
+    if (memory_map_iter != memory_map.end()) {
+      *memory_id = memory_map_iter->second.memory_id;
+      *memory_addr = reinterpret_cast<uint64_t>(memory_map_iter->second.value.get());
+      *len = memory_map_iter->first.end - memory_map_iter->first.start;
+      result = REDSHOW_SUCCESS;
+    } else {
+      result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+    }
+  } else {
+    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+  }
+  memory_snapshot_lock.unlock();
+
+  return result;
+}
+
+
+EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t src_memory_id, uint64_t dst_memory_id, uint64_t len) {
+  PRINT("\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %lu\nsrc_memory_id: %lu\ndst_memory_id: %lu\n, len: %lu\n",
+    memcpy_id, src_memory_id, dst_memory_id, len);
+
+  redshow_result_t result;
+
+  return result;
+}
+
+
+EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memory_id, uint64_t len) {
+  PRINT("\nredshow->Enter redshow_memset_register\nmemset_id: %lu\nmemory_id: %lu\nlen: %lu\n", memset_id, memory_id, len);
+
+  redshow_result_t result;
+
+  return result;
 }
 
 
