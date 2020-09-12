@@ -14,7 +14,7 @@
 #include <set>
 #include <regex>
 #include <queue>
-
+#include <iostream>
 #include <tuple>
 #include <algorithm>
 
@@ -25,7 +25,10 @@
 using std::pair;
 using std::map;
 using std::make_pair;
-
+using std::tuple;
+using std::make_tuple;
+using std::get;
+using std::vector;
 
 struct ThreadId {
   u32 flat_block_id;
@@ -81,6 +84,9 @@ struct RealPCPair {
       access_count(access_count) {}
 };
 
+//{value: count}.
+typedef std::map<u64, u64> ItemsValueCount;
+
 // {<memory_op_id, AccessKind> : {pc: {value: count}}}
 typedef std::map<std::pair<u64, AccessKind>, std::map<u64, std::map<u64, u64>>> SpatialTrace;
 
@@ -100,14 +106,12 @@ typedef std::map<u64, std::map<u64, std::map<std::pair<u64, AccessKind>, u64>>> 
 typedef std::map<u64, u64> PCAccessCount;
 
 // Currently, we don't need to consider the relationship between thread index and pc etc.
-// ValueDistribution:  {<memory_op_id, accesskind>: {offset: {value: count}}}}
-typedef std::map<pair<u64, AccessKind>, map<u64, map<u64, u64>>> ValueDist;
-//{offset: {value: count}}
-typedef std::map<u64, map<u64, u64>> ArrayItems;
-//{value: count}. We only save single-value item's value
-typedef std::map<u64, u64> ItemsValueCount;
+// ValueDistribution:  {<memory_op_id, accesskind, array_size>: [offset: {value: count}}, ] }
+typedef std::map<tuple<u64, AccessKind, u64>, ItemsValueCount *> ValueDist;
 
-void get_value_trace(u64 pc, u64 value, u64 memory_op_id, u64 offset, AccessKind access_kind, ValueDist &value_dist);
+
+void get_value_trace(u64 pc, u64 value, u64 memory_op_id, u64 offset, AccessKind access_kind, ValueDist &value_dist,
+                     u64 memory_size, int decimal_degree_f32, int decimal_degree_f64);
 
 
 typedef enum value_pattern_type {
@@ -117,7 +121,8 @@ typedef enum value_pattern_type {
   VP_TYPE_OVERUSE = 3,
   VP_APPROXIMATE_VALUE = 4,
   VP_SILENT_STORE = 5,
-  VP_SILENT_LOAD = 6
+  VP_SILENT_LOAD = 6,
+  VP_NO_PATTERN = 7
 } value_pattern_type_t;
 
 struct array_pattern_type {
@@ -125,7 +130,7 @@ struct array_pattern_type {
   value_pattern_type_t value_pattern_type;
   pair<redshow_data_type_t, int> type_overuse_before;
   pair<redshow_data_type_t, int> type_overuse_after;
-  ItemsValueCount value_count;
+  std::vector<std::pair<u64, u64>> value_count_vec;
 };
 
 struct CompareRealPCPair {
@@ -265,6 +270,9 @@ u64 store2double(u64 a, int decimal_degree_f64);
 u64 store2basictype(u64 a, AccessKind akind, int decimal_degree_f32, int decimal_degree_f64);
 
 void output_kind_value(u64 a, AccessKind akind, std::streambuf *buf, bool is_signed);
+
+
+void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessKind access_kind, u64 memory_size);
 
 #endif  // REDSHOW_COMMON_LIB_H
 

@@ -6,7 +6,7 @@
 #include <mutex>
 #include <map>
 #include <string>
-#include <iostream>
+
 #include <fstream>
 
 #include <cstdlib>
@@ -106,8 +106,6 @@ struct Kernel {
   PCPairs write_pc_pairs;
   PCAccessCount write_pc_count;
 
-  ValueDist value_dist;
-
   Kernel() = default;
 
   Kernel(uint64_t kernel_id, uint32_t cubin_id, uint32_t func_index, uint64_t func_addr) :
@@ -132,6 +130,8 @@ static int decimal_degree_f32 = VALID_FLOAT_DIGITS;
 static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
 
 static redshow_data_type_t default_data_type = REDSHOW_DATA_FLOAT;
+
+static ValueDist value_dist;
 
 enum {
   MEMORY_ID_SHARED = 1,
@@ -265,7 +265,6 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
   auto &write_pc_pairs = kernel.write_pc_pairs;
   auto &read_pc_count = kernel.read_pc_count;
   auto &write_pc_count = kernel.write_pc_count;
-  auto &value_dist = kernel.value_dist;
   std::vector<Symbol> *symbols = NULL;
   InstructionGraph *inst_graph = NULL;
   // Cubin path is added just for debugging purpose
@@ -341,6 +340,9 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
   size_t size = trace_data->head_index;
   gpu_patch_record_t *records = reinterpret_cast<gpu_patch_record_t *>(trace_data->records);
 
+//  debug
+  redshow_approx_level_config(REDSHOW_APPROX_MID);
+
   for (size_t i = 0; i < size; ++i) {
     // Iterate over each record
     gpu_patch_record_t *record = records + i;
@@ -402,9 +404,11 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
         MemoryRange memory_range(record->address[j], record->address[j]);
         auto iter = memory_map->upper_bound(memory_range);
         uint64_t memory_op_id = 0;
+        uint64_t memory_size = 0;
         if (iter != memory_map->begin()) {
           --iter;
           memory_op_id = iter->second.memory_op_id;
+          memory_size = iter->second.memory_range.end - iter->second.memory_range.start;
         }
 
         uint32_t address_offset = 0;
@@ -432,6 +436,7 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
         AccessKind unit_access_kind = access_kind;
         // We iterate through all the units such that every unit's vec_size = unit_size
         unit_access_kind.vec_size = unit_access_kind.unit_size;
+        memory_size = memory_size / (unit_access_kind.unit_size / 8);
 
         if (record->flags & GPU_PATCH_READ) {
           read_pc_count[record->pc] += num_units;
@@ -463,10 +468,13 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
                                    write_temporal_trace, write_pc_pairs);
               }
             } else if (analysis == REDSHOW_ANALYSIS_VALUE_PATTERN) {
-//              @todo change log2 to if-else?
+              if (memory_op_id == 1) {
+                continue;
+              }
               uint64_t item_index = (record->address[j] - iter->first.start) / (unit_access_kind.unit_size / 8);
               if (record->flags & GPU_PATCH_READ) {
-                get_value_trace(record->pc, value, memory_op_id, item_index, unit_access_kind, value_dist);
+                get_value_trace(record->pc, value, memory_op_id, item_index, unit_access_kind, value_dist, memory_size,
+                                decimal_degree_f32, decimal_degree_f64);
               }
             } else {
               // Pass
@@ -851,6 +859,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
     TemporalStatistics write_temporal_stats;
     std::vector<Symbol> &symbols = cubin_map[cubin_id].symbols;
 
+
     for (auto analysis : analysis_enabled) {
       if (analysis == REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) {
         record_data.analysis_type = REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY;
@@ -894,8 +903,6 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         transform_data_views(symbols, record_data);
         record_data_callback(cubin_id, kernel_id, &record_data);
         transform_temporal_statistics(cubin_id, symbols, write_temporal_stats);
-      }else if (analysis == REDSHOW_ANALYSIS_VALUE_PATTERN){
-
       }
     }
 
@@ -934,6 +941,18 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         show_spatial_trace(thread_id, kernel_id, kernel_write_spatial_count, kernel_count,
                            write_spatial_stats, false, false);
       }
+    }
+  }
+
+  for (auto analysis : analysis_enabled) {
+    if (analysis == REDSHOW_ANALYSIS_VALUE_PATTERN) {
+      for (auto array_items: value_dist) {
+        auto access_kind = get<1>(array_items.first);
+        auto memory_size = get<2>(array_items.first);
+        auto memory_op_id = get<0>(array_items.first);
+        dense_value_pattern(array_items.second, memory_op_id, access_kind, memory_size);
+      }
+
     }
   }
 

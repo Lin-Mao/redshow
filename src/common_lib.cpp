@@ -414,8 +414,26 @@ u64 store2float(u64 a, int decimal_degree_f32) {
   return b;
 }
 
-void get_value_trace(u64 pc, u64 value, u64 memory_op_id, u64 offset, AccessKind access_kind, ValueDist &value_dist) {
-  value_dist[make_pair(memory_op_id, access_kind)][offset][value] += 1;
+void get_value_trace(u64 pc, u64 value, u64 memory_op_id, u64 offset, AccessKind access_kind, ValueDist &value_dist,
+                     u64 memory_size, int decimal_degree_f32, int decimal_degree_f64) {
+//  @todo If memory usage is too high, we can limit the save of various values of one item.
+  auto temp_tuple = make_tuple(memory_op_id, access_kind, memory_size);
+  auto items_value_count = value_dist.find(temp_tuple);
+  if (items_value_count == value_dist.end()) {
+    value_dist[temp_tuple] = new ItemsValueCount[memory_size];
+  }
+//debug
+//  if(memory_op_id == 1){
+//    std::cout<<"ok";
+//  }
+  if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
+    if (access_kind.unit_size == 32) {
+      value = store2float(value, decimal_degree_f32);
+    }else if (access_kind.unit_size == 64){
+      value = store2float(value, decimal_degree_f64);
+    }
+  }
+  value_dist[temp_tuple][offset][value] += 1;
 }
 
 bool sortByVal(const pair<u64, u64> &a,
@@ -424,33 +442,39 @@ bool sortByVal(const pair<u64, u64> &a,
 }
 
 /**Array_items is part of ValueDist which focuses on every offset's value. This function is going to transform offset center to value center.
- * @arg value_count: {value: count}. We only save single-value item's value
+ * @arg value_count_vec: {value: count}. We only save single-value item's value
  * @arg array_items: {offset: {value: count}}
  * */
-value_pattern_type_t
-dense_value_pattern(ArrayItems &array_items, ItemsValueCount &value_count, AccessKind access_kind) {
+void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessKind access_kind, u64 memory_size) {
 // @todo one array may be considered as multiple types. What if one type is single_value_pattern but another type is not?
 // @todo what if the array item is single-value at read and write with two different values?
 
-// @todo what is the standard of dense value?
+
   float THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE = 0.1;
   float THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 = 0.5;
-
+  int TOP_NUM_VALUE = 10;
+  int unique_value_count = 0;
+  ItemsValueCount value_count;
 // Type ArrayItems is part of ValueDist: {offset: {value: count}}
-  for (auto item: array_items) {
-    if (item.second.size() == 1) {
-      value_count[item.second.begin()->first] += 1;
+  for (u64 i = 0; i < memory_size; i++) {
+    auto temp_item_value_count = array_items[i];
+    if (temp_item_value_count.size() == 1) {
+      value_count[temp_item_value_count.begin()->first] += 1;
+      unique_value_count++;
     }
   }
-
-  std::vector<std::pair<u64, u64>> value_count_vec;
+  vector<pair<u64, u64>> value_count_vec;
   for (auto iter: value_count) {
     value_count_vec.emplace_back(iter.first, iter.second);
   }
+  vector<pair<u64, u64>> top_value_count_vec;
   sort(value_count_vec.begin(), value_count_vec.end(), sortByVal);
+  for (int i = 0; i < std::min((size_t) TOP_NUM_VALUE, value_count_vec.size()); i++) {
+    top_value_count_vec.emplace_back(value_count_vec[i]);
+  }
 
-  array_pattern_type arr_pattern_type;
-  arr_pattern_type.value_count = value_count;
+
+  value_pattern_type_t vpt = VP_NO_PATTERN;
 //  single value pattern, redundant zeros
   if (value_count.size() == 1) {
     if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
@@ -458,45 +482,59 @@ dense_value_pattern(ArrayItems &array_items, ItemsValueCount &value_count, Acces
         uint32_t value_hex = value_count.begin()->first & 0xffffffffu;
         float b = *reinterpret_cast<float *>(&value_hex);
         if (std::abs(b) < 1e-6) {
-          arr_pattern_type.value_pattern_type = VP_REDUNDANT_ZEROS;
+          vpt = VP_REDUNDANT_ZEROS;
         } else {
-          arr_pattern_type.value_pattern_type = VP_SINGLE_VALUE;
+          vpt = VP_SINGLE_VALUE;
         }
       } else if (access_kind.unit_size == 64) {
         double b;
         u64 cur_hex_value = value_count.begin()->first;
         memcpy(&b, &cur_hex_value, sizeof(cur_hex_value));
         if (std::abs(b) < 1e-6) {
-          arr_pattern_type.value_pattern_type = VP_REDUNDANT_ZEROS;
+          vpt = VP_REDUNDANT_ZEROS;
         } else {
-          arr_pattern_type.value_pattern_type = VP_SINGLE_VALUE;
+          vpt = VP_SINGLE_VALUE;
         }
       }
     } else if (access_kind.data_type == REDSHOW_DATA_INT) {
       if (value_count.begin()->first == 0) {
-        arr_pattern_type.value_pattern_type = VP_REDUNDANT_ZEROS;
+        vpt = VP_REDUNDANT_ZEROS;
       } else {
-        arr_pattern_type.value_pattern_type = VP_SINGLE_VALUE;
+        vpt = VP_SINGLE_VALUE;
       }
     }
   } else {
-//    Actually array_items.size may not be the size of array. Because array_items only record accessed items.
-    int threshold_number_of_items = THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE * array_items.size();
-    int i=0;
-    u64 sum_of_items = 0;
-    for(auto iter: value_count_vec){
-      sum_of_items += iter.second;
-      i++;
-      if ( i > threshold_number_of_items){
-        break;
+    if(unique_value_count >= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 * memory_size){
+      if(value_count_vec.size() <= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE * memory_size){
+        vpt = VP_DENSE_VALUE;
       }
+
     }
-    if(sum_of_items > THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 * array_items.size()){
-      arr_pattern_type.value_pattern_type = VP_DENSE_VALUE;
-    }
+//    u64 threshold_number_of_items = THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE * memory_size;
+//    int i = 0;
+//    u64 sum_of_items = 0;
+//    for (int i = 0; i < threshold_number_of_items; i++) {
+//      sum_of_items += value_count_vec[i].second;
+//    }
+//    if (sum_of_items > THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 * memory_size) {
+//      vpt = VP_DENSE_VALUE;
+//    }
 
 
   }
-
+  using std::cout;
+  using std::endl;
+  using std::string;
+  // @todo
+  string pattern_names[] = {"Redundant zeros", "Single value", "Dense value", "Type overuse", "Approximate value",
+                            "Silent store", "Silent load", "No pattern"};
+  cout << "array " << memory_op_id << " : memory size "<<memory_size<<" value type " << access_kind.to_string() << " , pattern type "
+       << pattern_names[vpt] << endl;
+  cout << "value\tcount" << endl;
+  for (auto item: top_value_count_vec) {
+    output_kind_value(item.first, access_kind, cout.rdbuf(), true);
+    cout << "\t" << item.second << endl;
+  }
+//  return arr_pattern_type;
 
 }
