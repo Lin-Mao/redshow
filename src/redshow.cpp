@@ -682,7 +682,7 @@ redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t 
     memory_map[memory_range] = memory;
     memory_snapshot[host_op_id] = memory_map;
     result = REDSHOW_SUCCESS;
-    PRINT("First host_op_id %lu registered\n", host_op_id);
+    PRINT("First host_op_id: %lu, shadow: %p registered\n", host_op_id, memory.value.get());
   } else {
     auto iter = memory_snapshot.upper_bound(host_op_id);
     if (iter != memory_snapshot.begin()) {
@@ -694,7 +694,7 @@ redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t 
         memory_map[memory_range] = memory;
         memory_snapshot[host_op_id] = memory_map;
         result = REDSHOW_SUCCESS;
-        PRINT("host_op_id %lu registered\n", host_op_id);
+        PRINT("First host_op_id: %lu, shadow: %p registered\n", host_op_id, memory.value.get());
       } else {
         result = REDSHOW_ERROR_DUPLICATE_ENTRY;
       }
@@ -738,8 +738,8 @@ redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_
 }
 
 
-redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint64_t *memory_id, uint64_t *memory_addr, uint64_t *len) {
-  PRINT("\nredshow->Enter redshow_memory_query\nop_id: %lu\nstart: %p\n", op_id, start, shadow_start);
+redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint64_t *memory_id, uint64_t *shadow_start, uint64_t *len) {
+  PRINT("\nredshow->Enter redshow_memory_query\nop_id: %lu\nstart: %p\n", host_op_id, start);
 
   redshow_result_t result;
   MemoryRange memory_range(start, 0);
@@ -752,8 +752,9 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint6
     auto memory_map_iter = memory_map.find(memory_range);
     if (memory_map_iter != memory_map.end()) {
       *memory_id = memory_map_iter->second.memory_id;
-      *memory_addr = reinterpret_cast<uint64_t>(memory_map_iter->second.value.get());
+      *shadow_start = reinterpret_cast<uint64_t>(memory_map_iter->second.value.get());
       *len = memory_map_iter->first.end - memory_map_iter->first.start;
+      PRINT("Get memory_id: %lu\nshadow: %p\nlen: %lu\n", *memory_id, *shadow_start, *len);
       result = REDSHOW_SUCCESS;
     } else {
       result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
@@ -767,9 +768,10 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint6
 }
 
 
-EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t src_memory_id, uint64_t dst_memory_id, uint64_t len) {
-  PRINT("\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %lu\nsrc_memory_id: %lu\ndst_memory_id: %lu\n, len: %lu\n",
-    memcpy_id, src_memory_id, dst_memory_id, len);
+EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t src_memory_id, uint64_t src_start,
+  uint64_t dst_memory_id, uint64_t dst_start, uint64_t len) {
+  PRINT("\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %lu\nsrc_memory_id: %lu\nsrc_start: %p\n"
+    "dst_memory_id: %lu\ndst_start: %p\nlen: %lu\n", memcpy_id, src_memory_id, src_start, dst_memory_id, dst_start, len);
 
   redshow_result_t result;
 
@@ -777,8 +779,9 @@ EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t sr
 }
 
 
-EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memory_id, uint64_t len) {
-  PRINT("\nredshow->Enter redshow_memset_register\nmemset_id: %lu\nmemory_id: %lu\nlen: %lu\n", memset_id, memory_id, len);
+EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memory_id, uint32_t value, uint64_t len) {
+  PRINT("\nredshow->Enter redshow_memset_register\nmemset_id: %lu\nmemory_id: %lu\nvalue: %u\nlen: %lu\n", \
+    memset_id, memory_id, value, len);
 
   redshow_result_t result;
 
