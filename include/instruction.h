@@ -48,9 +48,9 @@ struct AccessKind {
 
   AccessKind() : AccessKind(0, 0, REDSHOW_DATA_UNKNOWN) {}
 
-  u64 store_to_basic_type(u64 a, int decimal_degree_f32, int decimal_degree_f64);
+  u64 value_to_basic_type(u64 a, int decimal_degree_f32, int decimal_degree_f64);
 
-  std::string value_string(u64 a, bool is_signed);
+  std::string value_to_string(u64 a, bool is_signed);
 
   std::string to_string() {
     std::stringstream ss;

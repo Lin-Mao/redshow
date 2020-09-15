@@ -313,7 +313,7 @@ bool parse_instructions(const std::string &file_path,
 }
 
 
-u64 AccessKind::store_to_basic_type(u64 a, int decimal_degree_f32, int decimal_degree_f64) {
+u64 AccessKind::value_to_basic_type(u64 a, int decimal_degree_f32, int decimal_degree_f64) {
   switch (data_type) {
     case REDSHOW_DATA_UNKNOWN:
       break;
@@ -332,9 +332,9 @@ u64 AccessKind::store_to_basic_type(u64 a, int decimal_degree_f32, int decimal_d
     case REDSHOW_DATA_FLOAT:
       switch (unit_size) {
         case 32:
-          return store_to_float(a, decimal_degree_f32);
+          return value_to_float(a, decimal_degree_f32);
         case 64:
-          return store_to_double(a, decimal_degree_f64);
+          return value_to_double(a, decimal_degree_f64);
       }
       break;
     default:
@@ -344,7 +344,7 @@ u64 AccessKind::store_to_basic_type(u64 a, int decimal_degree_f32, int decimal_d
 }
 
 
-std::string AccessKind::value_string(u64 a, bool is_signed) {
+std::string AccessKind::value_to_string(u64 a, bool is_signed) {
   std::stringstream ss;
   if (data_type == REDSHOW_DATA_INT) {
     if (unit_size == 8) {
