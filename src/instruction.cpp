@@ -1,5 +1,4 @@
 #include "instruction.h"
-#include "redshow.h"
 
 #include <algorithm>
 #include <iostream>
@@ -7,11 +6,14 @@
 #include <vector>
 #include <queue>
 
+#include <cstdlib>
+
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/lexical_cast.hpp>
 
-#include <cstdlib>
+#include "redshow.h"
+#include "utils.h"
 
 #ifdef DEBUG_INSTRUCTION
 #define PRINT(...) fprintf(stderr, __VA_ARGS__)
@@ -21,6 +23,9 @@
 
 #define MIN2(x, y) (x > y ? y : x)
 
+namespace redshow {
+
+namespace instruction {
 
 static void default_access_kind(Instruction &inst) {
   if (inst.access_kind->vec_size == 0) {
@@ -261,11 +266,6 @@ bool parse_instructions(const std::string &file_path,
       int src = inst.srcs[i];
       for (auto src_pc : inst.assign_pcs[src]) {
         inst_graph.add_edge(src_pc, inst.pc);
-
-#ifdef DEBUG_INSTRUCTION
-        std::cout << "Add edge: 0x" << std::hex << src_pc << ", 0x" <<
-          inst.pc << std::dec << std::endl;
-#endif
       }
     }
   }
@@ -311,4 +311,99 @@ bool parse_instructions(const std::string &file_path,
 
   return true;
 }
+
+
+u64 AccessKind::store_to_basic_type(u64 a, int decimal_degree_f32, int decimal_degree_f64) {
+  switch (data_type) {
+    case REDSHOW_DATA_UNKNOWN:
+      break;
+    case REDSHOW_DATA_INT:
+      switch (unit_size) {
+        case 8:
+          return a & 0xffu;
+        case 16:
+          return a & 0xffffu;
+        case 32:
+          return a & 0xffffffffu;
+        case 64:
+          return a;
+      }
+      break;
+    case REDSHOW_DATA_FLOAT:
+      switch (unit_size) {
+        case 32:
+          return store_to_float(a, decimal_degree_f32);
+        case 64:
+          return store_to_double(a, decimal_degree_f64);
+      }
+      break;
+    default:
+      break;
+  }
+  return a;
+}
+
+
+std::string AccessKind::value_string(u64 a, bool is_signed) {
+  std::stringstream ss;
+  if (data_type == REDSHOW_DATA_INT) {
+    if (unit_size == 8) {
+      if (is_signed) {
+        i8 b;
+        memcpy(&b, &a, sizeof(b));
+        ss << (int)b;
+      } else {
+        u8 b;
+        memcpy(&b, &a, sizeof(b));
+        ss << b;
+      }
+    } else if (unit_size == 16) {
+      if (is_signed) {
+        i16 b;
+        memcpy(&b, &a, sizeof(b));
+        ss << b;
+      } else {
+        u16 b;
+        memcpy(&b, &a, sizeof(b));
+        ss << b;
+      }
+    } else if (unit_size == 32) {
+      if (is_signed) {
+        i32 b;
+        memcpy(&b, &a, sizeof(b));
+        ss << b;
+      } else {
+        u32 b;
+        memcpy(&b, &a, sizeof(b));
+        ss << b;
+      }
+    } else if (unit_size == 64) {
+      if (is_signed) {
+        i64 b;
+        memcpy(&b, &a, sizeof(b));
+        ss << b;
+      } else {
+        ss << a;
+      }
+    }
+  } else if (data_type == REDSHOW_DATA_FLOAT) {
+    // At this time, it must be float
+    if (unit_size == 32) {
+      float b;
+      memcpy(&b, &a, sizeof(b));
+      ss << b;
+    } else if (unit_size == 64) {
+      double b;
+      memcpy(&b, &a, sizeof(b));
+      ss << b;
+    }
+  }
+
+  return ss.str();
+}
+
+
+}  // namespace instruction
+
+}  // namespace redshow
 

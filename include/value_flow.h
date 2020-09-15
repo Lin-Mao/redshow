@@ -3,8 +3,16 @@
 
 #include <string>
 
+namespace redshow {
+
+namespace value_flow {
+
 std::string compute_memory_hash(uint64_t start, uint64_t len);
 
 double compute_memory_redundancy(uint64_t dst_start, uint64_t src_start, uint64_t len);
+
+}  // namespace value_flow
+
+}  // namespace redshow
 
 #endif  // REDSHOW_VALUE_FLOW_H

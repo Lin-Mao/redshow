@@ -9,6 +9,11 @@
 #include <vector>
 
 #include "redshow.h"
+#include "utils.h"
+
+namespace redshow {
+
+namespace instruction {
 
 struct Symbol {
   uint32_t index;
@@ -43,6 +48,10 @@ struct AccessKind {
 
   AccessKind() : AccessKind(0, 0, REDSHOW_DATA_UNKNOWN) {}
 
+  u64 store_to_basic_type(u64 a, int decimal_degree_f32, int decimal_degree_f64);
+
+  std::string value_string(u64 a, bool is_signed);
+
   std::string to_string() {
     std::stringstream ss;
     if (data_type == REDSHOW_DATA_UNKNOWN) {
@@ -66,7 +75,6 @@ struct AccessKind {
     }
     return this->vec_size < other.vec_size;
   }
-
 };
 
 /*
@@ -168,5 +176,9 @@ class InstructionGraph {
  * A function modified from hpctoolkit
  */
 bool parse_instructions(const std::string &file_path, std::vector<Symbol> &symbols, InstructionGraph &graph);
+
+}  // namespace instruction
+
+}  // namespace redshow
 
 #endif  // REDSHOW_INSTRUCTION_H

@@ -78,35 +78,35 @@ typedef struct redshow_record_data {
 
 /*
  * Config default data type
- * 
+ *
  * Thread-Safety: NO
  */
 EXTERNC redshow_result_t redshow_data_type_config(redshow_data_type_t data_type);
 
 /*
  * Get default data type
- * 
+ *
  * Thread-Safety: NO
  */
 EXTERNC redshow_result_t redshow_data_type_get(redshow_data_type_t *data_type);
 
 /*
  * Config floating point redundancy approximate level
- * 
+ *
  * Thread-Safety: NO
  */
 EXTERNC redshow_result_t redshow_approx_level_config(redshow_approx_level_t level);
 
 /*
  * This function is used to setup specific analysis types.
- * 
+ *
  * Thread-Safety: NO
  */
 EXTERNC redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type);
 
 /*
  * This function is used to cancel specific analysis types.
- * 
+ *
  * Thread-Safety: NO
  */
 EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type);
@@ -127,43 +127,47 @@ EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analys
  * symbols:
  * An array of symbol start addresses in memory.
  * Use 0 for non-function symbols
- * 
+ *
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *symbol_pcs, const char *path);
+EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols,
+                                                uint64_t *symbol_pcs, const char *path);
 
 /*
- * For a large-scale program that loads a large number of CUBINs, we do not analyze every of them because not all
- * the cubins will be used.
+ * For a large-scale program that loads a large number of CUBINs, we do not analyze every of them
+ * because not all the cubins will be used.
  *
  * Instead, we cache the cubin's symbols and path and analyze the cubins we use
  */
-EXTERNC redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *symbol_pcs, const char *path);
+EXTERNC redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t nsymbols,
+                                                      uint64_t *symbol_pcs, const char *path);
 
 /*
  * This function is used to unregister a module.
- * 
+ *
  * Thread-Safety: YES
  */
 EXTERNC redshow_result_t redshow_cubin_unregister(uint32_t cubin_id);
 
 /*
  * This function is used to register a global memory region.
- * 
+ *
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t host_op_id, uint64_t memory_id);
+EXTERNC redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t host_op_id,
+                                                 uint64_t memory_id);
 
 /*
  * This function is used to unregister a global memory region.
- * 
+ *
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_t host_op_id);
+EXTERNC redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end,
+                                                   uint64_t host_op_id);
 
 /*
  * This funciton is used to query the address of a shadow memory
- * 
+ *
  * Thread-Safety: YES
  *
  * host_op_id:
@@ -183,22 +187,26 @@ EXTERNC redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end,
  *
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint64_t *memory_id, uint64_t *shadow_start, uint64_t *len);
+EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start,
+                                              uint64_t *memory_id, uint64_t *shadow_start,
+                                              uint64_t *len);
 
 /*
  * This funciton is used to track a memcpy operation
- * 
- * memcpy_id: 
+ *
+ * memcpy_id:
  * Unique identifier of a memcpy operation
  *
  * src_memory_id:
- * Unique identifier of a src memory object except for MEMORY_ID_HOST as we do not track host memory objects
+ * Unique identifier of a src memory object except for MEMORY_ID_HOST as we do not track host memory
+ * objects
  *
  * src_start:
  * Start address of a src memory (shadow) object
  *
  * dst_memory_id:
- * Unique identifier of a dst memory object except for MEMORY_ID_HOST as we do not track host memory objects
+ * Unique identifier of a dst memory object except for MEMORY_ID_HOST as we do not track host memory
+ * objects
  *
  * dst_start:
  * Start address of a dst memory (shadow) object
@@ -208,15 +216,18 @@ EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t star
  *
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t src_memory_id, uint64_t src_start,
-  uint64_t dst_memory_id, uint64_t dst_start, uint64_t len);
+EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t src_memory_id,
+                                                 uint64_t src_start, uint64_t dst_memory_id,
+                                                 uint64_t dst_start, uint64_t len);
 
 /*
  * This funciton is used to track a memset operation
- * 
+ *
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memory_id, uint32_t value, uint64_t len);
+EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memory_id,
+                                                 uint64_t start, uint64_t shadow_start,
+                                                 uint32_t value, uint64_t len);
 
 /*
  * Let a user handle data when a trace log is done analyzing
@@ -233,10 +244,11 @@ EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_cal
  * Thread-Safety: NO
  */
 
-typedef void (*redshow_record_data_callback_func)(uint32_t cubin_id, uint64_t kernel_id, redshow_record_data_t *record_data);
+typedef void (*redshow_record_data_callback_func)(uint32_t cubin_id, uint64_t kernel_id,
+                                                  redshow_record_data_t *record_data);
 
-EXTERNC redshow_result_t redshow_record_data_callback_register(redshow_record_data_callback_func func, uint32_t pc_views_limit, uint32_t mem_views_limit);
-
+EXTERNC redshow_result_t redshow_record_data_callback_register(
+    redshow_record_data_callback_func func, uint32_t pc_views_limit, uint32_t mem_views_limit);
 
 /*
  * Apply registered analysis to a gpu trace, analysis results are buffered.
@@ -251,7 +263,7 @@ EXTERNC redshow_result_t redshow_record_data_callback_register(redshow_record_da
  *
  * cubin_id:
  * Lookup correponding cubin
- 
+
  * kernel_id:
  * Unique identifier for a calling context
  *
@@ -263,8 +275,8 @@ EXTERNC redshow_result_t redshow_record_data_callback_register(redshow_record_da
  *
  * Thread-Safety: YES
  */
-EXTERNC redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint64_t kernel_id, uint64_t host_op_id,
-  gpu_patch_buffer_t *trace_data);
+EXTERNC redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint64_t kernel_id,
+                                         uint64_t host_op_id, gpu_patch_buffer_t *trace_data);
 
 /*
  * Mark the begin of the current analysis region

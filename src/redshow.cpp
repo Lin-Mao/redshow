@@ -1,20 +1,22 @@
 #include <redshow.h>
-#include <instruction.h>
 
 #include <algorithm>
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <iostream>
 #include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <string>
-#include <iostream>
-#include <fstream>
 
-#include <cstdlib>
-#include <cstring>
-
+#include "instruction.h"
 #include "redundancy.h"
 #include "utils.h"
+#include "value_flow.h"
+
+namespace redshow {
 
 #ifdef DEBUG
 #define PRINT(...) fprintf(stderr, __VA_ARGS__)
@@ -29,19 +31,17 @@
 struct Cubin {
   uint32_t cubin_id;
   std::string path;
-  std::vector<Symbol> symbols;
-  InstructionGraph inst_graph;
+  std::vector<instruction::Symbol> symbols;
+  instruction::InstructionGraph inst_graph;
 
   Cubin() = default;
 
-  Cubin(uint32_t cubin_id, const char *path_,
-        InstructionGraph &inst_graph) :
-      cubin_id(cubin_id), path(path_), inst_graph(inst_graph) {}
+  Cubin(uint32_t cubin_id, const char *path_, instruction::InstructionGraph &inst_graph)
+      : cubin_id(cubin_id), path(path_), inst_graph(inst_graph) {}
 };
 
 static std::map<uint32_t, Cubin> cubin_map;
 static std::mutex cubin_map_lock;
-
 
 struct CubinCache {
   uint32_t cubin_id;
@@ -54,17 +54,14 @@ struct CubinCache {
 
   CubinCache(uint32_t cubin_id) : cubin_id(cubin_id), nsymbols(0) {}
 
-  CubinCache(uint32_t cubin_id, const std::string &path) :
-      cubin_id(cubin_id), path(path), nsymbols(0) {}
+  CubinCache(uint32_t cubin_id, const std::string &path)
+      : cubin_id(cubin_id), path(path), nsymbols(0) {}
 
-  ~CubinCache() {
-    delete[] symbol_pcs;
-  }
+  ~CubinCache() { delete[] symbol_pcs; }
 };
 
 static std::map<uint32_t, CubinCache> cubin_cache_map;
 static std::mutex cubin_cache_map_lock;
-
 
 struct MemoryRange {
   uint64_t start;
@@ -74,9 +71,7 @@ struct MemoryRange {
 
   MemoryRange(uint64_t start, uint64_t end) : start(start), end(end) {}
 
-  bool operator<(const MemoryRange &other) const {
-    return start < other.start;
-  }
+  bool operator<(const MemoryRange &other) const { return start < other.start; }
 };
 
 struct Memory {
@@ -87,15 +82,17 @@ struct Memory {
 
   Memory() = default;
 
-  Memory(MemoryRange &memory_range, uint64_t memory_op_id, uint64_t memory_id) :
-      memory_range(memory_range), memory_op_id(memory_op_id), memory_id(memory_id),
-      value(new uint8_t[memory_range.end - memory_range.start], std::default_delete<uint8_t[]>()) {}
+  Memory(MemoryRange &memory_range, uint64_t memory_op_id, uint64_t memory_id)
+      : memory_range(memory_range),
+        memory_op_id(memory_op_id),
+        memory_id(memory_id),
+        value(new uint8_t[memory_range.end - memory_range.start],
+              std::default_delete<uint8_t[]>()) {}
 };
 
 typedef std::map<MemoryRange, Memory> MemoryMap;
 static std::map<uint64_t, MemoryMap> memory_snapshot;
 static std::mutex memory_snapshot_lock;
-
 
 struct Kernel {
   uint64_t kernel_id;
@@ -103,20 +100,24 @@ struct Kernel {
   uint32_t func_index;
   uint64_t func_addr;
 
-  SpatialTrace read_spatial_trace;
-  SpatialTrace write_spatial_trace;
+  // Spatial redundancy
+  redundancy::SpatialTrace read_spatial_trace;
+  redundancy::SpatialTrace write_spatial_trace;
 
-  TemporalTrace read_temporal_trace;
-  PCPairs read_pc_pairs;
-  PCAccessCount read_pc_count;
-  TemporalTrace write_temporal_trace;
-  PCPairs write_pc_pairs;
-  PCAccessCount write_pc_count;
+  // Temporal redundancy
+  redundancy::TemporalTrace read_temporal_trace;
+  redundancy::PCPairs read_pc_pairs;
+  redundancy::PCAccessCount read_pc_count;
+  redundancy::TemporalTrace write_temporal_trace;
+  redundancy::PCPairs write_pc_pairs;
+  redundancy::PCAccessCount write_pc_count;
+
+  // Value flow
 
   Kernel() = default;
 
-  Kernel(uint64_t kernel_id, uint32_t cubin_id, uint32_t func_index, uint64_t func_addr) :
-      kernel_id(kernel_id), cubin_id(cubin_id), func_index(func_index), func_addr(func_addr) {}
+  Kernel(uint64_t kernel_id, uint32_t cubin_id, uint32_t func_index, uint64_t func_addr)
+      : kernel_id(kernel_id), cubin_id(cubin_id), func_index(func_index), func_addr(func_addr) {}
 };
 
 static std::map<uint32_t, std::map<uint64_t, Kernel>> kernel_map;
@@ -131,10 +132,13 @@ struct Memcpy {
 
   Memcpy() = default;
 
-  Memcpy(uint64_t memcpy_id, uint64_t src_memory_id, uint64_t dst_memory_id,
-    std::string &hash, double redundancy) :
-    memcpy_id(memcpy_id), src_memory_id(src_memory_id), dst_memory_id(dst_memory_id),
-    hash(hash), redundancy(redundancy) {}
+  Memcpy(uint64_t memcpy_id, uint64_t src_memory_id, uint64_t dst_memory_id, std::string &hash,
+         double redundancy)
+      : memcpy_id(memcpy_id),
+        src_memory_id(src_memory_id),
+        dst_memory_id(dst_memory_id),
+        hash(hash),
+        redundancy(redundancy) {}
 };
 
 static std::map<std::string, std::vector<Memcpy>> memcpy_map;
@@ -148,9 +152,8 @@ struct Memset {
 
   Memset() = default;
 
-  Memset(uint64_t memset_id, uint64_t memory_id, std::string &hash,
-    double redundancy) : memset_id(memset_id), memory_id(memory_id),
-    hash(hash), redundancy(redundancy), {}
+  Memset(uint64_t memset_id, uint64_t memory_id, std::string &hash, double redundancy)
+      : memset_id(memset_id), memory_id(memory_id), hash(hash), redundancy(redundancy) {}
 };
 
 static std::map<std::string, std::vector<Memset>> memset_map;
@@ -172,8 +175,8 @@ static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
 
 static redshow_data_type_t default_data_type = REDSHOW_DATA_FLOAT;
 
-
-static redshow_result_t analyze_cubin(const char *path, std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
+static redshow_result_t analyze_cubin(const char *path, std::vector<instruction::Symbol> &symbols,
+                                      instruction::InstructionGraph &inst_graph) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
   std::string cubin_path = std::string(path);
@@ -206,12 +209,12 @@ static redshow_result_t analyze_cubin(const char *path, std::vector<Symbol> &sym
   return result;
 }
 
-
-static redshow_result_t transform_pc(std::vector<Symbol> &symbols, uint64_t pc,
-                                     uint32_t &function_index, uint64_t &cubin_offset, uint64_t &pc_offset) {
+static redshow_result_t transform_pc(std::vector<instruction::Symbol> &symbols, uint64_t pc,
+                                     uint32_t &function_index, uint64_t &cubin_offset,
+                                     uint64_t &pc_offset) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  Symbol symbol(pc);
+  instruction::Symbol symbol(pc);
 
   auto symbols_iter = std::upper_bound(symbols.begin(), symbols.end(), symbol);
 
@@ -227,8 +230,8 @@ static redshow_result_t transform_pc(std::vector<Symbol> &symbols, uint64_t pc,
   return result;
 }
 
-
-static redshow_result_t transform_data_views(std::vector<Symbol> &symbols, redshow_record_data_t &record_data) {
+static redshow_result_t transform_data_views(std::vector<instruction::Symbol> &symbols,
+                                             redshow_record_data_t &record_data) {
   // Transform pcs
   for (auto i = 0; i < record_data.num_views; ++i) {
     uint64_t pc = record_data.views[i].pc_offset;
@@ -241,9 +244,9 @@ static redshow_result_t transform_data_views(std::vector<Symbol> &symbols, redsh
   }
 }
 
-
-static redshow_result_t transform_temporal_statistics(uint32_t cubin_id,
-  std::vector<Symbol> &symbols, TemporalStatistics &temporal_stats) {
+static redshow_result_t transform_temporal_statistics(
+    uint32_t cubin_id, std::vector<instruction::Symbol> &symbols,
+    redundancy::TemporalStatistics &temporal_stats) {
   for (auto &temp_stat_iter : temporal_stats) {
     for (auto &real_pc_pair : temp_stat_iter.second) {
       auto &to_real_pc = real_pc_pair.to_pc;
@@ -265,9 +268,9 @@ static redshow_result_t transform_temporal_statistics(uint32_t cubin_id,
   }
 }
 
-
 static redshow_result_t transform_spatial_statistics(uint32_t cubin_id,
-  std::vector<Symbol> &symbols, SpatialStatistics &spatial_stats) {
+                                                     std::vector<instruction::Symbol> &symbols,
+                                                     redundancy::SpatialStatistics &spatial_stats) {
   for (auto &spatial_stat_iter : spatial_stats) {
     for (auto &pc_iter : spatial_stat_iter.second) {
       for (auto &real_pc_pair : pc_iter.second) {
@@ -285,8 +288,8 @@ static redshow_result_t transform_spatial_statistics(uint32_t cubin_id,
   }
 }
 
-
-static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_patch_buffer_t *trace_data) {
+static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id,
+                                      gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
   auto cubin_id = kernel.cubin_id;
@@ -298,8 +301,8 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
   auto &write_pc_pairs = kernel.write_pc_pairs;
   auto &read_pc_count = kernel.read_pc_count;
   auto &write_pc_count = kernel.write_pc_count;
-  std::vector<Symbol> *symbols = NULL;
-  InstructionGraph *inst_graph = NULL;
+  std::vector<instruction::Symbol> *symbols = NULL;
+  instruction::InstructionGraph *inst_graph = NULL;
   // Cubin path is added just for debugging purpose
   std::string cubin_path;
 
@@ -383,15 +386,18 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
     }
 
     if (record->flags & GPU_PATCH_BLOCK_ENTER_FLAG) {
-      // Skip analysis  
+      // Skip analysis
     } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
       // Remove temporal records
-      for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
-        if (record->active & (0x1u << j)) {
-          uint32_t flat_thread_id = record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
-          ThreadId thread_id{record->flat_block_id, flat_thread_id};
-          read_temporal_trace.erase(thread_id);
-          write_temporal_trace.erase(thread_id);
+      if (analysis_enabled.find(REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) != analysis_enabled.end()) {
+        for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+          if (record->active & (0x1u << j)) {
+            uint32_t flat_thread_id =
+                record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
+            ThreadId thread_id{record->flat_block_id, flat_thread_id};
+            read_temporal_trace.erase(thread_id);
+            write_temporal_trace.erase(thread_id);
+          }
         }
       }
     } else {
@@ -401,7 +407,7 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
       transform_pc(*symbols, record->pc, function_index, cubin_offset, pc_offset);
 
       // record->size * 8, byte to bits
-      AccessKind access_kind;
+      instruction::AccessKind access_kind;
 
       if (inst_graph->size() != 0) {
         // Accurate mode, when we have instruction information
@@ -420,7 +426,7 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
       }
 
       //// Reserved for debugging
-      //std::cout << "function_index: " << function_index << ", pc_offset: " <<
+      // std::cout << "function_index: " << function_index << ", pc_offset: " <<
       //  pc_offset << ", " << access_kind.to_string() << std::endl;
       // TODO: accelerate by handling all threads in a warp together
       for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
@@ -428,7 +434,8 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
           continue;
         }
 
-        uint32_t flat_thread_id = record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
+        uint32_t flat_thread_id =
+            record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
         ThreadId thread_id{record->flat_block_id, flat_thread_id};
 
         MemoryRange memory_range(record->address[j], record->address[j]);
@@ -442,7 +449,8 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
         uint32_t address_offset = GLOBAL_MEMORY_OFFSET;
         if (memory_op_id == 0) {
           // XXX(Keren): memory_op_id == 1 ?
-          // Memory object not found, it means the memory is local, shared, or allocated in an unknown way
+          // Memory object not found, it means the memory is local, shared, or allocated in an
+          // unknown way
           if (record->flags & GPU_PATCH_LOCAL) {
             memory_op_id = REDSHOW_MEMORY_SHARED;
             address_offset = LOCAL_MEMORY_OFFSET;
@@ -460,7 +468,7 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
         }
 
         auto num_units = access_kind.vec_size / access_kind.unit_size;
-        AccessKind unit_access_kind = access_kind;
+        instruction::AccessKind unit_access_kind = access_kind;
         // We iterate through all the units such that every unit's vec_size = unit_size
         unit_access_kind.vec_size = unit_access_kind.unit_size;
 
@@ -474,25 +482,29 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
           uint64_t value = 0;
           uint32_t byte_size = unit_access_kind.unit_size >> 3u;
           memcpy(&value, &record->value[j][m * byte_size], byte_size);
-          value = store2basictype(value, unit_access_kind, decimal_degree_f32, decimal_degree_f64);
+          value =
+              unit_access_kind.store_to_basic_type(value, decimal_degree_f32, decimal_degree_f64);
 
           for (auto analysis : analysis_enabled) {
             if (analysis == REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) {
               if (record->flags & GPU_PATCH_READ) {
-                get_spatial_trace(record->pc, value, memory_op_id, unit_access_kind, read_spatial_trace);
+                redundancy::get_spatial_trace(record->pc, value, memory_op_id, unit_access_kind,
+                                              read_spatial_trace);
               } else {
-                get_spatial_trace(record->pc, value, memory_op_id, unit_access_kind, write_spatial_trace);
+                redundancy::get_spatial_trace(record->pc, value, memory_op_id, unit_access_kind,
+                                              write_spatial_trace);
               }
             } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
               if (record->flags & GPU_PATCH_READ) {
-                get_temporal_trace(record->pc, thread_id, record->address[j] + m * address_offset, value,
-                                   unit_access_kind,
-                                   read_temporal_trace, read_pc_pairs);
+                redundancy::get_temporal_trace(
+                    record->pc, thread_id, record->address[j] + m * address_offset, value,
+                    unit_access_kind, read_temporal_trace, read_pc_pairs);
               } else {
-                get_temporal_trace(record->pc, thread_id, record->address[j] + m * address_offset, value,
-                                   unit_access_kind,
-                                   write_temporal_trace, write_pc_pairs);
+                redundancy::get_temporal_trace(
+                    record->pc, thread_id, record->address[j] + m * address_offset, value,
+                    unit_access_kind, write_temporal_trace, write_pc_pairs);
               }
+            } else if (analysis == REDSHOW_ANALYSIS_VALUE_FLOW) {
             } else {
               // Pass
             }
@@ -529,14 +541,12 @@ redshow_result_t redshow_data_type_config(redshow_data_type_t data_type) {
   return result;
 };
 
-
 redshow_result_t redshow_data_type_get(redshow_data_type_t *data_type) {
   PRINT("\nredshow->Enter redshow_data_type_get\n");
 
   *data_type = default_data_type;
   return REDSHOW_SUCCESS;
 }
-
 
 redshow_result_t redshow_approx_level_config(redshow_approx_level_t level) {
   PRINT("\nredshow->Enter redshow_approx_level_config\n level: %u\n", level);
@@ -576,7 +586,6 @@ redshow_result_t redshow_approx_level_config(redshow_approx_level_t level) {
   return result;
 }
 
-
 redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) {
   PRINT("\nredshow->Enter redshow_analysis_enable\nanalysis_type: %u\n", analysis_type);
 
@@ -584,7 +593,6 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
 
   return REDSHOW_SUCCESS;
 }
-
 
 redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type) {
   PRINT("\nredshow->Enter redshow_analysis_disable\nanalysis_type: %u\n", analysis_type);
@@ -594,14 +602,14 @@ redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type)
   return REDSHOW_SUCCESS;
 }
 
-
-redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *symbol_pcs, const char *path) {
+redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *symbol_pcs,
+                                        const char *path) {
   PRINT("\nredshow->Enter redshow_cubin_register\ncubin_id: %u\npath: %s\n", cubin_id, path);
 
   redshow_result_t result;
 
-  InstructionGraph inst_graph;
-  std::vector<Symbol> symbols(nsymbols);
+  instruction::InstructionGraph inst_graph;
+  std::vector<instruction::Symbol> symbols(nsymbols);
   result = analyze_cubin(path, symbols, inst_graph);
 
   if (result == REDSHOW_SUCCESS || result == REDSHOW_ERROR_NO_SUCH_FILE) {
@@ -629,9 +637,8 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, ui
   return result;
 }
 
-
-redshow_result_t
-redshow_cubin_cache_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *symbol_pcs, const char *path) {
+redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t nsymbols,
+                                              uint64_t *symbol_pcs, const char *path) {
   PRINT("\nredshow->Enter redshow_cubin_cache_register\ncubin_id: %u\npath: %s\n", cubin_id, path);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -655,7 +662,6 @@ redshow_cubin_cache_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *sym
   return result;
 }
 
-
 redshow_result_t redshow_cubin_unregister(uint32_t cubin_id) {
   PRINT("\nredshow->Enter redshow_cubin_unregister\ncubin_id: %u\n", cubin_id);
 
@@ -673,9 +679,10 @@ redshow_result_t redshow_cubin_unregister(uint32_t cubin_id) {
   return result;
 }
 
-
-redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t host_op_id, uint64_t memory_id) {
-  PRINT("\nredshow->Enter redshow_memory_register\nstart: %p\nend: %p\nmemory_id: %lu\n", start, end, memory_id);
+redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t host_op_id,
+                                         uint64_t memory_id) {
+  PRINT("\nredshow->Enter redshow_memory_register\nstart: %p\nend: %p\nmemory_id: %lu\n", start,
+        end, memory_id);
 
   redshow_result_t result;
   MemoryMap memory_map;
@@ -713,7 +720,6 @@ redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t 
   return result;
 }
 
-
 redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_t host_op_id) {
   PRINT("\nredshow->Enter redshow_memory_unregister\nstart: %p\nend: %p\n", start, end);
 
@@ -743,8 +749,8 @@ redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_
   return result;
 }
 
-
-redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint64_t *memory_id, uint64_t *shadow_start, uint64_t *len) {
+redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint64_t *memory_id,
+                                      uint64_t *shadow_start, uint64_t *len) {
   PRINT("\nredshow->Enter redshow_memory_query\nop_id: %lu\nstart: %p\n", host_op_id, start);
 
   redshow_result_t result;
@@ -773,11 +779,13 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint6
   return result;
 }
 
-
-EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t src_memory_id, uint64_t src_start,
-  uint64_t dst_memory_id, uint64_t dst_start, uint64_t len) {
-  PRINT("\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %lu\nsrc_memory_id: %lu\nsrc_start: %p\n"
-    "dst_memory_id: %lu\ndst_start: %p\nlen: %lu\n", memcpy_id, src_memory_id, src_start, dst_memory_id, dst_start, len);
+EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t src_memory_id,
+                                                 uint64_t src_start, uint64_t dst_memory_id,
+                                                 uint64_t dst_start, uint64_t len) {
+  PRINT(
+      "\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %lu\nsrc_memory_id: %lu\nsrc_start: "
+      "%p\ndst_memory_id: %lu\ndst_start: %p\nlen: %lu\n",
+      memcpy_id, src_memory_id, src_start, dst_memory_id, dst_start, len);
 
   redshow_result_t result;
 
@@ -785,26 +793,29 @@ EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t sr
   double redundancy = 0.0;
 
   if (analysis_enabled.find(REDSHOW_ANALYSIS_VALUE_FLOW) != analysis_enabled.end()) {
-    hash = compute_memory_hash(src_start, len);
-    redundancy = compute_memory_redundancy(dst_start, src_start, len);
+    hash = value_flow::compute_memory_hash(src_start, len);
+    redundancy = value_flow::compute_memory_redundancy(dst_start, src_start, len);
   }
 
   memcpy_map_lock.lock();
 
   if (hash != "") {
-     auto memcpy = Memcpy(memcpy_id, src_memory_id, dst_memory_id, hash, redundancy);
-     memcpy_map[hash].emplace_back(std::move(memcpy));
+    auto memcpy = Memcpy(memcpy_id, src_memory_id, dst_memory_id, hash, redundancy);
+    memcpy_map[hash].emplace_back(std::move(memcpy));
   }
-  
+
   memcpy_map_lock.unlock();
 
   return result;
 }
 
-
-EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memory_id, uint64_t start, uint64_t shadow_start, uint32_t value, uint64_t len) {
-  PRINT("\nredshow->Enter redshow_memset_register\nmemset_id: %lu\nmemory_id: %lu\nvalue: %u\nlen: %lu\n", \
-    memset_id, memory_id, value, len);
+EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memory_id,
+                                                 uint64_t start, uint64_t shadow_start,
+                                                 uint32_t value, uint64_t len) {
+  PRINT(
+      "\nredshow->Enter redshow_memset_register\nmemset_id: %lu\nmemory_id: %lu\nvalue: %u\nlen: "
+      "%lu\n",
+      memset_id, memory_id, value, len);
 
   redshow_result_t result;
 
@@ -812,40 +823,39 @@ EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t me
   double redundancy = 0.0;
 
   if (analysis_enabled.find(REDSHOW_ANALYSIS_VALUE_FLOW) != analysis_enabled.end()) {
-    hash = compute_memory_hash(shadow_start, len);
-    redundancy = compute_memory_redundancy(start, shadow_start, len);
+    hash = value_flow::compute_memory_hash(shadow_start, len);
+    redundancy = value_flow::compute_memory_redundancy(start, shadow_start, len);
   }
 
   memset_map_lock.lock();
 
   if (hash != "") {
-     auto memset = Memset(memcpy_id, memory_id, md5, redundancy);
-     memset_map[md5].emplace_back(std::move(memset));
+    auto memset = Memset(memset_id, memory_id, hash, redundancy);
+    memset_map[hash].emplace_back(std::move(memset));
   }
-  
+
   memset_map_lock.unlock();
 
   return result;
 }
 
-
 redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_func func) {
   log_data_callback = func;
 }
 
-
-redshow_result_t
-redshow_record_data_callback_register(redshow_record_data_callback_func func, uint32_t pc_views, uint32_t mem_views) {
+redshow_result_t redshow_record_data_callback_register(redshow_record_data_callback_func func,
+                                                       uint32_t pc_views, uint32_t mem_views) {
   record_data_callback = func;
   pc_views_limit = pc_views;
   mem_views_limit = mem_views;
 }
 
-
-redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint64_t kernel_id, uint64_t host_op_id,
-                                 gpu_patch_buffer_t *trace_data) {
-  PRINT("\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %lu\nhost_op_id: %lu\ntrace_data: %p\n",
-        cubin_id, kernel_id, host_op_id, trace_data);
+redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint64_t kernel_id,
+                                 uint64_t host_op_id, gpu_patch_buffer_t *trace_data) {
+  PRINT(
+      "\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %lu\nhost_op_id: "
+      "%lu\ntrace_data: %p\n",
+      cubin_id, kernel_id, host_op_id, trace_data);
 
   redshow_result_t result;
 
@@ -880,7 +890,6 @@ redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint64_t
   return result;
 }
 
-
 redshow_result_t redshow_analysis_begin() {
   PRINT("\nredshow->Enter redshow_analysis_begin\n");
 
@@ -888,7 +897,6 @@ redshow_result_t redshow_analysis_begin() {
 
   return REDSHOW_SUCCESS;
 }
-
 
 redshow_result_t redshow_analysis_end() {
   PRINT("\nredshow->Enter redshow_analysis_end\n");
@@ -924,17 +932,10 @@ redshow_result_t redshow_analysis_end() {
   return result;
 }
 
-
-redshow_result_t redshow_flush(uint32_t thread_id) {
-  PRINT("\nredshow->Enter redshow_flush thread_id %u\n", thread_id);
+void redundancy_flush(uint32_t thread_id, std::map<uint64_t, Kernel> &thread_kernel_map) {
+  using namespace redundancy;
 
   redshow_record_data_t record_data;
-
-  kernel_map_lock.lock();
-
-  auto &thread_kernel_map = kernel_map[thread_id];
-
-  kernel_map_lock.unlock();
 
   record_data.views = new redshow_record_view_t[pc_views_limit]();
 
@@ -957,52 +958,52 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
     SpatialStatistics write_spatial_stats;
     TemporalStatistics read_temporal_stats;
     TemporalStatistics write_temporal_stats;
-    std::vector<Symbol> &symbols = cubin_map[cubin_id].symbols;
+    std::vector<instruction::Symbol> &symbols = cubin_map[cubin_id].symbols;
 
-    for (auto analysis : analysis_enabled) {
-      if (analysis == REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) {
-        record_data.analysis_type = REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY;
-        // read
-        record_data.access_type = REDSHOW_ACCESS_READ;
-        record_spatial_trace(kernel.read_spatial_trace, kernel.read_pc_count,
-                             pc_views_limit, mem_views_limit,
-                             record_data, read_spatial_stats, kernel_read_spatial_count);
-        // Transform pcs
-        transform_data_views(symbols, record_data);
-        record_data_callback(cubin_id, kernel_id, &record_data);
-        transform_spatial_statistics(cubin_id, symbols, read_spatial_stats);
+    if (analysis_enabled.find(REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) != analysis_enabled.end()) {
+      record_data.analysis_type = REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY;
+      // read
+      record_data.access_type = REDSHOW_ACCESS_READ;
+      record_spatial_trace(kernel.read_spatial_trace, kernel.read_pc_count, pc_views_limit,
+                           mem_views_limit, record_data, read_spatial_stats,
+                           kernel_read_spatial_count);
+      // Transform pcs
+      transform_data_views(symbols, record_data);
+      record_data_callback(cubin_id, kernel_id, &record_data);
+      transform_spatial_statistics(cubin_id, symbols, read_spatial_stats);
 
-        // Write
-        record_data.access_type = REDSHOW_ACCESS_WRITE;
-        record_spatial_trace(kernel.write_spatial_trace, kernel.write_pc_count,
-                             pc_views_limit, mem_views_limit,
-                             record_data, write_spatial_stats, kernel_write_spatial_count);
-        // Transform pcs
-        transform_data_views(symbols, record_data);
-        record_data_callback(cubin_id, kernel_id, &record_data);
-        transform_spatial_statistics(cubin_id, symbols, write_spatial_stats);
-      } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
-        record_data.analysis_type = REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY;
-        // Read
-        record_data.access_type = REDSHOW_ACCESS_READ;
-        record_temporal_trace(kernel.read_pc_pairs, kernel.read_pc_count,
-                              pc_views_limit, mem_views_limit, 
-                              record_data, read_temporal_stats, kernel_read_temporal_count);
+      // Write
+      record_data.access_type = REDSHOW_ACCESS_WRITE;
+      record_spatial_trace(kernel.write_spatial_trace, kernel.write_pc_count, pc_views_limit,
+                           mem_views_limit, record_data, write_spatial_stats,
+                           kernel_write_spatial_count);
+      // Transform pcs
+      transform_data_views(symbols, record_data);
+      record_data_callback(cubin_id, kernel_id, &record_data);
+      transform_spatial_statistics(cubin_id, symbols, write_spatial_stats);
+    }
 
-        transform_data_views(symbols, record_data);
-        record_data_callback(cubin_id, kernel_id, &record_data);
-        transform_temporal_statistics(cubin_id, symbols, read_temporal_stats);
+    if (analysis_enabled.find(REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) != analysis_enabled.end()) {
+      record_data.analysis_type = REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY;
+      // Read
+      record_data.access_type = REDSHOW_ACCESS_READ;
+      record_temporal_trace(kernel.read_pc_pairs, kernel.read_pc_count, pc_views_limit,
+                            mem_views_limit, record_data, read_temporal_stats,
+                            kernel_read_temporal_count);
 
-        // Write
-        record_data.access_type = REDSHOW_ACCESS_WRITE;
-        record_temporal_trace(kernel.write_pc_pairs, kernel.write_pc_count,
-                              pc_views_limit, mem_views_limit,
-                              record_data, write_temporal_stats, kernel_write_temporal_count);
+      transform_data_views(symbols, record_data);
+      record_data_callback(cubin_id, kernel_id, &record_data);
+      transform_temporal_statistics(cubin_id, symbols, read_temporal_stats);
 
-        transform_data_views(symbols, record_data);
-        record_data_callback(cubin_id, kernel_id, &record_data);
-        transform_temporal_statistics(cubin_id, symbols, write_temporal_stats);
-      }
+      // Write
+      record_data.access_type = REDSHOW_ACCESS_WRITE;
+      record_temporal_trace(kernel.write_pc_pairs, kernel.write_pc_count, pc_views_limit,
+                            mem_views_limit, record_data, write_temporal_stats,
+                            kernel_write_temporal_count);
+
+      transform_data_views(symbols, record_data);
+      record_data_callback(cubin_id, kernel_id, &record_data);
+      transform_temporal_statistics(cubin_id, symbols, write_temporal_stats);
     }
 
     // Accumulate all access count and red count
@@ -1055,11 +1056,34 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
                           read_temporal_stats, true, true);
       show_temporal_trace(thread_id, 0, thread_write_temporal_count, thread_count,
                           write_temporal_stats, false, true);
-      show_spatial_trace(thread_id, 0, thread_read_spatial_count, thread_count,
-                         read_spatial_stats, true, true);
+      show_spatial_trace(thread_id, 0, thread_read_spatial_count, thread_count, read_spatial_stats,
+                         true, true);
       show_spatial_trace(thread_id, 0, thread_write_spatial_count, thread_count,
                          write_spatial_stats, false, true);
     }
+  }
+
+  // Release data
+  delete[] record_data.views;
+}
+
+void value_flow_flush(uint32_t thread_id, std::map<uint64_t, Kernel> &thread_kernel_map) { using namespace value_flow; }
+
+redshow_result_t redshow_flush(uint32_t thread_id) {
+  PRINT("\nredshow->Enter redshow_flush thread_id %u\n", thread_id);
+  kernel_map_lock.lock();
+
+  auto &thread_kernel_map = kernel_map[thread_id];
+
+  kernel_map_lock.unlock();
+
+  if (analysis_enabled.find(REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) != analysis_enabled.end() ||
+      analysis_enabled.find(REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) != analysis_enabled.end()) {
+    redundancy_flush(thread_id, thread_kernel_map);
+  }
+
+  if (analysis_enabled.find(REDSHOW_ANALYSIS_VALUE_FLOW) != analysis_enabled.end()) {
+    value_flow_flush(thread_id, thread_kernel_map);
   }
 
   // Remove all kernel records
@@ -1069,6 +1093,7 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
 
   kernel_map_lock.unlock();
 
-  // Release data
-  delete[] record_data.views;
+  return REDSHOW_SUCCESS;
 }
+
+}  // namespace redshow
