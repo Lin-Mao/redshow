@@ -3,16 +3,18 @@
 //
 
 #include "redundancy.h"
-#include "redshow.h"
 
 #include <cstring>
+
+#include "redshow.h"
 
 namespace redshow {
 
 namespace redundancy {
 
-void get_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, instruction::AccessKind access_kind,
-                        TemporalTrace &temporal_trace, PCPairs &pc_pairs) {
+void update_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value,
+                           instruction::AccessKind access_kind, TemporalTrace &temporal_trace,
+                           PCPairs &pc_pairs) {
   auto tmr_it = temporal_trace.find(tid);
   // Record current operation.
   std::map<u64, std::pair<u64, u64>> record;
@@ -149,7 +151,7 @@ void show_temporal_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 
         out << from_real_pc.cubin_id << "," << from_real_pc.function_index << ","
             << from_real_pc.pc_offset << "," << to_real_pc.function_index << ","
             << to_real_pc.pc_offset << ",";
-        out << real_pc_pair.access_kind.value_string(real_pc_pair.value, true);
+        out << real_pc_pair.access_kind.value_to_string(real_pc_pair.value, true);
         out << "," << real_pc_pair.access_kind.to_string() << "," << real_pc_pair.red_count << ","
             << static_cast<double>(real_pc_pair.red_count) / real_pc_pair.access_count << ","
             << static_cast<double>(real_pc_pair.red_count) / total_count << endl;
@@ -159,8 +161,8 @@ void show_temporal_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 
   out.close();
 }
 
-void get_spatial_trace(u64 pc, u64 value, u64 memory_op_id, instruction::AccessKind access_kind,
-                       SpatialTrace &spatial_trace) {
+void update_spatial_trace(u64 pc, u64 value, u64 memory_op_id, instruction::AccessKind access_kind,
+                          SpatialTrace &spatial_trace) {
   spatial_trace[std::make_pair(memory_op_id, access_kind)][pc][value] += 1;
 }
 
@@ -293,7 +295,7 @@ void show_spatial_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 t
           auto access_count = real_pc_pair.access_count;
           out << memory_op_id << "," << cubin_id << "," << function_index << "," << pc_offset
               << ",";
-          out << akind.value_string(value, true);
+          out << akind.value_to_string(value, true);
           out << "," << akind.to_string() << "," << red_count << ","
               << static_cast<double>(red_count) / access_count << ","
               << static_cast<double>(red_count) / total_count << std::endl;

@@ -56,16 +56,25 @@ struct ThreadId {
   }
 };
 
-/**
- * Use decimal_degree_f32 bits to cut the valid floating number bits.
- * @arg decimal_degree_f32: the valid bits. The floating numbers have 23-bit fractions.
- * */
-u64 value_to_float(u64 a, int decimal_degree_f32);
 
 /**
- * @arg decimal_degree_f64: the valid bits. The float64 numbers have 52-bit fractions.
- * */
-u64 value_to_double(u64 a, int decimal_degree_f64);
+ * @brief Use decimal_degree_f32 bits to cut the valid floating number bits.
+ * 
+ * @param a value
+ * @param decimal_degree_f32 The valid bits. The floating numbers have 23-bit fractions. 
+ * @return u64 
+ */
+u64 value_to_float(u64 value, int decimal_degree_f32);
+
+
+/**
+ * @brief Use decimal_degree_f64 bits to cut the valid floating number bits.
+ * 
+ * @param a value
+ * @param decimal_degree_f64 The valid bits. The float64 numbers have 52-bit fractions.
+ * @return u64 
+ */
+u64 value_to_double(u64 value, int decimal_degree_f64);
 
 }  // namespace redshow
 

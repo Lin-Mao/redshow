@@ -7,7 +7,13 @@ namespace redshow {
 
 namespace hash {
 
-// Interface
+/**
+ * @brief sha256 hash interface
+ * 
+ * @param input input bytes
+ * @param length number of bytes
+ * @return std::string sha256 hash
+ */
 std::string sha256(void *input, unsigned int length);
 
 class SHA256 {

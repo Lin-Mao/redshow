@@ -483,24 +483,24 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id,
           uint32_t byte_size = unit_access_kind.unit_size >> 3u;
           memcpy(&value, &record->value[j][m * byte_size], byte_size);
           value =
-              unit_access_kind.store_to_basic_type(value, decimal_degree_f32, decimal_degree_f64);
+              unit_access_kind.value_to_basic_type(value, decimal_degree_f32, decimal_degree_f64);
 
           for (auto analysis : analysis_enabled) {
             if (analysis == REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) {
               if (record->flags & GPU_PATCH_READ) {
-                redundancy::get_spatial_trace(record->pc, value, memory_op_id, unit_access_kind,
-                                              read_spatial_trace);
+                redundancy::update_spatial_trace(record->pc, value, memory_op_id, unit_access_kind,
+                                                 read_spatial_trace);
               } else {
-                redundancy::get_spatial_trace(record->pc, value, memory_op_id, unit_access_kind,
-                                              write_spatial_trace);
+                redundancy::update_spatial_trace(record->pc, value, memory_op_id, unit_access_kind,
+                                                 write_spatial_trace);
               }
             } else if (analysis == REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {
               if (record->flags & GPU_PATCH_READ) {
-                redundancy::get_temporal_trace(
+                redundancy::update_temporal_trace(
                     record->pc, thread_id, record->address[j] + m * address_offset, value,
                     unit_access_kind, read_temporal_trace, read_pc_pairs);
               } else {
-                redundancy::get_temporal_trace(
+                redundancy::update_temporal_trace(
                     record->pc, thread_id, record->address[j] + m * address_offset, value,
                     unit_access_kind, write_temporal_trace, write_pc_pairs);
               }
@@ -1067,7 +1067,9 @@ void redundancy_flush(uint32_t thread_id, std::map<uint64_t, Kernel> &thread_ker
   delete[] record_data.views;
 }
 
-void value_flow_flush(uint32_t thread_id, std::map<uint64_t, Kernel> &thread_kernel_map) { using namespace value_flow; }
+void value_flow_flush(uint32_t thread_id, std::map<uint64_t, Kernel> &thread_kernel_map) {
+  using namespace value_flow;
+}
 
 redshow_result_t redshow_flush(uint32_t thread_id) {
   PRINT("\nredshow->Enter redshow_flush thread_id %u\n", thread_id);
