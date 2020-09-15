@@ -126,28 +126,34 @@ struct Memcpy {
   uint64_t memcpy_id;
   uint64_t src_memory_id;
   uint64_t dst_memory_id;
-  std::string md5;
+  std::string hash;
+  double redundancy;
 
   Memcpy() = default;
 
-  Memcpy(uint64_t memcpy_id, uint64_t src_memory_id, uint64_t dst_memory_id, std::string &md5) :
-    memcpy_id(memcpy_id), src_memory_id(src_memory_id), dst_memory_id(dst_memory_id), md5(md5) {}
+  Memcpy(uint64_t memcpy_id, uint64_t src_memory_id, uint64_t dst_memory_id,
+    std::string &hash, double redundancy) :
+    memcpy_id(memcpy_id), src_memory_id(src_memory_id), dst_memory_id(dst_memory_id),
+    hash(hash), redundancy(redundancy) {}
 };
 
-static std::map<std::string, Memcpy> memcpy_map;
+static std::map<std::string, std::vector<Memcpy>> memcpy_map;
 static std::mutex memcpy_map_lock;
 
 struct Memset {
   uint64_t memset_id;
   uint64_t memory_id;
-  std::string md5;
+  std::string hash;
+  double redundancy;
 
   Memset() = default;
 
-  Memset(uint64_t memset_id, uint64_t memory_id) : memset_id(memset_id), memory_id(memory_id) {}
+  Memset(uint64_t memset_id, uint64_t memory_id, std::string &hash,
+    double redundancy) : memset_id(memset_id), memory_id(memory_id),
+    hash(hash), redundancy(redundancy), {}
 };
 
-static std::map<uint64_t, Memset> memset_map;
+static std::map<std::string, std::vector<Memset>> memset_map;
 static std::mutex memset_map_lock;
 
 static std::set<redshow_analysis_type_t> analysis_enabled;
@@ -775,15 +781,49 @@ EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t sr
 
   redshow_result_t result;
 
+  std::string hash;
+  double redundancy = 0.0;
+
+  if (analysis_enabled.find(REDSHOW_ANALYSIS_VALUE_FLOW) != analysis_enabled.end()) {
+    hash = compute_memory_hash(src_start, len);
+    redundancy = compute_memory_redundancy(dst_start, src_start, len);
+  }
+
+  memcpy_map_lock.lock();
+
+  if (hash != "") {
+     auto memcpy = Memcpy(memcpy_id, src_memory_id, dst_memory_id, hash, redundancy);
+     memcpy_map[hash].emplace_back(std::move(memcpy));
+  }
+  
+  memcpy_map_lock.unlock();
+
   return result;
 }
 
 
-EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memory_id, uint32_t value, uint64_t len) {
+EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memory_id, uint64_t start, uint64_t shadow_start, uint32_t value, uint64_t len) {
   PRINT("\nredshow->Enter redshow_memset_register\nmemset_id: %lu\nmemory_id: %lu\nvalue: %u\nlen: %lu\n", \
     memset_id, memory_id, value, len);
 
   redshow_result_t result;
+
+  std::string hash;
+  double redundancy = 0.0;
+
+  if (analysis_enabled.find(REDSHOW_ANALYSIS_VALUE_FLOW) != analysis_enabled.end()) {
+    hash = compute_memory_hash(shadow_start, len);
+    redundancy = compute_memory_redundancy(start, shadow_start, len);
+  }
+
+  memset_map_lock.lock();
+
+  if (hash != "") {
+     auto memset = Memset(memcpy_id, memory_id, md5, redundancy);
+     memset_map[md5].emplace_back(std::move(memset));
+  }
+  
+  memset_map_lock.unlock();
 
   return result;
 }
