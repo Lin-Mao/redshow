@@ -1,0 +1,103 @@
+\hypertarget{utils_8h}{}\doxysection{include/utils.h File Reference}
+\label{utils_8h}\index{include/utils.h@{include/utils.h}}
+{\ttfamily \#include $<$string$>$}\newline
+{\ttfamily \#include $<$tuple$>$}\newline
+\doxysubsection*{Data Structures}
+\begin{DoxyCompactItemize}
+\item 
+struct \mbox{\hyperlink{structredshow_1_1_thread_id}{Thread\+Id}}
+\end{DoxyCompactItemize}
+\doxysubsection*{Namespaces}
+\begin{DoxyCompactItemize}
+\item 
+ \mbox{\hyperlink{namespaceredshow}{redshow}}
+\end{DoxyCompactItemize}
+\doxysubsection*{Macros}
+\begin{DoxyCompactItemize}
+\item 
+\#define \mbox{\hyperlink{utils_8h_af5febfb026bad0c08e7a9f7ab7c2b8f0}{M\+I\+N2}}(x,  y)~(x $>$ y ? y \+: x)
+\item 
+\#define \mbox{\hyperlink{utils_8h_a57562d98bd289bc7ea77ba251915d8fb}{M\+A\+X2}}(x,  y)~(x $>$ y ? x \+: y)
+\end{DoxyCompactItemize}
+\doxysubsection*{Typedefs}
+\begin{DoxyCompactItemize}
+\item 
+typedef int8\+\_\+t \mbox{\hyperlink{namespaceredshow_ae3702327b5f47e83b431e22b33da7b58}{i8}}
+\item 
+typedef int16\+\_\+t \mbox{\hyperlink{namespaceredshow_ad309dbcaeea13aa602d686964156ea0b}{i16}}
+\item 
+typedef int32\+\_\+t \mbox{\hyperlink{namespaceredshow_a48d6cd8e4135fb2ff7e7f2dac84089ec}{i32}}
+\item 
+typedef int64\+\_\+t \mbox{\hyperlink{namespaceredshow_a85cb35fbe5bf2961d7ad5f26814a91a2}{i64}}
+\item 
+typedef uint8\+\_\+t \mbox{\hyperlink{namespaceredshow_a92c50087ca0e64fa93fc59402c55f8ca}{u8}}
+\item 
+typedef uint16\+\_\+t \mbox{\hyperlink{namespaceredshow_ace9d960e74685e2cd84b36132dbbf8aa}{u16}}
+\item 
+typedef uint32\+\_\+t \mbox{\hyperlink{namespaceredshow_afaa62991928fb9fb18ff0db62a040aba}{u32}}
+\item 
+typedef uint64\+\_\+t \mbox{\hyperlink{namespaceredshow_a3f7e2bcbb0b4c338f3c4f6c937cd4234}{u64}}
+\end{DoxyCompactItemize}
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+u64 \mbox{\hyperlink{namespaceredshow_af1f1424290cddc24f3b5e0e3e095b7c3}{value\+\_\+to\+\_\+float}} (u64 value, int decimal\+\_\+degree\+\_\+f32)
+\begin{DoxyCompactList}\small\item\em Use decimal\+\_\+degree\+\_\+f32 bits to cut the valid floating number bits. \end{DoxyCompactList}\item 
+u64 \mbox{\hyperlink{namespaceredshow_a04971d4b4288a7721d190fd9f87aeacc}{value\+\_\+to\+\_\+double}} (u64 value, int decimal\+\_\+degree\+\_\+f64)
+\begin{DoxyCompactList}\small\item\em Use decimal\+\_\+degree\+\_\+f64 bits to cut the valid floating number bits. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Variables}
+\begin{DoxyCompactItemize}
+\item 
+const int \mbox{\hyperlink{namespaceredshow_a753afeda5b35d90cca6dbfe94f6ca904}{V\+A\+L\+I\+D\+\_\+\+F\+L\+O\+A\+T\+\_\+\+D\+I\+G\+I\+TS}} = 23
+\item 
+const int \mbox{\hyperlink{namespaceredshow_a47af53eafd3abe07b897b8f62db7ba7a}{V\+A\+L\+I\+D\+\_\+\+D\+O\+U\+B\+L\+E\+\_\+\+D\+I\+G\+I\+TS}} = 52
+\item 
+const int \mbox{\hyperlink{namespaceredshow_ae47d64dd3dc178d87bc4e47ada2c4c7d}{M\+I\+N\+\_\+\+F\+L\+O\+A\+T\+\_\+\+D\+I\+G\+I\+TS}} = 20
+\item 
+const int \mbox{\hyperlink{namespaceredshow_a9fd692a69ee964431a83bbc101e163ee}{M\+I\+N\+\_\+\+D\+O\+U\+B\+L\+E\+\_\+\+D\+I\+G\+I\+TS}} = 46
+\item 
+const int \mbox{\hyperlink{namespaceredshow_ab55f1c7fcdad81274a16244689e9f453}{L\+O\+W\+\_\+\+F\+L\+O\+A\+T\+\_\+\+D\+I\+G\+I\+TS}} = 17
+\item 
+const int \mbox{\hyperlink{namespaceredshow_af1f5bfd7cab9c3020218159f43fe902b}{L\+O\+W\+\_\+\+D\+O\+U\+B\+L\+E\+\_\+\+D\+I\+G\+I\+TS}} = 40
+\item 
+const int \mbox{\hyperlink{namespaceredshow_adb8e10d0827e385329933b543772a9be}{M\+I\+D\+\_\+\+F\+L\+O\+A\+T\+\_\+\+D\+I\+G\+I\+TS}} = 14
+\item 
+const int \mbox{\hyperlink{namespaceredshow_a803bc85f1c1fdb141dd22a5b5a7ab0cf}{M\+I\+D\+\_\+\+D\+O\+U\+B\+L\+E\+\_\+\+D\+I\+G\+I\+TS}} = 34
+\item 
+const int \mbox{\hyperlink{namespaceredshow_acfbea3c3108f077c67aba1de521852a0}{H\+I\+G\+H\+\_\+\+F\+L\+O\+A\+T\+\_\+\+D\+I\+G\+I\+TS}} = 11
+\item 
+const int \mbox{\hyperlink{namespaceredshow_a319916675330aeb15a64e622eb3b79e7}{H\+I\+G\+H\+\_\+\+D\+O\+U\+B\+L\+E\+\_\+\+D\+I\+G\+I\+TS}} = 28
+\item 
+const int \mbox{\hyperlink{namespaceredshow_a32472624eac09e097f52e7912bd19b9c}{M\+A\+X\+\_\+\+F\+L\+O\+A\+T\+\_\+\+D\+I\+G\+I\+TS}} = 8
+\item 
+const int \mbox{\hyperlink{namespaceredshow_a63476890e10a6055e683c4a21fbd0a31}{M\+A\+X\+\_\+\+D\+O\+U\+B\+L\+E\+\_\+\+D\+I\+G\+I\+TS}} = 22
+\item 
+const int \mbox{\hyperlink{namespaceredshow_a27c1766a8be045bd0ed88edeb29e97e7}{S\+H\+A\+R\+E\+D\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+\+O\+F\+F\+S\+ET}} = 4
+\item 
+const int \mbox{\hyperlink{namespaceredshow_ac2f1222f8cc26c93120d5d12c0e1325b}{L\+O\+C\+A\+L\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+\+O\+F\+F\+S\+ET}} = 4
+\item 
+const int \mbox{\hyperlink{namespaceredshow_a5aba8de4220ec4a9a2aa1ce06a048577}{G\+L\+O\+B\+A\+L\+\_\+\+M\+E\+M\+O\+R\+Y\+\_\+\+O\+F\+F\+S\+ET}} = 8
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Macro Definition Documentation}
+\mbox{\Hypertarget{utils_8h_a57562d98bd289bc7ea77ba251915d8fb}\label{utils_8h_a57562d98bd289bc7ea77ba251915d8fb}} 
+\index{utils.h@{utils.h}!MAX2@{MAX2}}
+\index{MAX2@{MAX2}!utils.h@{utils.h}}
+\doxysubsubsection{\texorpdfstring{MAX2}{MAX2}}
+{\footnotesize\ttfamily \#define M\+A\+X2(\begin{DoxyParamCaption}\item[{}]{x,  }\item[{}]{y }\end{DoxyParamCaption})~(x $>$ y ? x \+: y)}
+
+
+
+Definition at line 10 of file utils.\+h.
+
+\mbox{\Hypertarget{utils_8h_af5febfb026bad0c08e7a9f7ab7c2b8f0}\label{utils_8h_af5febfb026bad0c08e7a9f7ab7c2b8f0}} 
+\index{utils.h@{utils.h}!MIN2@{MIN2}}
+\index{MIN2@{MIN2}!utils.h@{utils.h}}
+\doxysubsubsection{\texorpdfstring{MIN2}{MIN2}}
+{\footnotesize\ttfamily \#define M\+I\+N2(\begin{DoxyParamCaption}\item[{}]{x,  }\item[{}]{y }\end{DoxyParamCaption})~(x $>$ y ? y \+: x)}
+
+
+
+Definition at line 9 of file utils.\+h.
+

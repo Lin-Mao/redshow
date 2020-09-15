@@ -1,0 +1,229 @@
+\hypertarget{classredshow_1_1hash_1_1_s_h_a256}{}\doxysection{S\+H\+A256 Class Reference}
+\label{classredshow_1_1hash_1_1_s_h_a256}\index{SHA256@{SHA256}}
+
+
+{\ttfamily \#include $<$hash.\+h$>$}
+
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_a02fd73d861ef2e4aabb38c0c9ff82947}{init}} ()
+\item 
+void \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_a69b4396021c134fb7a4dbe14ec8ac4bf}{update}} (const unsigned char $\ast$message, unsigned int len)
+\item 
+void \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_ab56338a327e2d15d4e3ec69d0b755541}{final}} (unsigned char $\ast$digest)
+\end{DoxyCompactItemize}
+\doxysubsection*{Static Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+static const unsigned int \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_a20032f3e8f74d9a00f61db9be5a46bcf}{D\+I\+G\+E\+S\+T\+\_\+\+S\+I\+ZE}} = (256 / 8)
+\end{DoxyCompactItemize}
+\doxysubsection*{Protected Types}
+\begin{DoxyCompactItemize}
+\item 
+typedef unsigned char \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_adde6aaee8457bee49c2a92621fe22b79}{uint8}}
+\item 
+typedef unsigned int \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_a1134b580f8da4de94ca6b1de4d37975e}{uint32}}
+\item 
+typedef unsigned long long \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_a29940ae63ec06c9998bba873e25407ad}{uint64}}
+\end{DoxyCompactItemize}
+\doxysubsection*{Protected Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_a921aece78b6d9846928803d2380e96c7}{transform}} (const unsigned char $\ast$message, unsigned int block\+\_\+nb)
+\end{DoxyCompactItemize}
+\doxysubsection*{Protected Attributes}
+\begin{DoxyCompactItemize}
+\item 
+unsigned int \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_afce99833d2e378d24d896bb33561fe6c}{m\+\_\+tot\+\_\+len}}
+\item 
+unsigned int \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_a9e69a693ad65e2ca6df686ca0a62723a}{m\+\_\+len}}
+\item 
+unsigned char \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_ab66c1fb20deef1dd0edf5a5d8567537d}{m\+\_\+block}} \mbox{[}2 $\ast$\mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_afc581b6296a1d6becf3c29c3cafbe305}{S\+H\+A224\+\_\+256\+\_\+\+B\+L\+O\+C\+K\+\_\+\+S\+I\+ZE}}\mbox{]}
+\item 
+\mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_a1134b580f8da4de94ca6b1de4d37975e}{uint32}} \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_a0c7f3da299f1e525fcdc05f929e429d4}{m\+\_\+h}} \mbox{[}8\mbox{]}
+\end{DoxyCompactItemize}
+\doxysubsection*{Static Protected Attributes}
+\begin{DoxyCompactItemize}
+\item 
+static const \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_a1134b580f8da4de94ca6b1de4d37975e}{uint32}} \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_ad40bef729b85bf26d75b301d5a952ed5}{sha256\+\_\+k}} \mbox{[}$\,$\mbox{]}
+\item 
+static const unsigned int \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_afc581b6296a1d6becf3c29c3cafbe305}{S\+H\+A224\+\_\+256\+\_\+\+B\+L\+O\+C\+K\+\_\+\+S\+I\+ZE}} = (512 / 8)
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+
+
+Definition at line 19 of file hash.\+h.
+
+
+
+\doxysubsection{Member Typedef Documentation}
+\mbox{\Hypertarget{classredshow_1_1hash_1_1_s_h_a256_a1134b580f8da4de94ca6b1de4d37975e}\label{classredshow_1_1hash_1_1_s_h_a256_a1134b580f8da4de94ca6b1de4d37975e}} 
+\index{SHA256@{SHA256}!uint32@{uint32}}
+\index{uint32@{uint32}!SHA256@{SHA256}}
+\doxysubsubsection{\texorpdfstring{uint32}{uint32}}
+{\footnotesize\ttfamily typedef unsigned int \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_a1134b580f8da4de94ca6b1de4d37975e}{uint32}}\hspace{0.3cm}{\ttfamily [protected]}}
+
+
+
+Definition at line 22 of file hash.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1hash_1_1_s_h_a256_a29940ae63ec06c9998bba873e25407ad}\label{classredshow_1_1hash_1_1_s_h_a256_a29940ae63ec06c9998bba873e25407ad}} 
+\index{SHA256@{SHA256}!uint64@{uint64}}
+\index{uint64@{uint64}!SHA256@{SHA256}}
+\doxysubsubsection{\texorpdfstring{uint64}{uint64}}
+{\footnotesize\ttfamily typedef unsigned long long \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_a29940ae63ec06c9998bba873e25407ad}{uint64}}\hspace{0.3cm}{\ttfamily [protected]}}
+
+
+
+Definition at line 23 of file hash.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1hash_1_1_s_h_a256_adde6aaee8457bee49c2a92621fe22b79}\label{classredshow_1_1hash_1_1_s_h_a256_adde6aaee8457bee49c2a92621fe22b79}} 
+\index{SHA256@{SHA256}!uint8@{uint8}}
+\index{uint8@{uint8}!SHA256@{SHA256}}
+\doxysubsubsection{\texorpdfstring{uint8}{uint8}}
+{\footnotesize\ttfamily typedef unsigned char \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_adde6aaee8457bee49c2a92621fe22b79}{uint8}}\hspace{0.3cm}{\ttfamily [protected]}}
+
+
+
+Definition at line 21 of file hash.\+h.
+
+
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{classredshow_1_1hash_1_1_s_h_a256_ab56338a327e2d15d4e3ec69d0b755541}\label{classredshow_1_1hash_1_1_s_h_a256_ab56338a327e2d15d4e3ec69d0b755541}} 
+\index{SHA256@{SHA256}!final@{final}}
+\index{final@{final}!SHA256@{SHA256}}
+\doxysubsubsection{\texorpdfstring{final()}{final()}}
+{\footnotesize\ttfamily void final (\begin{DoxyParamCaption}\item[{unsigned char $\ast$}]{digest }\end{DoxyParamCaption})}
+
+
+
+Definition at line 152 of file hash.\+cpp.
+
+\mbox{\Hypertarget{classredshow_1_1hash_1_1_s_h_a256_a02fd73d861ef2e4aabb38c0c9ff82947}\label{classredshow_1_1hash_1_1_s_h_a256_a02fd73d861ef2e4aabb38c0c9ff82947}} 
+\index{SHA256@{SHA256}!init@{init}}
+\index{init@{init}!SHA256@{SHA256}}
+\doxysubsubsection{\texorpdfstring{init()}{init()}}
+{\footnotesize\ttfamily void init (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Definition at line 117 of file hash.\+cpp.
+
+\mbox{\Hypertarget{classredshow_1_1hash_1_1_s_h_a256_a921aece78b6d9846928803d2380e96c7}\label{classredshow_1_1hash_1_1_s_h_a256_a921aece78b6d9846928803d2380e96c7}} 
+\index{SHA256@{SHA256}!transform@{transform}}
+\index{transform@{transform}!SHA256@{SHA256}}
+\doxysubsubsection{\texorpdfstring{transform()}{transform()}}
+{\footnotesize\ttfamily void transform (\begin{DoxyParamCaption}\item[{const unsigned char $\ast$}]{message,  }\item[{unsigned int}]{block\+\_\+nb }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [protected]}}
+
+
+
+Definition at line 81 of file hash.\+cpp.
+
+\mbox{\Hypertarget{classredshow_1_1hash_1_1_s_h_a256_a69b4396021c134fb7a4dbe14ec8ac4bf}\label{classredshow_1_1hash_1_1_s_h_a256_a69b4396021c134fb7a4dbe14ec8ac4bf}} 
+\index{SHA256@{SHA256}!update@{update}}
+\index{update@{update}!SHA256@{SHA256}}
+\doxysubsubsection{\texorpdfstring{update()}{update()}}
+{\footnotesize\ttfamily void update (\begin{DoxyParamCaption}\item[{const unsigned char $\ast$}]{message,  }\item[{unsigned int}]{len }\end{DoxyParamCaption})}
+
+
+
+Definition at line 130 of file hash.\+cpp.
+
+
+
+\doxysubsection{Field Documentation}
+\mbox{\Hypertarget{classredshow_1_1hash_1_1_s_h_a256_a20032f3e8f74d9a00f61db9be5a46bcf}\label{classredshow_1_1hash_1_1_s_h_a256_a20032f3e8f74d9a00f61db9be5a46bcf}} 
+\index{SHA256@{SHA256}!DIGEST\_SIZE@{DIGEST\_SIZE}}
+\index{DIGEST\_SIZE@{DIGEST\_SIZE}!SHA256@{SHA256}}
+\doxysubsubsection{\texorpdfstring{DIGEST\_SIZE}{DIGEST\_SIZE}}
+{\footnotesize\ttfamily const unsigned int D\+I\+G\+E\+S\+T\+\_\+\+S\+I\+ZE = (256 / 8)\hspace{0.3cm}{\ttfamily [static]}}
+
+
+
+Definition at line 32 of file hash.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1hash_1_1_s_h_a256_ab66c1fb20deef1dd0edf5a5d8567537d}\label{classredshow_1_1hash_1_1_s_h_a256_ab66c1fb20deef1dd0edf5a5d8567537d}} 
+\index{SHA256@{SHA256}!m\_block@{m\_block}}
+\index{m\_block@{m\_block}!SHA256@{SHA256}}
+\doxysubsubsection{\texorpdfstring{m\_block}{m\_block}}
+{\footnotesize\ttfamily unsigned char m\+\_\+block\mbox{[}2 $\ast$\mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_afc581b6296a1d6becf3c29c3cafbe305}{S\+H\+A224\+\_\+256\+\_\+\+B\+L\+O\+C\+K\+\_\+\+S\+I\+ZE}}\mbox{]}\hspace{0.3cm}{\ttfamily [protected]}}
+
+
+
+Definition at line 38 of file hash.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1hash_1_1_s_h_a256_a0c7f3da299f1e525fcdc05f929e429d4}\label{classredshow_1_1hash_1_1_s_h_a256_a0c7f3da299f1e525fcdc05f929e429d4}} 
+\index{SHA256@{SHA256}!m\_h@{m\_h}}
+\index{m\_h@{m\_h}!SHA256@{SHA256}}
+\doxysubsubsection{\texorpdfstring{m\_h}{m\_h}}
+{\footnotesize\ttfamily \mbox{\hyperlink{classredshow_1_1hash_1_1_s_h_a256_a1134b580f8da4de94ca6b1de4d37975e}{uint32}} m\+\_\+h\mbox{[}8\mbox{]}\hspace{0.3cm}{\ttfamily [protected]}}
+
+
+
+Definition at line 39 of file hash.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1hash_1_1_s_h_a256_a9e69a693ad65e2ca6df686ca0a62723a}\label{classredshow_1_1hash_1_1_s_h_a256_a9e69a693ad65e2ca6df686ca0a62723a}} 
+\index{SHA256@{SHA256}!m\_len@{m\_len}}
+\index{m\_len@{m\_len}!SHA256@{SHA256}}
+\doxysubsubsection{\texorpdfstring{m\_len}{m\_len}}
+{\footnotesize\ttfamily unsigned int m\+\_\+len\hspace{0.3cm}{\ttfamily [protected]}}
+
+
+
+Definition at line 37 of file hash.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1hash_1_1_s_h_a256_afce99833d2e378d24d896bb33561fe6c}\label{classredshow_1_1hash_1_1_s_h_a256_afce99833d2e378d24d896bb33561fe6c}} 
+\index{SHA256@{SHA256}!m\_tot\_len@{m\_tot\_len}}
+\index{m\_tot\_len@{m\_tot\_len}!SHA256@{SHA256}}
+\doxysubsubsection{\texorpdfstring{m\_tot\_len}{m\_tot\_len}}
+{\footnotesize\ttfamily unsigned int m\+\_\+tot\+\_\+len\hspace{0.3cm}{\ttfamily [protected]}}
+
+
+
+Definition at line 36 of file hash.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1hash_1_1_s_h_a256_afc581b6296a1d6becf3c29c3cafbe305}\label{classredshow_1_1hash_1_1_s_h_a256_afc581b6296a1d6becf3c29c3cafbe305}} 
+\index{SHA256@{SHA256}!SHA224\_256\_BLOCK\_SIZE@{SHA224\_256\_BLOCK\_SIZE}}
+\index{SHA224\_256\_BLOCK\_SIZE@{SHA224\_256\_BLOCK\_SIZE}!SHA256@{SHA256}}
+\doxysubsubsection{\texorpdfstring{SHA224\_256\_BLOCK\_SIZE}{SHA224\_256\_BLOCK\_SIZE}}
+{\footnotesize\ttfamily const unsigned int S\+H\+A224\+\_\+256\+\_\+\+B\+L\+O\+C\+K\+\_\+\+S\+I\+ZE = (512 / 8)\hspace{0.3cm}{\ttfamily [static]}, {\ttfamily [protected]}}
+
+
+
+Definition at line 26 of file hash.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1hash_1_1_s_h_a256_ad40bef729b85bf26d75b301d5a952ed5}\label{classredshow_1_1hash_1_1_s_h_a256_ad40bef729b85bf26d75b301d5a952ed5}} 
+\index{SHA256@{SHA256}!sha256\_k@{sha256\_k}}
+\index{sha256\_k@{sha256\_k}!SHA256@{SHA256}}
+\doxysubsubsection{\texorpdfstring{sha256\_k}{sha256\_k}}
+{\footnotesize\ttfamily const unsigned int sha256\+\_\+k\hspace{0.3cm}{\ttfamily [static]}, {\ttfamily [protected]}}
+
+{\bfseries Initial value\+:}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{=  }
+\DoxyCodeLine{    \{0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,}
+\DoxyCodeLine{     0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,}
+\DoxyCodeLine{     0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,}
+\DoxyCodeLine{     0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,}
+\DoxyCodeLine{     0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,}
+\DoxyCodeLine{     0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,}
+\DoxyCodeLine{     0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,}
+\DoxyCodeLine{     0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,}
+\DoxyCodeLine{     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,}
+\DoxyCodeLine{     0xc67178f2\}}
+
+\end{DoxyCode}
+
+
+Definition at line 25 of file hash.\+h.
+
+
+
+The documentation for this class was generated from the following files\+:\begin{DoxyCompactItemize}
+\item 
+include/\mbox{\hyperlink{hash_8h}{hash.\+h}}\item 
+src/\mbox{\hyperlink{hash_8cpp}{hash.\+cpp}}\end{DoxyCompactItemize}

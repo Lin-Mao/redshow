@@ -1,0 +1,201 @@
+\hypertarget{classredshow_1_1instruction_1_1_instruction_graph}{}\doxysection{Instruction\+Graph Class Reference}
+\label{classredshow_1_1instruction_1_1_instruction_graph}\index{InstructionGraph@{InstructionGraph}}
+
+
+{\ttfamily \#include $<$instruction.\+h$>$}
+
+\doxysubsection*{Public Types}
+\begin{DoxyCompactItemize}
+\item 
+typedef std\+::map$<$ unsigned int, std\+::set$<$ unsigned int $>$ $>$ \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_abf5611ede2d362900b9ace83fe57013a}{Neighbor\+Node\+Map}}
+\item 
+typedef std\+::map$<$ unsigned int, \mbox{\hyperlink{structredshow_1_1instruction_1_1_instruction}{Instruction}} $>$ \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_a979d264095e95bf98875590ac54f2c33}{Node\+Map}}
+\end{DoxyCompactItemize}
+\doxysubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_abe4f123fe99bceb531448cdc7baa236f}{Instruction\+Graph}} ()
+\item 
+Node\+Map\+::iterator \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_a739c5931ab76941b26aa1c91f435a40f}{nodes\+\_\+begin}} ()
+\item 
+Node\+Map\+::iterator \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_a04483619c84b281f61ee6961c78cd9e4}{nodes\+\_\+end}} ()
+\item 
+size\+\_\+t \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_a9769803e1bcb41acc21b8834eb5bef22}{outgoing\+\_\+nodes\+\_\+size}} (unsigned int pc)
+\item 
+const std\+::set$<$ unsigned int $>$ \& \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_aebee5d35b6f83a02adeb5290dc3cd9a2}{outgoing\+\_\+nodes}} (unsigned int pc)
+\item 
+size\+\_\+t \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_a4947a4e3902ea339c9e1a69fce02ba0d}{incoming\+\_\+nodes\+\_\+size}} (unsigned int pc)
+\item 
+const std\+::set$<$ unsigned int $>$ \& \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_ae2c9d439c60f1738bb04ee44fa189519}{incoming\+\_\+nodes}} (unsigned int pc)
+\item 
+void \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_a45fabe2c722cd5d311f77facb3bb90ca}{add\+\_\+edge}} (unsigned int from, unsigned int to)
+\item 
+void \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_afe65a5a31ad21f083d5e8b8110e3216d}{add\+\_\+node}} (unsigned int pc, const \mbox{\hyperlink{structredshow_1_1instruction_1_1_instruction}{Instruction}} \&inst)
+\item 
+bool \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_af6fa4c28082a7516ef49af1d2460d2a0}{has\+\_\+node}} (unsigned int pc)
+\item 
+\mbox{\hyperlink{structredshow_1_1instruction_1_1_instruction}{Instruction}} \& \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_aecc16c96c61da6ed0a28d6deac475dbc}{node}} (unsigned int pc)
+\item 
+size\+\_\+t \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_a0b6b70701c46e22849f0f363861351cd}{size}} ()
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+
+
+Definition at line 104 of file instruction.\+h.
+
+
+
+\doxysubsection{Member Typedef Documentation}
+\mbox{\Hypertarget{classredshow_1_1instruction_1_1_instruction_graph_abf5611ede2d362900b9ace83fe57013a}\label{classredshow_1_1instruction_1_1_instruction_graph_abf5611ede2d362900b9ace83fe57013a}} 
+\index{InstructionGraph@{InstructionGraph}!NeighborNodeMap@{NeighborNodeMap}}
+\index{NeighborNodeMap@{NeighborNodeMap}!InstructionGraph@{InstructionGraph}}
+\doxysubsubsection{\texorpdfstring{NeighborNodeMap}{NeighborNodeMap}}
+{\footnotesize\ttfamily typedef std\+::map$<$unsigned int, std\+::set$<$unsigned int$>$ $>$ \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_abf5611ede2d362900b9ace83fe57013a}{Neighbor\+Node\+Map}}}
+
+
+
+Definition at line 106 of file instruction.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1instruction_1_1_instruction_graph_a979d264095e95bf98875590ac54f2c33}\label{classredshow_1_1instruction_1_1_instruction_graph_a979d264095e95bf98875590ac54f2c33}} 
+\index{InstructionGraph@{InstructionGraph}!NodeMap@{NodeMap}}
+\index{NodeMap@{NodeMap}!InstructionGraph@{InstructionGraph}}
+\doxysubsubsection{\texorpdfstring{NodeMap}{NodeMap}}
+{\footnotesize\ttfamily typedef std\+::map$<$unsigned int, \mbox{\hyperlink{structredshow_1_1instruction_1_1_instruction}{Instruction}}$>$ \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph_a979d264095e95bf98875590ac54f2c33}{Node\+Map}}}
+
+
+
+Definition at line 107 of file instruction.\+h.
+
+
+
+\doxysubsection{Constructor \& Destructor Documentation}
+\mbox{\Hypertarget{classredshow_1_1instruction_1_1_instruction_graph_abe4f123fe99bceb531448cdc7baa236f}\label{classredshow_1_1instruction_1_1_instruction_graph_abe4f123fe99bceb531448cdc7baa236f}} 
+\index{InstructionGraph@{InstructionGraph}!InstructionGraph@{InstructionGraph}}
+\index{InstructionGraph@{InstructionGraph}!InstructionGraph@{InstructionGraph}}
+\doxysubsubsection{\texorpdfstring{InstructionGraph()}{InstructionGraph()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{classredshow_1_1instruction_1_1_instruction_graph}{Instruction\+Graph}} (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Definition at line 110 of file instruction.\+h.
+
+
+
+\doxysubsection{Member Function Documentation}
+\mbox{\Hypertarget{classredshow_1_1instruction_1_1_instruction_graph_a45fabe2c722cd5d311f77facb3bb90ca}\label{classredshow_1_1instruction_1_1_instruction_graph_a45fabe2c722cd5d311f77facb3bb90ca}} 
+\index{InstructionGraph@{InstructionGraph}!add\_edge@{add\_edge}}
+\index{add\_edge@{add\_edge}!InstructionGraph@{InstructionGraph}}
+\doxysubsubsection{\texorpdfstring{add\_edge()}{add\_edge()}}
+{\footnotesize\ttfamily void add\+\_\+edge (\begin{DoxyParamCaption}\item[{unsigned int}]{from,  }\item[{unsigned int}]{to }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Definition at line 134 of file instruction.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1instruction_1_1_instruction_graph_afe65a5a31ad21f083d5e8b8110e3216d}\label{classredshow_1_1instruction_1_1_instruction_graph_afe65a5a31ad21f083d5e8b8110e3216d}} 
+\index{InstructionGraph@{InstructionGraph}!add\_node@{add\_node}}
+\index{add\_node@{add\_node}!InstructionGraph@{InstructionGraph}}
+\doxysubsubsection{\texorpdfstring{add\_node()}{add\_node()}}
+{\footnotesize\ttfamily void add\+\_\+node (\begin{DoxyParamCaption}\item[{unsigned int}]{pc,  }\item[{const \mbox{\hyperlink{structredshow_1_1instruction_1_1_instruction}{Instruction}} \&}]{inst }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Definition at line 139 of file instruction.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1instruction_1_1_instruction_graph_af6fa4c28082a7516ef49af1d2460d2a0}\label{classredshow_1_1instruction_1_1_instruction_graph_af6fa4c28082a7516ef49af1d2460d2a0}} 
+\index{InstructionGraph@{InstructionGraph}!has\_node@{has\_node}}
+\index{has\_node@{has\_node}!InstructionGraph@{InstructionGraph}}
+\doxysubsubsection{\texorpdfstring{has\_node()}{has\_node()}}
+{\footnotesize\ttfamily bool has\+\_\+node (\begin{DoxyParamCaption}\item[{unsigned int}]{pc }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Definition at line 141 of file instruction.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1instruction_1_1_instruction_graph_ae2c9d439c60f1738bb04ee44fa189519}\label{classredshow_1_1instruction_1_1_instruction_graph_ae2c9d439c60f1738bb04ee44fa189519}} 
+\index{InstructionGraph@{InstructionGraph}!incoming\_nodes@{incoming\_nodes}}
+\index{incoming\_nodes@{incoming\_nodes}!InstructionGraph@{InstructionGraph}}
+\doxysubsubsection{\texorpdfstring{incoming\_nodes()}{incoming\_nodes()}}
+{\footnotesize\ttfamily const std\+::set$<$unsigned int$>$\& incoming\+\_\+nodes (\begin{DoxyParamCaption}\item[{unsigned int}]{pc }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Definition at line 132 of file instruction.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1instruction_1_1_instruction_graph_a4947a4e3902ea339c9e1a69fce02ba0d}\label{classredshow_1_1instruction_1_1_instruction_graph_a4947a4e3902ea339c9e1a69fce02ba0d}} 
+\index{InstructionGraph@{InstructionGraph}!incoming\_nodes\_size@{incoming\_nodes\_size}}
+\index{incoming\_nodes\_size@{incoming\_nodes\_size}!InstructionGraph@{InstructionGraph}}
+\doxysubsubsection{\texorpdfstring{incoming\_nodes\_size()}{incoming\_nodes\_size()}}
+{\footnotesize\ttfamily size\+\_\+t incoming\+\_\+nodes\+\_\+size (\begin{DoxyParamCaption}\item[{unsigned int}]{pc }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Definition at line 125 of file instruction.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1instruction_1_1_instruction_graph_aecc16c96c61da6ed0a28d6deac475dbc}\label{classredshow_1_1instruction_1_1_instruction_graph_aecc16c96c61da6ed0a28d6deac475dbc}} 
+\index{InstructionGraph@{InstructionGraph}!node@{node}}
+\index{node@{node}!InstructionGraph@{InstructionGraph}}
+\doxysubsubsection{\texorpdfstring{node()}{node()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{structredshow_1_1instruction_1_1_instruction}{Instruction}}\& node (\begin{DoxyParamCaption}\item[{unsigned int}]{pc }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Definition at line 143 of file instruction.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1instruction_1_1_instruction_graph_a739c5931ab76941b26aa1c91f435a40f}\label{classredshow_1_1instruction_1_1_instruction_graph_a739c5931ab76941b26aa1c91f435a40f}} 
+\index{InstructionGraph@{InstructionGraph}!nodes\_begin@{nodes\_begin}}
+\index{nodes\_begin@{nodes\_begin}!InstructionGraph@{InstructionGraph}}
+\doxysubsubsection{\texorpdfstring{nodes\_begin()}{nodes\_begin()}}
+{\footnotesize\ttfamily Node\+Map\+::iterator nodes\+\_\+begin (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Definition at line 112 of file instruction.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1instruction_1_1_instruction_graph_a04483619c84b281f61ee6961c78cd9e4}\label{classredshow_1_1instruction_1_1_instruction_graph_a04483619c84b281f61ee6961c78cd9e4}} 
+\index{InstructionGraph@{InstructionGraph}!nodes\_end@{nodes\_end}}
+\index{nodes\_end@{nodes\_end}!InstructionGraph@{InstructionGraph}}
+\doxysubsubsection{\texorpdfstring{nodes\_end()}{nodes\_end()}}
+{\footnotesize\ttfamily Node\+Map\+::iterator nodes\+\_\+end (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Definition at line 114 of file instruction.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1instruction_1_1_instruction_graph_aebee5d35b6f83a02adeb5290dc3cd9a2}\label{classredshow_1_1instruction_1_1_instruction_graph_aebee5d35b6f83a02adeb5290dc3cd9a2}} 
+\index{InstructionGraph@{InstructionGraph}!outgoing\_nodes@{outgoing\_nodes}}
+\index{outgoing\_nodes@{outgoing\_nodes}!InstructionGraph@{InstructionGraph}}
+\doxysubsubsection{\texorpdfstring{outgoing\_nodes()}{outgoing\_nodes()}}
+{\footnotesize\ttfamily const std\+::set$<$unsigned int$>$\& outgoing\+\_\+nodes (\begin{DoxyParamCaption}\item[{unsigned int}]{pc }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Definition at line 123 of file instruction.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1instruction_1_1_instruction_graph_a9769803e1bcb41acc21b8834eb5bef22}\label{classredshow_1_1instruction_1_1_instruction_graph_a9769803e1bcb41acc21b8834eb5bef22}} 
+\index{InstructionGraph@{InstructionGraph}!outgoing\_nodes\_size@{outgoing\_nodes\_size}}
+\index{outgoing\_nodes\_size@{outgoing\_nodes\_size}!InstructionGraph@{InstructionGraph}}
+\doxysubsubsection{\texorpdfstring{outgoing\_nodes\_size()}{outgoing\_nodes\_size()}}
+{\footnotesize\ttfamily size\+\_\+t outgoing\+\_\+nodes\+\_\+size (\begin{DoxyParamCaption}\item[{unsigned int}]{pc }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Definition at line 116 of file instruction.\+h.
+
+\mbox{\Hypertarget{classredshow_1_1instruction_1_1_instruction_graph_a0b6b70701c46e22849f0f363861351cd}\label{classredshow_1_1instruction_1_1_instruction_graph_a0b6b70701c46e22849f0f363861351cd}} 
+\index{InstructionGraph@{InstructionGraph}!size@{size}}
+\index{size@{size}!InstructionGraph@{InstructionGraph}}
+\doxysubsubsection{\texorpdfstring{size()}{size()}}
+{\footnotesize\ttfamily size\+\_\+t size (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})\hspace{0.3cm}{\ttfamily [inline]}}
+
+
+
+Definition at line 145 of file instruction.\+h.
+
+
+
+The documentation for this class was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+include/\mbox{\hyperlink{instruction_8h}{instruction.\+h}}\end{DoxyCompactItemize}
