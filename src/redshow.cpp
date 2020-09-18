@@ -125,6 +125,7 @@ static std::mutex kernel_map_lock;
 
 struct Memcpy {
   uint64_t memcpy_id;
+  uint64_t memcpy_op_id;
   uint64_t src_memory_id;
   uint64_t dst_memory_id;
   std::string hash;
@@ -132,9 +133,10 @@ struct Memcpy {
 
   Memcpy() = default;
 
-  Memcpy(uint64_t memcpy_id, uint64_t src_memory_id, uint64_t dst_memory_id, std::string &hash,
-         double redundancy)
+  Memcpy(uint64_t memcpy_id, uint64_t memcpy_op_id, uint64_t src_memory_id, uint64_t dst_memory_id,
+         const std::string &hash, double redundancy)
       : memcpy_id(memcpy_id),
+        memcpy_op_id(memcpy_op_id),
         src_memory_id(src_memory_id),
         dst_memory_id(dst_memory_id),
         hash(hash),
@@ -146,14 +148,20 @@ static std::mutex memcpy_map_lock;
 
 struct Memset {
   uint64_t memset_id;
+  uint64_t memset_op_id;
   uint64_t memory_id;
-  std::string hash;
+  const std::string hash;
   double redundancy;
 
   Memset() = default;
 
-  Memset(uint64_t memset_id, uint64_t memory_id, std::string &hash, double redundancy)
-      : memset_id(memset_id), memory_id(memory_id), hash(hash), redundancy(redundancy) {}
+  Memset(uint64_t memset_id, uint64_t memset_op_id, uint64_t memory_id, const std::string &hash,
+         double redundancy)
+      : memset_id(memset_id),
+        memset_op_id(memset_op_id),
+        memory_id(memory_id),
+        hash(hash),
+        redundancy(redundancy) {}
 };
 
 static std::map<std::string, std::vector<Memset>> memset_map;
@@ -779,13 +787,14 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint6
   return result;
 }
 
-EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t src_memory_id,
-                                                 uint64_t src_start, uint64_t dst_memory_id,
-                                                 uint64_t dst_start, uint64_t len) {
+EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t memcpy_op_id,
+                                                 uint64_t src_memory_id, uint64_t src_start,
+                                                 uint64_t dst_memory_id, uint64_t dst_start,
+                                                 uint64_t len) {
   PRINT(
-      "\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %lu\nsrc_memory_id: %lu\nsrc_start: "
-      "%p\ndst_memory_id: %lu\ndst_start: %p\nlen: %lu\n",
-      memcpy_id, src_memory_id, src_start, dst_memory_id, dst_start, len);
+      "\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %lu\nmemcpy_op_id: %lu\nsrc_memory_id: "
+      "%lu\nsrc_start: %p\ndst_memory_id: %lu\ndst_start: %p\nlen: %lu\n",
+      memcpy_id, memcpy_op_id, src_memory_id, src_start, dst_memory_id, dst_start, len);
 
   redshow_result_t result;
 
@@ -794,13 +803,13 @@ EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t sr
 
   if (analysis_enabled.find(REDSHOW_ANALYSIS_VALUE_FLOW) != analysis_enabled.end()) {
     hash = value_flow::compute_memory_hash(src_start, len);
-    redundancy = value_flow::compute_memory_redundancy(dst_start, src_start, len);
+    redundancy = value_flow::compute_memcpy_redundancy(dst_start, src_start, len);
   }
 
   memcpy_map_lock.lock();
 
   if (hash != "") {
-    auto memcpy = Memcpy(memcpy_id, src_memory_id, dst_memory_id, hash, redundancy);
+    auto memcpy = Memcpy(memcpy_id, memcpy_op_id, src_memory_id, dst_memory_id, hash, redundancy);
     memcpy_map[hash].emplace_back(std::move(memcpy));
   }
 
@@ -809,13 +818,13 @@ EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t sr
   return result;
 }
 
-EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memory_id,
-                                                 uint64_t start, uint64_t shadow_start,
+EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memset_op_id,
+                                                 uint64_t memory_id, uint64_t shadow_start,
                                                  uint32_t value, uint64_t len) {
   PRINT(
-      "\nredshow->Enter redshow_memset_register\nmemset_id: %lu\nmemory_id: %lu\nvalue: %u\nlen: "
-      "%lu\n",
-      memset_id, memory_id, value, len);
+      "\nredshow->Enter redshow_memset_register\nmemset_id: %lu\nmemset_op_id: %lu\nmemory_id: "
+      "%lu\nshadow_start: %p\nvalue: %u\nlen: %lu\n",
+      memset_id, memset_op_id, memory_id, shadow_start, value, len);
 
   redshow_result_t result;
 
@@ -824,13 +833,13 @@ EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t me
 
   if (analysis_enabled.find(REDSHOW_ANALYSIS_VALUE_FLOW) != analysis_enabled.end()) {
     hash = value_flow::compute_memory_hash(shadow_start, len);
-    redundancy = value_flow::compute_memory_redundancy(start, shadow_start, len);
+    redundancy = value_flow::compute_memset_redundancy(shadow_start, value, len);
   }
 
   memset_map_lock.lock();
 
   if (hash != "") {
-    auto memset = Memset(memset_id, memory_id, hash, redundancy);
+    auto memset = Memset(memset_id, memset_op_id, memory_id, hash, redundancy);
     memset_map[hash].emplace_back(std::move(memset));
   }
 

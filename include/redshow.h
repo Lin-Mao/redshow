@@ -213,7 +213,8 @@ EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t star
 /**
  * @brief This funciton is used to track a memcpy operation
  *
- * @param memcpy_id Unique identifier of a memcpy operation
+ * @param memcpy_id Calling context of the mempry operation
+ * @param memcpy_op_id Unique identifier of a memcpy operation
  * @param src_memory_id Unique identifier of a src memory object except for MEMORY_ID_HOST as we do
  * not track host memory objects
  * @param src_start Start address of a src memory (shadow) object
@@ -225,16 +226,17 @@ EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t star
  *
  * @thread-safe: Yes
  */
-EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t src_memory_id,
-                                                 uint64_t src_start, uint64_t dst_memory_id,
-                                                 uint64_t dst_start, uint64_t len);
+EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t memcpy_op_id,
+                                                 uint64_t src_memory_id, uint64_t src_start,
+                                                 uint64_t dst_memory_id, uint64_t dst_start,
+                                                 uint64_t len);
 
 /**
  * @brief This funciton is used to track a memset operation
  *
  * @param memset_id
+ * @param memory_op_id
  * @param memory_id
- * @param start
  * @param shadow_start
  * @param value
  * @param len
@@ -242,8 +244,8 @@ EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t sr
  *
  * @thread-safe: yes
  */
-EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memory_id,
-                                                 uint64_t start, uint64_t shadow_start,
+EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memset_op_id,
+                                                 uint64_t memory_id, uint64_t shadow_start,
                                                  uint32_t value, uint64_t len);
 
 /**
