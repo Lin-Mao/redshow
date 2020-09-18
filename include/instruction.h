@@ -13,8 +13,6 @@
 
 namespace redshow {
 
-namespace instruction {
-
 struct Symbol {
   uint32_t index;
   uint64_t cubin_offset;
@@ -152,17 +150,15 @@ class InstructionGraph {
 
 /**
  * @brief instruction parsing interface
- * 
- * @param file_path 
- * @param symbols 
- * @param graph 
- * @return true 
- * @return false 
+ *
+ * @param file_path
+ * @param symbols
+ * @param graph
+ * @return true
+ * @return false
  */
 bool parse_instructions(const std::string &file_path, std::vector<Symbol> &symbols,
                         InstructionGraph &graph);
-
-}  // namespace instruction
 
 }  // namespace redshow
 

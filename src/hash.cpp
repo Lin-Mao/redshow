@@ -42,8 +42,6 @@
 
 namespace redshow {
 
-namespace hash {
-
 #define SHA2_SHFR(x, n) (x >> n)
 #define SHA2_ROTR(x, n) ((x >> n) | (x << ((sizeof(x) << 3) - n)))
 #define SHA2_ROTL(x, n) ((x << n) | (x >> ((sizeof(x) << 3) - n)))
@@ -180,7 +178,5 @@ std::string sha256(void *input, unsigned int length) {
   for (int i = 0; i < SHA256::DIGEST_SIZE; i++) sprintf(buf + i * 2, "%02x", digest[i]);
   return std::string(buf);
 }
-
-}  // namespace hash
 
 }  // namespace redshow

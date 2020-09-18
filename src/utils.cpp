@@ -2,9 +2,7 @@
 
 #include <cstring>
 
-namespace redshow {
-
-u64 store_to_double(u64 a, int decimal_degree_f64) {
+u64 value_to_double(u64 a, int decimal_degree_f64) {
   u64 c = a;
   u64 bits = 52 - decimal_degree_f64;
   u64 mask = 0xffffffffffffffff << bits;
@@ -12,7 +10,7 @@ u64 store_to_double(u64 a, int decimal_degree_f64) {
   return c;
 }
 
-u64 store_to_float(u64 a, int decimal_degree_f32) {
+u64 value_to_float(u64 a, int decimal_degree_f32) {
   u32 c = a & 0xffffffffu;
   u64 bits = 23 - decimal_degree_f32;
   u64 mask = 0xffffffffffffffff << bits;
@@ -21,5 +19,3 @@ u64 store_to_float(u64 a, int decimal_degree_f32) {
   memcpy(&b, &c, sizeof(c));
   return b;
 }
-
-}  // namespace redshow

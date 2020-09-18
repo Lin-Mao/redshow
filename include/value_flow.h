@@ -5,8 +5,6 @@
 
 namespace redshow {
 
-namespace value_flow {
-
 /**
  * @brief calculate a hash for the memory region
  *
@@ -35,8 +33,6 @@ double compute_memcpy_redundancy(uint64_t dst_start, uint64_t src_start, uint64_
  * @return double
  */
 double compute_memset_redundancy(uint64_t start, uint32_t value, uint64_t len);
-
-}  // namespace value_flow
 
 }  // namespace redshow
 

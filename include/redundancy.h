@@ -22,8 +22,6 @@
 
 namespace redshow {
 
-namespace redundancy {
-
 /*
  * Data type definition
  */
@@ -53,13 +51,13 @@ struct RealPCPair {
   RealPC to_pc;
   RealPC from_pc;
   u64 value;
-  instruction::AccessKind access_kind;
+  redshow::AccessKind access_kind;
   u64 red_count;
   u64 access_count;
 
   RealPCPair() = default;
 
-  RealPCPair(RealPC &to_pc, u64 value, instruction::AccessKind &access_kind, u64 red_count,
+  RealPCPair(RealPC &to_pc, u64 value, redshow::AccessKind &access_kind, u64 red_count,
              u64 access_count)
       : to_pc(to_pc),
         value(value),
@@ -67,7 +65,7 @@ struct RealPCPair {
         red_count(red_count),
         access_count(access_count) {}
 
-  RealPCPair(RealPC &to_pc, RealPC &from_pc, u64 value, instruction::AccessKind &access_kind,
+  RealPCPair(RealPC &to_pc, RealPC &from_pc, u64 value, redshow::AccessKind &access_kind,
              u64 red_count, u64 access_count)
       : to_pc(to_pc),
         from_pc(from_pc),
@@ -78,7 +76,7 @@ struct RealPCPair {
 };
 
 // {<memory_op_id, AccessKind> : {pc: {value: count}}}
-typedef std::map<std::pair<u64, instruction::AccessKind>, std::map<u64, std::map<u64, u64>>>
+typedef std::map<std::pair<u64, redshow::AccessKind>, std::map<u64, std::map<u64, u64>>>
     SpatialTrace;
 
 // {<memory_op_id> : {pc: [RealPCPair]}}
@@ -91,8 +89,7 @@ typedef std::map<ThreadId, std::map<u64, std::pair<u64, u64>>> TemporalTrace;
 typedef std::map<u64, std::vector<RealPCPair>> TemporalStatistics;
 
 // {pc1 : {pc2 : {<value, AccessKind> : count}}}
-typedef std::map<u64, std::map<u64, std::map<std::pair<u64, instruction::AccessKind>, u64>>>
-    PCPairs;
+typedef std::map<u64, std::map<u64, std::map<std::pair<u64, redshow::AccessKind>, u64>>> PCPairs;
 
 // {pc: access_count}
 typedef std::map<u64, u64> PCAccessCount;
@@ -140,7 +137,7 @@ typedef std::priority_queue<redshow_record_view_t, std::vector<redshow_record_vi
  * @param pc_pairs
  */
 void update_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value,
-                           instruction::AccessKind access_kind, TemporalTrace &temporal_trace,
+                           redshow::AccessKind access_kind, TemporalTrace &temporal_trace,
                            PCPairs &pc_pairs);
 
 /**
@@ -181,7 +178,7 @@ void show_temporal_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 
  * @param access_kind How a thread accesses memory (e.g. float/int, vector/scalar)
  * @param spatial_trace
  */
-void update_spatial_trace(u64 pc, u64 value, u64 memory_op_id, instruction::AccessKind access_kind,
+void update_spatial_trace(u64 pc, u64 value, u64 memory_op_id, redshow::AccessKind access_kind,
                           SpatialTrace &spatial_trace);
 
 /**
@@ -213,7 +210,6 @@ void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessCount &pc_access_
  */
 void show_spatial_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 total_count,
                         SpatialStatistics &spatial_stats, bool is_read, bool is_thread);
-}  // namespace redundancy
 
 }  // namespace redshow
 
