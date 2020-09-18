@@ -1,8 +1,11 @@
 #ifndef REDSHOW_UTILS_H
 #define REDSHOW_UTILS_H
 
-#include <tuple>
 #include <string>
+#include <tuple>
+
+#define MIN2(x, y) (x > y ? y : x)
+#define MAX2(x, y) (x > y ? x : y)
 
 typedef int8_t i8;
 typedef int16_t i16;
@@ -37,8 +40,36 @@ const int SHARED_MEMORY_OFFSET = 4;
 const int LOCAL_MEMORY_OFFSET = 4;
 const int GLOBAL_MEMORY_OFFSET = 8;
 
-#define MIN2(x, y) (x > y ? y : x)
+struct ThreadId {
+  u32 flat_block_id;
+  u32 flat_thread_id;
 
-#define MAX2(x, y) (x > y ? x : y)
+  bool operator<(const ThreadId &o) const {
+    return (this->flat_block_id < o.flat_block_id) ||
+           (this->flat_block_id == o.flat_block_id && this->flat_thread_id < o.flat_thread_id);
+  }
+
+  bool operator==(const ThreadId &o) const {
+    return this->flat_thread_id == o.flat_thread_id && this->flat_block_id == o.flat_block_id;
+  }
+};
+
+/**
+ * @brief Use decimal_degree_f32 bits to cut the valid floating number bits.
+ *
+ * @param a value
+ * @param decimal_degree_f32 The valid bits. The floating numbers have 23-bit fractions.
+ * @return u64
+ */
+u64 value_to_float(u64 value, int decimal_degree_f32);
+
+/**
+ * @brief Use decimal_degree_f64 bits to cut the valid floating number bits.
+ *
+ * @param a value
+ * @param decimal_degree_f64 The valid bits. The float64 numbers have 52-bit fractions.
+ * @return u64
+ */
+u64 value_to_double(u64 value, int decimal_degree_f64);
 
 #endif  // REDSHOW_UTILS_H
