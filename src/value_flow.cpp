@@ -7,11 +7,9 @@
 
 namespace redshow {
 
-namespace value_flow {
-
 std::string compute_memory_hash(uint64_t start, uint64_t len) {
   // Use sha256
-  return hash::sha256(reinterpret_cast<void *>(start), len);
+  return sha256(reinterpret_cast<void *>(start), len);
 }
 
 double compute_memcpy_redundancy(uint64_t dst_start, uint64_t src_start, uint64_t len) {
@@ -44,7 +42,5 @@ double compute_memset_redundancy(uint64_t start, uint32_t value, uint64_t len) {
 
   return same / len;
 }
-
-}  // namespace value_flow
 
 }  // namespace redshow

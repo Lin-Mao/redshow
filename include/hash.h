@@ -5,11 +5,9 @@
 
 namespace redshow {
 
-namespace hash {
-
 /**
  * @brief sha256 hash interface
- * 
+ *
  * @param input input bytes
  * @param length number of bytes
  * @return std::string sha256 hash
@@ -38,8 +36,6 @@ class SHA256 {
   unsigned char m_block[2 * SHA224_256_BLOCK_SIZE];
   uint32 m_h[8];
 };
-
-}  // namespace hash
 
 }  // namespace redshow
 

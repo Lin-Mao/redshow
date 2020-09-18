@@ -1,16 +1,14 @@
 #include "instruction.h"
 
 #include <algorithm>
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <queue>
-
-#include <cstdlib>
-
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <cstdlib>
+#include <fstream>
+#include <iostream>
+#include <queue>
+#include <vector>
 
 #include "redshow.h"
 #include "utils.h"
@@ -25,8 +23,6 @@
 
 namespace redshow {
 
-namespace instruction {
-
 static void default_access_kind(Instruction &inst) {
   if (inst.access_kind->vec_size == 0) {
     // Determine the vec size of data,
@@ -34,7 +30,7 @@ static void default_access_kind(Instruction &inst) {
       inst.access_kind->vec_size = 128;
     } else if (inst.op.find(".64") != std::string::npos) {
       inst.access_kind->vec_size = 64;
-    } else if (inst.op.find(".32") != std::string::npos) { 
+    } else if (inst.op.find(".32") != std::string::npos) {
       inst.access_kind->vec_size = 32;
     } else if (inst.op.find(".16") != std::string::npos) {
       inst.access_kind->vec_size = 16;
@@ -58,9 +54,8 @@ static void default_access_kind(Instruction &inst) {
   }
 }
 
-
 static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_graph,
-  std::set<unsigned int> &visited, bool load) {
+                                   std::set<unsigned int> &visited, bool load) {
   if (visited.find(inst.pc) != visited.end()) {
     return AccessKind();
   }
@@ -72,7 +67,7 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
     access_kind.vec_size = 128;
   } else if (inst.op.find(".64") != std::string::npos) {
     access_kind.vec_size = 64;
-  } else if (inst.op.find(".32") != std::string::npos) { 
+  } else if (inst.op.find(".32") != std::string::npos) {
     access_kind.vec_size = 32;
   } else if (inst.op.find(".16") != std::string::npos) {
     access_kind.vec_size = 16;
@@ -83,7 +78,7 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
   }
 
   if ((load && inst_graph.outgoing_nodes_size(inst.pc) == 0) ||
-    (!load && inst_graph.incoming_nodes_size(inst.pc) == 0)) {
+      (!load && inst_graph.incoming_nodes_size(inst.pc) == 0)) {
     return AccessKind();
   }
 
@@ -129,19 +124,22 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
       if (access_kind.unit_size == 0) {
         access_kind.unit_size = neighbor_access_kind.unit_size;
       }
-    } else if (neighbor_inst.op.find("MEMORY") != std::string::npos) { 
+    } else if (neighbor_inst.op.find("MEMORY") != std::string::npos) {
       if (load) {
         // Decided by memory hierarchy
         if (neighbor_inst.op.find(".SHARED") != std::string::npos ||
-          neighbor_inst.op.find(".LOCAL") != std::string::npos) {
-          if (std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[0]) != inst.dsts.end()) {
+            neighbor_inst.op.find(".LOCAL") != std::string::npos) {
+          if (std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[0]) !=
+              inst.dsts.end()) {
             // Used as a
             access_kind.data_type = REDSHOW_DATA_INT;
             access_kind.unit_size = 32;
           }
         } else {
-          if (std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[0]) != inst.dsts.end() ||
-            std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[1]) != inst.dsts.end()) {
+          if (std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[0]) !=
+                  inst.dsts.end() ||
+              std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[1]) !=
+                  inst.dsts.end()) {
             access_kind.data_type = REDSHOW_DATA_INT;
             access_kind.unit_size = 64;
           }
@@ -151,7 +149,7 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
         if (neighbor_inst.access_kind.get() == NULL) {
           // Cache result
           neighbor_inst.access_kind = std::make_shared<AccessKind>(
-            init_access_kind(neighbor_inst, inst_graph, visited, !load));
+              init_access_kind(neighbor_inst, inst_graph, visited, !load));
           default_access_kind(neighbor_inst);
         }
         neighbor_access_kind = *neighbor_inst.access_kind;
@@ -195,20 +193,19 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
       break;
     }
   }
-  
+
   return access_kind;
 }
 
-
-bool parse_instructions(const std::string &file_path,
-  std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
+bool parse_instructions(const std::string &file_path, std::vector<Symbol> &symbols,
+                        InstructionGraph &inst_graph) {
   boost::property_tree::ptree root;
   boost::property_tree::read_json(file_path, root);
 
   // Read instructions
   for (auto &ptree_function : root) {
-    int function_index = ptree_function.second.get<int>("index", 0); 
-    int cubin_offset = ptree_function.second.get<int>("address", 0); 
+    int function_index = ptree_function.second.get<int>("index", 0);
+    int cubin_offset = ptree_function.second.get<int>("address", 0);
     symbols[function_index] = Symbol(function_index, cubin_offset);
 
     auto &ptree_blocks = ptree_function.second.get_child("blocks");
@@ -226,19 +223,18 @@ bool parse_instructions(const std::string &file_path,
           dsts.push_back(dst);
         }
 
-        std::vector<int> srcs; 
+        std::vector<int> srcs;
         std::map<int, std::vector<int> > assign_pcs;
         auto &ptree_srcs = ptree_inst.second.get_child("srcs");
         for (auto &ptree_src : ptree_srcs) {
-          int src = ptree_src.second.get<int>("id", 0); 
+          int src = ptree_src.second.get<int>("id", 0);
           srcs.push_back(src);
           auto &ptree_assign_pcs = ptree_src.second.get_child("assign_pcs");
           for (auto &ptree_assign_pc : ptree_assign_pcs) {
-            int assign_pc = boost::lexical_cast<int>(ptree_assign_pc.second.data())
-              + cubin_offset;
+            int assign_pc = boost::lexical_cast<int>(ptree_assign_pc.second.data()) + cubin_offset;
             assign_pcs[src].push_back(assign_pc);
-          }   
-        }  
+          }
+        }
 
         Instruction inst(op, pc, pred, dsts, srcs, assign_pcs);
         inst_graph.add_node(pc, inst);
@@ -253,7 +249,8 @@ bool parse_instructions(const std::string &file_path,
     size_t i = 0;
     if (inst.op.find("STORE") != std::string::npos) {
       // If store operation has more than one src, skip the first or two src
-      if (inst.op.find(".SHARED") != std::string::npos || inst.op.find(".LOCAL") != std::string::npos) {
+      if (inst.op.find(".SHARED") != std::string::npos ||
+          inst.op.find(".LOCAL") != std::string::npos) {
         i = 1;
       } else {
         i = 2;
@@ -289,14 +286,14 @@ bool parse_instructions(const std::string &file_path,
 
     // Associate access type with instruction
     if (inst.op.find(".STORE") != std::string::npos &&
-      inst_graph.incoming_nodes_size(inst.pc) != 0) {
+        inst_graph.incoming_nodes_size(inst.pc) != 0) {
       *inst.access_kind = init_access_kind(inst, inst_graph, visited, false);
     } else if (inst.op.find(".LOAD") != std::string::npos &&
-      inst_graph.outgoing_nodes_size(inst.pc) != 0) {
+               inst_graph.outgoing_nodes_size(inst.pc) != 0) {
       *inst.access_kind = init_access_kind(inst, inst_graph, visited, true);
     }
 
-    default_access_kind(inst); 
+    default_access_kind(inst);
   }
 
 #ifdef DEBUG_INSTRUCTION
@@ -304,14 +301,14 @@ bool parse_instructions(const std::string &file_path,
   for (auto iter = inst_graph.nodes_begin(); iter != inst_graph.nodes_end(); ++iter) {
     auto &inst = iter->second;
     if (inst.op.find(".SHARED") != std::string::npos) {
-      std::cout << std::hex << inst.pc << " " << inst.access_kind->to_string() << std::dec << std::endl;
+      std::cout << std::hex << inst.pc << " " << inst.access_kind->to_string() << std::dec
+                << std::endl;
     }
   }
 #endif
 
   return true;
 }
-
 
 u64 AccessKind::value_to_basic_type(u64 a, int decimal_degree_f32, int decimal_degree_f64) {
   switch (data_type) {
@@ -342,7 +339,6 @@ u64 AccessKind::value_to_basic_type(u64 a, int decimal_degree_f32, int decimal_d
   }
   return a;
 }
-
 
 std::string AccessKind::value_to_string(u64 a, bool is_signed) {
   std::stringstream ss;
@@ -402,8 +398,4 @@ std::string AccessKind::value_to_string(u64 a, bool is_signed) {
   return ss.str();
 }
 
-
-}  // namespace instruction
-
 }  // namespace redshow
-

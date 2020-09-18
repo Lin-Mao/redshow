@@ -2,8 +2,6 @@
 
 #include <cstring>
 
-namespace redshow {
-
 u64 store_to_double(u64 a, int decimal_degree_f64) {
   u64 c = a;
   u64 bits = 52 - decimal_degree_f64;
@@ -21,5 +19,3 @@ u64 store_to_float(u64 a, int decimal_degree_f32) {
   memcpy(&b, &c, sizeof(c));
   return b;
 }
-
-}  // namespace redshow

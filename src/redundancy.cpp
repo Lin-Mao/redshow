@@ -10,11 +10,8 @@
 
 namespace redshow {
 
-namespace redundancy {
-
-void update_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value,
-                           instruction::AccessKind access_kind, TemporalTrace &temporal_trace,
-                           PCPairs &pc_pairs) {
+void update_temporal_trace(u64 pc, ThreadId tid, u64 addr, u64 value, AccessKind access_kind,
+                           TemporalTrace &temporal_trace, PCPairs &pc_pairs) {
   auto tmr_it = temporal_trace.find(tid);
   // Record current operation.
   std::map<u64, std::pair<u64, u64>> record;
@@ -161,7 +158,7 @@ void show_temporal_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 
   out.close();
 }
 
-void update_spatial_trace(u64 pc, u64 value, u64 memory_op_id, instruction::AccessKind access_kind,
+void update_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_kind,
                           SpatialTrace &spatial_trace) {
   spatial_trace[std::make_pair(memory_op_id, access_kind)][pc][value] += 1;
 }
@@ -305,7 +302,5 @@ void show_spatial_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 t
   }
   out.close();
 }
-
-}  // namespace redundancy
 
 }  // namespace redshow
