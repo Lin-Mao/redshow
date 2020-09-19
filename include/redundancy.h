@@ -166,7 +166,7 @@ void record_temporal_trace(PCPairs &pc_pairs, PCAccessCount &pc_access_count, u3
  * @param is_read
  * @param is_thread
  */
-void show_temporal_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 total_count,
+void show_temporal_trace(u32 thread_id, i32 kernel_id, u64 total_red_count, u64 total_count,
                          TemporalStatistics &temporal_stats, bool is_read, bool is_thread);
 
 /**
@@ -208,7 +208,7 @@ void record_spatial_trace(SpatialTrace &spatial_trace, PCAccessCount &pc_access_
  * @param is_read read or write
  * @param is_thread count on the thread level or process level
  */
-void show_spatial_trace(u32 thread_id, u64 kernel_id, u64 total_red_count, u64 total_count,
+void show_spatial_trace(u32 thread_id, i32 kernel_id, u64 total_red_count, u64 total_count,
                         SpatialStatistics &spatial_stats, bool is_read, bool is_thread);
 
 }  // namespace redshow

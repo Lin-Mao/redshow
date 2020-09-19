@@ -7,10 +7,10 @@
 #include <iostream>
 #include <limits>
 #include <map>
-#include <vector>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include "instruction.h"
 #include "redundancy.h"
@@ -83,12 +83,12 @@ struct MemoryRange {
 struct Memory {
   MemoryRange memory_range;
   uint64_t memory_op_id;
-  uint64_t memory_id;
+  int32_t memory_id;
   std::shared_ptr<uint8_t> value;
 
   Memory() = default;
 
-  Memory(MemoryRange &memory_range, uint64_t memory_op_id, uint64_t memory_id)
+  Memory(MemoryRange &memory_range, uint64_t memory_op_id, int32_t memory_id)
       : memory_range(memory_range),
         memory_op_id(memory_op_id),
         memory_id(memory_id),
@@ -101,7 +101,8 @@ static std::map<uint64_t, MemoryMap> memory_snapshot;
 static std::mutex memory_snapshot_lock;
 
 struct Kernel {
-  uint64_t kernel_id;
+  int32_t kernel_id;
+  uint64_t kernel_op_id;
   uint32_t cubin_id;
   uint32_t mod_id;
   uint32_t func_index;
@@ -123,7 +124,7 @@ struct Kernel {
 
   Kernel() = default;
 
-  Kernel(uint64_t kernel_id, uint32_t cubin_id, uint32_t func_index, uint64_t func_addr)
+  Kernel(int32_t kernel_id, uint32_t cubin_id, uint32_t func_index, uint64_t func_addr)
       : kernel_id(kernel_id), cubin_id(cubin_id), func_index(func_index), func_addr(func_addr) {}
 };
 
@@ -132,7 +133,7 @@ static std::mutex kernel_map_lock;
 
 struct Memcpy {
   uint64_t memcpy_id;
-  uint64_t memcpy_op_id;
+  int32_t memcpy_op_id;
   uint64_t src_memory_id;
   uint64_t dst_memory_id;
   std::string hash;
@@ -140,7 +141,7 @@ struct Memcpy {
 
   Memcpy() = default;
 
-  Memcpy(uint64_t memcpy_id, uint64_t memcpy_op_id, uint64_t src_memory_id, uint64_t dst_memory_id,
+  Memcpy(uint64_t memcpy_id, int32_t memcpy_op_id, uint64_t src_memory_id, uint64_t dst_memory_id,
          const std::string &hash, double redundancy)
       : memcpy_id(memcpy_id),
         memcpy_op_id(memcpy_op_id),
@@ -155,14 +156,14 @@ static std::mutex memcpy_map_lock;
 
 struct Memset {
   uint64_t memset_id;
-  uint64_t memset_op_id;
+  int32_t memset_op_id;
   uint64_t memory_id;
   const std::string hash;
   double redundancy;
 
   Memset() = default;
 
-  Memset(uint64_t memset_id, uint64_t memset_op_id, uint64_t memory_id, const std::string &hash,
+  Memset(uint64_t memset_id, int32_t memset_op_id, uint64_t memory_id, const std::string &hash,
          double redundancy)
       : memset_id(memset_id),
         memset_op_id(memset_op_id),
@@ -238,7 +239,7 @@ static redshow_result_t transform_pc(std::vector<redshow::Symbol> &symbols, uint
     pc_offset = pc - symbols_iter->pc;
     cubin_offset = pc_offset + symbols_iter->cubin_offset;
     function_index = symbols_iter->index;
-    //PRINT("Transform %p to %u: <%p, %p>\n", pc, function_index, pc_offset, cubin_offset);
+    // PRINT("Transform %p to %u: <%p, %p>\n", pc, function_index, pc_offset, cubin_offset);
   } else {
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
   }
@@ -325,7 +326,7 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id,
 
   cubin_map_lock.lock();
   if (cubin_map.find(cubin_id) == cubin_map.end() ||
-    cubin_map[cubin_id].symbols.find(mod_id) == cubin_map[cubin_id].symbols.end()) {
+      cubin_map[cubin_id].symbols.find(mod_id) == cubin_map[cubin_id].symbols.end()) {
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
   } else {
     symbols = &(cubin_map[cubin_id].symbols[mod_id]);
@@ -630,9 +631,10 @@ redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type)
   return REDSHOW_SUCCESS;
 }
 
-redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols, uint64_t *symbol_pcs,
-                                        const char *path) {
-  PRINT("\nredshow->Enter redshow_cubin_register\ncubin_id: %u\nmode_id: %u\npath: %s\n", cubin_id, mod_id, path);
+redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols,
+                                        uint64_t *symbol_pcs, const char *path) {
+  PRINT("\nredshow->Enter redshow_cubin_register\ncubin_id: %u\nmode_id: %u\npath: %s\n", cubin_id,
+        mod_id, path);
 
   redshow_result_t result;
 
@@ -674,7 +676,8 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id, uint
 
 redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols,
                                               uint64_t *symbol_pcs, const char *path) {
-  PRINT("\nredshow->Enter redshow_cubin_cache_register\ncubin_id: %u\nmod_id: %u\npath: %s\n", cubin_id, mod_id, path);
+  PRINT("\nredshow->Enter redshow_cubin_cache_register\ncubin_id: %u\nmod_id: %u\npath: %s\n",
+        cubin_id, mod_id, path);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -687,7 +690,7 @@ redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id
     cubin_cache.nsymbols = nsymbols;
     result = REDSHOW_SUCCESS;
   } else if (cubin_cache_map[cubin_id].symbol_pcs.find(mod_id) ==
-    cubin_cache_map[cubin_id].symbol_pcs.end()) {
+             cubin_cache_map[cubin_id].symbol_pcs.end()) {
     result = REDSHOW_SUCCESS;
   } else {
     result = REDSHOW_ERROR_DUPLICATE_ENTRY;
@@ -724,10 +727,12 @@ redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mod_id) {
   return result;
 }
 
-redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t host_op_id,
-                                         uint64_t memory_id) {
-  PRINT("\nredshow->Enter redshow_memory_register\nstart: %p\nend: %p\nmemory_id: %lu\n", start,
-        end, memory_id);
+redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id, uint64_t start,
+                                         uint64_t end) {
+  PRINT(
+      "\nredshow->Enter redshow_memory_register\nmemory_id: %d\nhost_op_id: %lu\nstart: %p\nend: "
+      "%p\n",
+      memory_id, host_op_id, start, end);
 
   redshow_result_t result;
   MemoryMap memory_map;
@@ -794,7 +799,7 @@ redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_
   return result;
 }
 
-redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint64_t *memory_id,
+redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32_t *memory_id,
                                       uint64_t *shadow_start, uint64_t *len) {
   PRINT("\nredshow->Enter redshow_memory_query\nop_id: %lu\nstart: %p\n", host_op_id, start);
 
@@ -811,7 +816,7 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint6
       *memory_id = memory_map_iter->second.memory_id;
       *shadow_start = reinterpret_cast<uint64_t>(memory_map_iter->second.value.get());
       *len = memory_map_iter->first.end - memory_map_iter->first.start;
-      PRINT("Get memory_id: %lu\nshadow: %p\nlen: %lu\n", *memory_id, *shadow_start, *len);
+      PRINT("Get memory_id: %d\nshadow: %p\nlen: %lu\n", *memory_id, *shadow_start, *len);
       result = REDSHOW_SUCCESS;
     } else {
       result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
@@ -824,13 +829,13 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint6
   return result;
 }
 
-redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t memcpy_op_id,
+redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
                                          uint64_t src_memory_id, uint64_t src_start,
                                          uint64_t dst_memory_id, uint64_t dst_start, uint64_t len) {
   PRINT(
-      "\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %lu\nmemcpy_op_id: %lu\nsrc_memory_id: "
+      "\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %d\nhost_op_id: %lu\nsrc_memory_id: "
       "%lu\nsrc_start: %p\ndst_memory_id: %lu\ndst_start: %p\nlen: %lu\n",
-      memcpy_id, memcpy_op_id, src_memory_id, src_start, dst_memory_id, dst_start, len);
+      memcpy_id, host_op_id, src_memory_id, src_start, dst_memory_id, dst_start, len);
 
   redshow_result_t result;
 
@@ -845,7 +850,7 @@ redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t memcpy_op_
   memcpy_map_lock.lock();
 
   if (hash != "") {
-    auto memcpy = Memcpy(memcpy_id, memcpy_op_id, src_memory_id, dst_memory_id, hash, redundancy);
+    auto memcpy = Memcpy(memcpy_id, host_op_id, src_memory_id, dst_memory_id, hash, redundancy);
     memcpy_map[hash].emplace_back(std::move(memcpy));
   }
 
@@ -854,13 +859,12 @@ redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t memcpy_op_
   return result;
 }
 
-redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memset_op_id,
-                                         uint64_t memory_id, uint64_t shadow_start, uint32_t value,
-                                         uint64_t len) {
+redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id, uint64_t memory_id,
+                                         uint64_t shadow_start, uint32_t value, uint64_t len) {
   PRINT(
-      "\nredshow->Enter redshow_memset_register\nmemset_id: %lu\nmemset_op_id: %lu\nmemory_id: "
+      "\nredshow->Enter redshow_memset_register\nmemset_id: %d\nmemset_op_id: %lu\nmemory_id: "
       "%lu\nshadow_start: %p\nvalue: %u\nlen: %lu\n",
-      memset_id, memset_op_id, memory_id, shadow_start, value, len);
+      memset_id, host_op_id, memory_id, shadow_start, value, len);
 
   redshow_result_t result;
 
@@ -875,7 +879,7 @@ redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memset_op_
   memset_map_lock.lock();
 
   if (hash != "") {
-    auto memset = Memset(memset_id, memset_op_id, memory_id, hash, redundancy);
+    auto memset = Memset(memset_id, host_op_id, memory_id, hash, redundancy);
     memset_map[hash].emplace_back(std::move(memset));
   }
 
@@ -896,9 +900,10 @@ redshow_result_t redshow_record_data_callback_register(redshow_record_data_callb
 }
 
 redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint32_t mod_id,
-                                 uint64_t kernel_id, uint64_t host_op_id, gpu_patch_buffer_t *trace_data) {
+                                 int32_t kernel_id, uint64_t host_op_id,
+                                 gpu_patch_buffer_t *trace_data) {
   PRINT(
-      "\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %lu\nhost_op_id: "
+      "\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %d\nhost_op_id: "
       "%lu\ntrace_data: %p\n",
       cubin_id, kernel_id, host_op_id, trace_data);
 
