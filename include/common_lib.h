@@ -276,6 +276,9 @@ void output_kind_value(u64 a, AccessKind akind, std::streambuf *buf, bool is_sig
 
 void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessKind access_kind, u64 memory_size);
 pair<int, int> get_redundant_zeros_bits(u64 a, AccessKind &accessKind);
+bool float_no_decimal(u64 a, AccessKind &accessKind);
+void detect_type_overuse(pair<int, int> &redundat_zero_bits, AccessKind accessKind,
+                         pair<int, int> &narrow_down_to_unit_size);
 #endif  // REDSHOW_COMMON_LIB_H
 
 

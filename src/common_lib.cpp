@@ -587,7 +587,7 @@ void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessK
   }
   if (access_kind.data_type == REDSHOW_DATA_INT) {
     detect_type_overuse(redundat_zero_bits, access_kind, narrow_down_to_unit_size);
-    if (redundat_zero_bits != narrow_down_to_unit_size) {
+    if (redundat_zero_bits.first != narrow_down_to_unit_size.first || redundat_zero_bits.second != narrow_down_to_unit_size.second) {
 //      it is type overuse pattern
       vpts.emplace_back(VP_TYPE_OVERUSE);
     }
@@ -643,9 +643,7 @@ void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessK
       }
     }
   }
-  if (vpts.size() == 0 && vpt == VP_NO_PATTERN) {
-    vpts.emplace_back(vpt);
-  }
+  vpts.emplace_back(vpt);
 
   using std::cout;
   using std::endl;
@@ -662,21 +660,25 @@ void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessK
     switch (a_vpt) {
       case VP_TYPE_OVERUSE:
         if (redundat_zero_bits.first != narrow_down_to_unit_size.first) {
-          AccessKind temp_a = access_kind;
+          AccessKind temp_a;
+          temp_a.data_type = access_kind.data_type;
           temp_a.unit_size = narrow_down_to_unit_size.first;
           temp_a.vec_size = temp_a.unit_size * (access_kind.vec_size / access_kind.unit_size);
           cout << "signed: " << access_kind.to_string() << " --> " << temp_a.to_string() << "\t";
         }
         if (redundat_zero_bits.second != narrow_down_to_unit_size.second) {
-          AccessKind temp_a = access_kind;
+          AccessKind temp_a;
+          temp_a.data_type = access_kind.data_type;
           temp_a.unit_size = narrow_down_to_unit_size.second;
           temp_a.vec_size = temp_a.unit_size * (access_kind.vec_size / access_kind.unit_size);
           cout << "unsigned: " << access_kind.to_string() << " --> " << temp_a.to_string() << endl;
         }
         break;
       case VP_INAPPROPRIATE_FLOAT:
-        AccessKind temp_a = access_kind;
+        AccessKind temp_a;
         temp_a.data_type = REDSHOW_DATA_INT;
+        temp_a.unit_size = access_kind.unit_size;
+        temp_a.vec_size = access_kind.vec_size;
         cout << access_kind.to_string() << " --> " << temp_a.to_string() << endl;
         break;
     }
