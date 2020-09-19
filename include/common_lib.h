@@ -124,6 +124,7 @@ typedef enum value_pattern_type {
   VP_SILENT_STORE = 5,
   VP_SILENT_LOAD = 6,
   VP_NO_PATTERN = 7,
+  VP_INAPPROPRIATE_FLOAT = 8,
 } value_pattern_type_t;
 
 struct array_pattern_type {

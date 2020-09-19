@@ -461,10 +461,32 @@ pair<int, int> get_redundant_zeros_bits(u64 a, AccessKind &accessKind) {
 
 }
 
+/** Check wehther the float number has decimal part or not.*/
+bool float_no_decimal(u64 a, AccessKind &accessKind) {
+  using std::abs;
+  if(accessKind.unit_size == 32){
+    float b;
+    u32 c = a & 0xffffffffu;
+    memcpy(&b, &c, sizeof(c));
+    int d = (int)b;
+    if(abs(b - d ) > 1e-6){
+      return false;
+    }
+  }else if(accessKind.unit_size == 64){
+    double b;
+    memcpy(&b, &a, sizeof(a));
+    long long d = (long long)b;
+    if(abs(b - d ) > 1e-14){
+      return false;
+    }
+  }
+  return true;
+}
+
 /**
  * @arg pair<int, int> &redundat_zero_bits how many significant bits are zeros. The first item is for signed and the second for unsigned.
  *  */
-bool detect_type_overuse(pair<int, int> &redundat_zero_bits, AccessKind accessKind,
+void detect_type_overuse(pair<int, int> &redundat_zero_bits, AccessKind accessKind,
                          pair<int, int> &narrow_down_to_unit_size) {
   int narrow_down_to_unit_size_signed = redundat_zero_bits.first;
   int narrow_down_to_unit_size_unsigned = redundat_zero_bits.second;
@@ -539,6 +561,7 @@ void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessK
   ItemsValueCount value_count;
   pair<int, int> redundat_zero_bits = make_pair(access_kind.unit_size, access_kind.unit_size);
   pair<int, int> narrow_down_to_unit_size;
+  bool inappropriate_float_type = true;
 // Type ArrayItems is part of ValueDist: {offset: {value: count}}
   for (u64 i = 0; i < memory_size; i++) {
     auto temp_item_value_count = array_items[i];
@@ -548,13 +571,20 @@ void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessK
         redundat_zero_bits = make_pair(min(redundat_zero_bits.first, temp_redundat_zero_bits.first),
                                        min(redundat_zero_bits.second, temp_redundat_zero_bits.second));
       }
+    } else if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
+      for (auto temp_value: temp_item_value_count) {
+        if (inappropriate_float_type && not float_no_decimal(temp_value.first, access_kind))
+          inappropriate_float_type = false;
+      }
     }
     if (temp_item_value_count.size() == 1) {
       value_count[temp_item_value_count.begin()->first] += 1;
       unique_value_count++;
     }
   }
-
+  if (access_kind.data_type == REDSHOW_DATA_FLOAT && inappropriate_float_type) {
+    vpts.emplace_back(VP_INAPPROPRIATE_FLOAT);
+  }
   if (access_kind.data_type == REDSHOW_DATA_INT) {
     detect_type_overuse(redundat_zero_bits, access_kind, narrow_down_to_unit_size);
     if (redundat_zero_bits != narrow_down_to_unit_size) {
@@ -622,9 +652,11 @@ void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessK
   using std::string;
   // @todo
   string pattern_names[] = {"Redundant zeros", "Single value", "Dense value", "Type overuse", "Approximate value",
-                            "Silent store", "Silent load", "No pattern"};
+                            "Silent store", "Silent load", "No pattern", "Inappropriate float type"};
   cout << "array " << memory_op_id << " : memory size " << memory_size << " value type " << access_kind.to_string()
        << "\npattern type\n";
+  if(vpts.size() == 0)
+    vpts.emplace_back(VP_NO_PATTERN);
   for (auto a_vpt: vpts) {
     cout << pattern_names[a_vpt] << "\t";
     switch (a_vpt) {
@@ -642,9 +674,14 @@ void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessK
           cout << "unsigned: " << access_kind.to_string() << " --> " << temp_a.to_string() << endl;
         }
         break;
+      case VP_INAPPROPRIATE_FLOAT:
+        AccessKind temp_a = access_kind;
+        temp_a.data_type = REDSHOW_DATA_INT;
+        cout << access_kind.to_string() << " --> " << temp_a.to_string() << endl;
+        break;
     }
   }
-  cout << "value\tcount" << endl;
+  cout <<endl<< "value\tcount" << endl;
   for (auto item: top_value_count_vec) {
     output_kind_value(item.first, access_kind, cout.rdbuf(), true);
     cout << "\t" << item.second << endl;
