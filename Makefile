@@ -17,7 +17,7 @@ LIB := $(LIB_DIR)lib$(PROJECT).so
 ifdef DEBUG
 OFLAGS += -g -DDEBUG
 else
-OFLAGS += -O2
+OFLAGS += -O3
 endif
 
 CFLAGS := -fPIC -std=c++11 $(OFLAGS)
