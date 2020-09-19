@@ -587,7 +587,7 @@ void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessK
   }
   if (access_kind.data_type == REDSHOW_DATA_INT) {
     detect_type_overuse(redundat_zero_bits, access_kind, narrow_down_to_unit_size);
-    if (redundat_zero_bits.first != narrow_down_to_unit_size.first || redundat_zero_bits.second != narrow_down_to_unit_size.second) {
+    if (access_kind.unit_size != narrow_down_to_unit_size.first || access_kind.unit_size != narrow_down_to_unit_size.second) {
 //      it is type overuse pattern
       vpts.emplace_back(VP_TYPE_OVERUSE);
     }
