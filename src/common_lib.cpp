@@ -414,8 +414,26 @@ u64 store2float(u64 a, int decimal_degree_f32) {
   return b;
 }
 
-void get_value_trace(u64 pc, u64 value, u64 memory_op_id, u64 offset, AccessKind access_kind, ValueDist &value_dist) {
-  value_dist[make_pair(memory_op_id, access_kind)][offset][value] += 1;
+void get_value_trace(u64 pc, u64 value, u64 memory_op_id, u64 offset, AccessKind access_kind, ValueDist &value_dist,
+                     u64 memory_size, int decimal_degree_f32, int decimal_degree_f64) {
+//  @todo If memory usage is too high, we can limit the save of various values of one item.
+  auto temp_tuple = make_tuple(memory_op_id, access_kind, memory_size);
+  auto items_value_count = value_dist.find(temp_tuple);
+  if (items_value_count == value_dist.end()) {
+    value_dist[temp_tuple] = new ItemsValueCount[memory_size];
+  }
+//debug
+//  if(memory_op_id == 1){
+//    std::cout<<"ok";
+//  }
+  if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
+    if (access_kind.unit_size == 32) {
+      value = store2float(value, decimal_degree_f32);
+    } else if (access_kind.unit_size == 64) {
+      value = store2float(value, decimal_degree_f64);
+    }
+  }
+  value_dist[temp_tuple][offset][value] += 1;
 }
 
 bool sortByVal(const pair<u64, u64> &a,
@@ -423,34 +441,140 @@ bool sortByVal(const pair<u64, u64> &a,
   return (a.second > b.second);
 }
 
+/**This function is used to check how many significant bits are zeros.
+ * @return pair<int, int> The first item is for signed and the second for unsigned.*/
+pair<int, int> get_redundant_zeros_bits(u64 a, AccessKind &accessKind) {
+  u64 flag = 0x1u << (accessKind.unit_size - 1);
+  char sign_bit = (a >> (accessKind.unit_size - 1)) & 0x1;
+  int redundat_zero_bits_signed, redundat_zero_bits_unsigned;
+  a <<= 1u;
+  int i;
+  for (i = accessKind.unit_size - 1; i >= 0; i--) {
+    if (a & flag) {
+      break;
+    }
+    a <<= 1u;
+  }
+  redundat_zero_bits_signed = accessKind.unit_size - 1 - i;
+  redundat_zero_bits_unsigned = sign_bit ? 0 : accessKind.unit_size - i;
+  return make_pair(redundat_zero_bits_signed, redundat_zero_bits_unsigned);
+
+}
+
+/**
+ * @arg pair<int, int> &redundat_zero_bits how many significant bits are zeros. The first item is for signed and the second for unsigned.
+ *  */
+bool detect_type_overuse(pair<int, int> &redundat_zero_bits, AccessKind accessKind,
+                         pair<int, int> &narrow_down_to_unit_size) {
+  int narrow_down_to_unit_size_signed = redundat_zero_bits.first;
+  int narrow_down_to_unit_size_unsigned = redundat_zero_bits.second;
+  switch (accessKind.unit_size) {
+    case 64:
+      if (redundat_zero_bits.first >= 32)
+        if (redundat_zero_bits.first >= 48)
+          if (redundat_zero_bits.first >= 56)
+            narrow_down_to_unit_size_signed = 8;
+          else
+            narrow_down_to_unit_size_signed = 16;
+        else
+          narrow_down_to_unit_size_signed = 32;
+      else
+        narrow_down_to_unit_size_signed = 64;
+      if (redundat_zero_bits.first >= 32)
+        if (redundat_zero_bits.first >= 48)
+          if (redundat_zero_bits.first >= 56)
+            narrow_down_to_unit_size_unsigned = 8;
+          else
+            narrow_down_to_unit_size_unsigned = 16;
+        else
+          narrow_down_to_unit_size_unsigned = 32;
+      else
+        narrow_down_to_unit_size_unsigned = 64;
+      break;
+    case 32:
+      if (redundat_zero_bits.first >= 16)
+        if (redundat_zero_bits.first >= 24)
+          narrow_down_to_unit_size_signed = 8;
+        else
+          narrow_down_to_unit_size_signed = 16;
+      else
+        narrow_down_to_unit_size_signed = 32;
+      if (redundat_zero_bits.first >= 16)
+        if (redundat_zero_bits.first >= 24)
+          narrow_down_to_unit_size_unsigned = 8;
+        else
+          narrow_down_to_unit_size_unsigned = 16;
+      else
+        narrow_down_to_unit_size_unsigned = 32;
+      break;
+    case 16:
+      if (redundat_zero_bits.first >= 8)
+        narrow_down_to_unit_size_signed = 8;
+      else
+        narrow_down_to_unit_size_signed = 16;
+      if (redundat_zero_bits.first >= 8)
+        narrow_down_to_unit_size_unsigned = 8;
+      else
+        narrow_down_to_unit_size_unsigned = 16;
+      break;
+  }
+  narrow_down_to_unit_size = make_pair(narrow_down_to_unit_size_signed, narrow_down_to_unit_size_unsigned);
+}
+
 /**Array_items is part of ValueDist which focuses on every offset's value. This function is going to transform offset center to value center.
- * @arg value_count: {value: count}. We only save single-value item's value
+ * @arg value_count_vec: {value: count}. We only save single-value item's value
  * @arg array_items: {offset: {value: count}}
  * */
-value_pattern_type_t
-dense_value_pattern(ArrayItems &array_items, ItemsValueCount &value_count, AccessKind access_kind) {
+void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessKind access_kind, u64 memory_size) {
 // @todo one array may be considered as multiple types. What if one type is single_value_pattern but another type is not?
 // @todo what if the array item is single-value at read and write with two different values?
 
-// @todo what is the standard of dense value?
+
   float THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE = 0.1;
   float THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 = 0.5;
-
+  int TOP_NUM_VALUE = 10;
+  int unique_value_count = 0;
+//  How many value patterns will this array fit
+  vector<value_pattern_type_t> vpts;
+  ItemsValueCount value_count;
+  pair<int, int> redundat_zero_bits = make_pair(access_kind.unit_size, access_kind.unit_size);
+  pair<int, int> narrow_down_to_unit_size;
 // Type ArrayItems is part of ValueDist: {offset: {value: count}}
-  for (auto item: array_items) {
-    if (item.second.size() == 1) {
-      value_count[item.second.begin()->first] += 1;
+  for (u64 i = 0; i < memory_size; i++) {
+    auto temp_item_value_count = array_items[i];
+    if (access_kind.data_type == REDSHOW_DATA_INT) {
+      for (auto temp_value: temp_item_value_count) {
+        auto temp_redundat_zero_bits = get_redundant_zeros_bits(temp_value.first, access_kind);
+        redundat_zero_bits = make_pair(min(redundat_zero_bits.first, temp_redundat_zero_bits.first),
+                                       min(redundat_zero_bits.second, temp_redundat_zero_bits.second));
+      }
+    }
+    if (temp_item_value_count.size() == 1) {
+      value_count[temp_item_value_count.begin()->first] += 1;
+      unique_value_count++;
     }
   }
 
-  std::vector<std::pair<u64, u64>> value_count_vec;
+  if (access_kind.data_type == REDSHOW_DATA_INT) {
+    detect_type_overuse(redundat_zero_bits, access_kind, narrow_down_to_unit_size);
+    if (redundat_zero_bits != narrow_down_to_unit_size) {
+//      it is type overuse pattern
+      vpts.emplace_back(VP_TYPE_OVERUSE);
+    }
+  }
+
+  vector<pair<u64, u64>> value_count_vec;
   for (auto iter: value_count) {
     value_count_vec.emplace_back(iter.first, iter.second);
   }
+  vector<pair<u64, u64>> top_value_count_vec;
   sort(value_count_vec.begin(), value_count_vec.end(), sortByVal);
+  for (int i = 0; i < std::min((size_t) TOP_NUM_VALUE, value_count_vec.size()); i++) {
+    top_value_count_vec.emplace_back(value_count_vec[i]);
+  }
 
-  array_pattern_type arr_pattern_type;
-  arr_pattern_type.value_count = value_count;
+
+  value_pattern_type_t vpt = VP_NO_PATTERN;
 //  single value pattern, redundant zeros
   if (value_count.size() == 1) {
     if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
@@ -458,45 +582,73 @@ dense_value_pattern(ArrayItems &array_items, ItemsValueCount &value_count, Acces
         uint32_t value_hex = value_count.begin()->first & 0xffffffffu;
         float b = *reinterpret_cast<float *>(&value_hex);
         if (std::abs(b) < 1e-6) {
-          arr_pattern_type.value_pattern_type = VP_REDUNDANT_ZEROS;
+          vpt = VP_REDUNDANT_ZEROS;
         } else {
-          arr_pattern_type.value_pattern_type = VP_SINGLE_VALUE;
+          vpt = VP_SINGLE_VALUE;
         }
       } else if (access_kind.unit_size == 64) {
         double b;
         u64 cur_hex_value = value_count.begin()->first;
         memcpy(&b, &cur_hex_value, sizeof(cur_hex_value));
         if (std::abs(b) < 1e-6) {
-          arr_pattern_type.value_pattern_type = VP_REDUNDANT_ZEROS;
+          vpt = VP_REDUNDANT_ZEROS;
         } else {
-          arr_pattern_type.value_pattern_type = VP_SINGLE_VALUE;
+          vpt = VP_SINGLE_VALUE;
         }
       }
     } else if (access_kind.data_type == REDSHOW_DATA_INT) {
       if (value_count.begin()->first == 0) {
-        arr_pattern_type.value_pattern_type = VP_REDUNDANT_ZEROS;
+        vpt = VP_REDUNDANT_ZEROS;
       } else {
-        arr_pattern_type.value_pattern_type = VP_SINGLE_VALUE;
+        vpt = VP_SINGLE_VALUE;
       }
     }
   } else {
-//    Actually array_items.size may not be the size of array. Because array_items only record accessed items.
-    int threshold_number_of_items = THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE * array_items.size();
-    int i=0;
-    u64 sum_of_items = 0;
-    for(auto iter: value_count_vec){
-      sum_of_items += iter.second;
-      i++;
-      if ( i > threshold_number_of_items){
-        break;
+    //      debug
+    std::cout << "unique value count " << unique_value_count << " value_count_vec.size() " << value_count_vec.size()
+              << std::endl;
+    if (unique_value_count >= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 * memory_size) {
+      if (value_count_vec.size() <= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE * memory_size) {
+        vpt = VP_DENSE_VALUE;
       }
     }
-    if(sum_of_items > THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 * array_items.size()){
-      arr_pattern_type.value_pattern_type = VP_DENSE_VALUE;
-    }
-
-
+  }
+  if (vpts.size() == 0 && vpt == VP_NO_PATTERN) {
+    vpts.emplace_back(vpt);
   }
 
+  using std::cout;
+  using std::endl;
+  using std::string;
+  // @todo
+  string pattern_names[] = {"Redundant zeros", "Single value", "Dense value", "Type overuse", "Approximate value",
+                            "Silent store", "Silent load", "No pattern"};
+  cout << "array " << memory_op_id << " : memory size " << memory_size << " value type " << access_kind.to_string()
+       << "\npattern type\n";
+  for (auto a_vpt: vpts) {
+    cout << pattern_names[a_vpt] << "\t";
+    switch (a_vpt) {
+      case VP_TYPE_OVERUSE:
+        if (redundat_zero_bits.first != narrow_down_to_unit_size.first) {
+          AccessKind temp_a = access_kind;
+          temp_a.unit_size = narrow_down_to_unit_size.first;
+          temp_a.vec_size = temp_a.unit_size * (access_kind.vec_size / access_kind.unit_size);
+          cout << "signed: " << access_kind.to_string() << " --> " << temp_a.to_string() << "\t";
+        }
+        if (redundat_zero_bits.second != narrow_down_to_unit_size.second) {
+          AccessKind temp_a = access_kind;
+          temp_a.unit_size = narrow_down_to_unit_size.second;
+          temp_a.vec_size = temp_a.unit_size * (access_kind.vec_size / access_kind.unit_size);
+          cout << "unsigned: " << access_kind.to_string() << " --> " << temp_a.to_string() << endl;
+        }
+        break;
+    }
+  }
+  cout << "value\tcount" << endl;
+  for (auto item: top_value_count_vec) {
+    output_kind_value(item.first, access_kind, cout.rdbuf(), true);
+    cout << "\t" << item.second << endl;
+  }
+//  return arr_pattern_type;
 
 }
