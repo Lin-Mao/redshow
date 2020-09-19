@@ -7,6 +7,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <vector>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -29,7 +30,8 @@
 struct Cubin {
   uint32_t cubin_id;
   std::string path;
-  std::vector<redshow::Symbol> symbols;
+  // <mod_id, [symbols]>
+  std::map<uint32_t, std::vector<redshow::Symbol>> symbols;
   redshow::InstructionGraph inst_graph;
 
   Cubin() = default;
@@ -45,7 +47,7 @@ struct CubinCache {
   uint32_t cubin_id;
   uint32_t nsymbols;
   // TODO(Keren): refactor with shared_ptr
-  uint64_t *symbol_pcs;
+  std::map<uint32_t, uint64_t *> symbol_pcs;
   std::string path;
 
   CubinCache() = default;
@@ -55,7 +57,13 @@ struct CubinCache {
   CubinCache(uint32_t cubin_id, const std::string &path)
       : cubin_id(cubin_id), path(path), nsymbols(0) {}
 
-  ~CubinCache() { delete[] symbol_pcs; }
+  ~CubinCache() {
+    for (auto &iter : symbol_pcs) {
+      if (iter.second) {
+        delete[] iter.second;
+      }
+    }
+  }
 };
 
 static std::map<uint32_t, CubinCache> cubin_cache_map;
@@ -95,6 +103,7 @@ static std::mutex memory_snapshot_lock;
 struct Kernel {
   uint64_t kernel_id;
   uint32_t cubin_id;
+  uint32_t mod_id;
   uint32_t func_index;
   uint64_t func_addr;
 
@@ -229,6 +238,7 @@ static redshow_result_t transform_pc(std::vector<redshow::Symbol> &symbols, uint
     pc_offset = pc - symbols_iter->pc;
     cubin_offset = pc_offset + symbols_iter->cubin_offset;
     function_index = symbols_iter->index;
+    //PRINT("Transform %p to %u: <%p, %p>\n", pc, function_index, pc_offset, cubin_offset);
   } else {
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
   }
@@ -299,6 +309,7 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id,
   redshow_result_t result = REDSHOW_SUCCESS;
 
   auto cubin_id = kernel.cubin_id;
+  auto mod_id = kernel.mod_id;
   auto &read_spatial_trace = kernel.read_spatial_trace;
   auto &write_spatial_trace = kernel.write_spatial_trace;
   auto &read_temporal_trace = kernel.read_temporal_trace;
@@ -313,10 +324,11 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id,
   std::string cubin_path;
 
   cubin_map_lock.lock();
-  if (cubin_map.find(cubin_id) == cubin_map.end()) {
+  if (cubin_map.find(cubin_id) == cubin_map.end() ||
+    cubin_map[cubin_id].symbols.find(mod_id) == cubin_map[cubin_id].symbols.end()) {
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
   } else {
-    symbols = &(cubin_map[cubin_id].symbols);
+    symbols = &(cubin_map[cubin_id].symbols[mod_id]);
     inst_graph = &(cubin_map[cubin_id].inst_graph);
     cubin_path = cubin_map[cubin_id].path;
   }
@@ -332,16 +344,20 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id,
     if (cubin_cache_map.find(cubin_id) == cubin_cache_map.end()) {
       result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
     } else {
-      result = REDSHOW_SUCCESS;
       auto &cubin_cache = cubin_cache_map[cubin_id];
-      nsymbols = cubin_cache.nsymbols;
-      symbol_pcs = cubin_cache.symbol_pcs;
-      path = cubin_cache.path.c_str();
+      if (cubin_cache.symbol_pcs.find(mod_id) == cubin_cache.symbol_pcs.end()) {
+        result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+      } else {
+        result = REDSHOW_SUCCESS;
+        nsymbols = cubin_cache.nsymbols;
+        symbol_pcs = cubin_cache.symbol_pcs.at(mod_id);
+        path = cubin_cache.path.c_str();
+      }
     }
     cubin_cache_map_lock.unlock();
 
     if (result == REDSHOW_SUCCESS) {
-      result = redshow_cubin_register(cubin_id, nsymbols, symbol_pcs, path);
+      result = redshow_cubin_register(cubin_id, mod_id, nsymbols, symbol_pcs, path);
     }
 
     // Try fetch cubin again
@@ -350,9 +366,15 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id,
       if (cubin_map.find(cubin_id) == cubin_map.end()) {
         result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
       } else {
-        symbols = &(cubin_map[cubin_id].symbols);
-        inst_graph = &(cubin_map[cubin_id].inst_graph);
-        cubin_path = cubin_map[cubin_id].path;
+        auto &cubin = cubin_map[cubin_id];
+        if (cubin.symbols.find(mod_id) == cubin.symbols.end()) {
+          result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+        } else {
+          result = REDSHOW_SUCCESS;
+          symbols = &(cubin.symbols.at(mod_id));
+          inst_graph = &(cubin.inst_graph);
+          cubin_path = cubin.path;
+        }
       }
       cubin_map_lock.unlock();
     }
@@ -608,9 +630,9 @@ redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type)
   return REDSHOW_SUCCESS;
 }
 
-redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, uint64_t *symbol_pcs,
+redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols, uint64_t *symbol_pcs,
                                         const char *path) {
-  PRINT("\nredshow->Enter redshow_cubin_register\ncubin_id: %u\npath: %s\n", cubin_id, path);
+  PRINT("\nredshow->Enter redshow_cubin_register\ncubin_id: %u\nmode_id: %u\npath: %s\n", cubin_id, mod_id, path);
 
   redshow_result_t result;
 
@@ -629,23 +651,30 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols, ui
     std::sort(symbols.begin(), symbols.end());
 
     cubin_map_lock.lock();
+
     if (cubin_map.find(cubin_id) == cubin_map.end()) {
       cubin_map[cubin_id].cubin_id = cubin_id;
       cubin_map[cubin_id].path = path;
       cubin_map[cubin_id].inst_graph = inst_graph;
-      cubin_map[cubin_id].symbols = symbols;
+      result = REDSHOW_SUCCESS;
+    } else if (cubin_map[cubin_id].symbols.find(mod_id) == cubin_map[cubin_id].symbols.end()) {
+      result = REDSHOW_SUCCESS;
     } else {
       result = REDSHOW_ERROR_DUPLICATE_ENTRY;
     }
+    if (result != REDSHOW_ERROR_DUPLICATE_ENTRY) {
+      cubin_map[cubin_id].symbols[mod_id] = symbols;
+    }
+
     cubin_map_lock.unlock();
   }
 
   return result;
 }
 
-redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t nsymbols,
+redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols,
                                               uint64_t *symbol_pcs, const char *path) {
-  PRINT("\nredshow->Enter redshow_cubin_cache_register\ncubin_id: %u\npath: %s\n", cubin_id, path);
+  PRINT("\nredshow->Enter redshow_cubin_cache_register\ncubin_id: %u\nmod_id: %u\npath: %s\n", cubin_id, mod_id, path);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -656,26 +685,36 @@ redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t nsymbo
     cubin_cache.cubin_id = cubin_id;
     cubin_cache.path = std::string(path);
     cubin_cache.nsymbols = nsymbols;
-    cubin_cache.symbol_pcs = new uint64_t[nsymbols];
-    for (size_t i = 0; i < nsymbols; ++i) {
-      cubin_cache.symbol_pcs[i] = symbol_pcs[i];
-    }
+    result = REDSHOW_SUCCESS;
+  } else if (cubin_cache_map[cubin_id].symbol_pcs.find(mod_id) ==
+    cubin_cache_map[cubin_id].symbol_pcs.end()) {
+    result = REDSHOW_SUCCESS;
   } else {
     result = REDSHOW_ERROR_DUPLICATE_ENTRY;
+  }
+
+  if (result != REDSHOW_ERROR_DUPLICATE_ENTRY) {
+    cubin_cache_map[cubin_id].symbol_pcs[mod_id] = new uint64_t[nsymbols];
+    for (size_t i = 0; i < nsymbols; ++i) {
+      cubin_cache_map[cubin_id].symbol_pcs[mod_id][i] = symbol_pcs[i];
+    }
   }
   cubin_cache_map_lock.unlock();
 
   return result;
 }
 
-redshow_result_t redshow_cubin_unregister(uint32_t cubin_id) {
+redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mod_id) {
   PRINT("\nredshow->Enter redshow_cubin_unregister\ncubin_id: %u\n", cubin_id);
 
   redshow_result_t result;
 
   cubin_map_lock.lock();
   if (cubin_map.find(cubin_id) != cubin_map.end()) {
-    cubin_map.erase(cubin_id);
+    cubin_map[cubin_id].symbols.erase(mod_id);
+    if (cubin_map[cubin_id].symbols.size() == 0) {
+      cubin_map.erase(cubin_id);
+    }
     result = REDSHOW_SUCCESS;
   } else {
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
@@ -856,8 +895,8 @@ redshow_result_t redshow_record_data_callback_register(redshow_record_data_callb
   mem_views_limit = mem_views;
 }
 
-redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint64_t kernel_id,
-                                 uint64_t host_op_id, gpu_patch_buffer_t *trace_data) {
+redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint32_t mod_id,
+                                 uint64_t kernel_id, uint64_t host_op_id, gpu_patch_buffer_t *trace_data) {
   PRINT(
       "\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %lu\nhost_op_id: "
       "%lu\ntrace_data: %p\n",
@@ -873,8 +912,10 @@ redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint64_t
 
   // Analyze trace_data
   Kernel &kernel = thread_kernel_map[kernel_id];
+  // First time mutable only
   kernel.kernel_id = kernel_id;
   kernel.cubin_id = cubin_id;
+  kernel.mod_id = mod_id;
   result = trace_analyze(kernel, host_op_id, trace_data);
 
   if (result == REDSHOW_SUCCESS) {
@@ -952,6 +993,7 @@ void redundancy_flush(uint32_t thread_id, std::map<uint64_t, Kernel> &thread_ker
     auto kernel_id = kernel_iter.first;
     auto &kernel = kernel_iter.second;
     auto cubin_id = kernel.cubin_id;
+    auto mod_id = kernel.mod_id;
     auto cubin_offset = 0;
     u64 kernel_read_temporal_count = 0;
     u64 kernel_write_temporal_count = 0;
@@ -962,7 +1004,7 @@ void redundancy_flush(uint32_t thread_id, std::map<uint64_t, Kernel> &thread_ker
     redshow::SpatialStatistics write_spatial_stats;
     redshow::TemporalStatistics read_temporal_stats;
     redshow::TemporalStatistics write_temporal_stats;
-    std::vector<redshow::Symbol> &symbols = cubin_map[cubin_id].symbols;
+    std::vector<redshow::Symbol> &symbols = cubin_map[cubin_id].symbols[mod_id];
 
     if (analysis_enabled.find(REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) != analysis_enabled.end()) {
       record_data.analysis_type = REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY;

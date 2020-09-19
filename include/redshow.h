@@ -131,6 +131,7 @@ EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analys
  * extract CFGs and instruction statistics.
  *
  * @param cubin_id Unique identifier for cubins
+ * @param mod_id Unique identifier for modules that use the cubin
  * @param nsymbols Number of symbols in cubin
  * @param symbol_pcs An array of symbol start addresses in memory. Use 0 for non-function symbols
  * @param path
@@ -138,7 +139,7 @@ EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analys
  *
  * @thread-safe: Yes
  */
-EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsymbols,
+EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols,
                                                 uint64_t *symbol_pcs, const char *path);
 
 /**
@@ -147,6 +148,7 @@ EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsym
  * analyze the cubins we use
  *
  * @param cubin_id Unique identifier for cubins
+ * @param mod_id Unique identifier for modules that use the cubin
  * @param nsymbols Number of symbols in cubin
  * @param symbol_pcs An array of symbol start addresses in memory. Use 0 for non-function symbols
  * @param path
@@ -154,18 +156,19 @@ EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t nsym
  *
  * @thread-safe: Yes
  */
-EXTERNC redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t nsymbols,
+EXTERNC redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols,
                                                       uint64_t *symbol_pcs, const char *path);
 
 /**
  * @brief This function is used to unregister a module.
  *
- * @param cubin_id
+ * @param cubin_id Unique identifier for cubins
+ * @param mod_id Unique identifier for modules that use the cubin
  * @return EXTERNC
  *
  * @thread-safe: Yes
  */
-EXTERNC redshow_result_t redshow_cubin_unregister(uint32_t cubin_id);
+EXTERNC redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mod_id);
 
 /**
  * @brief This function is used to register a global memory region.
@@ -290,6 +293,7 @@ EXTERNC redshow_result_t redshow_record_data_callback_register(
  *
  * @param thread_id Which thread launches the kernel
  * @param cubin_id Lookup correponding cubin
+ * @param mod_id Unique identifier for modules that use the cubin
  * @param kernel_id Unique identifier for a calling context
  * @param host_op_id Unique identifier for the operation
  * @param trace_data GPU memory trace for a single kernel launch.
@@ -297,8 +301,8 @@ EXTERNC redshow_result_t redshow_record_data_callback_register(
  *
  * @thread-safe yes
  */
-EXTERNC redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint64_t kernel_id,
-                                         uint64_t host_op_id, gpu_patch_buffer_t *trace_data);
+EXTERNC redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint32_t mod_id,
+                                         uint64_t kernel_id, uint64_t host_op_id, gpu_patch_buffer_t *trace_data);
 
 /**
  * @brief Mark the begin of the current analysis region
