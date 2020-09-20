@@ -488,8 +488,8 @@ bool float_no_decimal(u64 a, AccessKind &accessKind) {
  *  */
 void detect_type_overuse(pair<int, int> &redundat_zero_bits, AccessKind accessKind,
                          pair<int, int> &narrow_down_to_unit_size) {
-  int narrow_down_to_unit_size_signed = redundat_zero_bits.first;
-  int narrow_down_to_unit_size_unsigned = redundat_zero_bits.second;
+  int narrow_down_to_unit_size_signed = accessKind.unit_size;
+  int narrow_down_to_unit_size_unsigned = accessKind.unit_size;
   switch (accessKind.unit_size) {
     case 64:
       if (redundat_zero_bits.first >= 32)
@@ -620,7 +620,7 @@ void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessK
         double b;
         u64 cur_hex_value = value_count.begin()->first;
         memcpy(&b, &cur_hex_value, sizeof(cur_hex_value));
-        if (std::abs(b) < 1e-6) {
+        if (std::abs(b) < 1e-14) {
           vpt = VP_REDUNDANT_ZEROS;
         } else {
           vpt = VP_SINGLE_VALUE;
@@ -659,14 +659,14 @@ void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessK
     cout << pattern_names[a_vpt] << "\t";
     switch (a_vpt) {
       case VP_TYPE_OVERUSE:
-        if (redundat_zero_bits.first != narrow_down_to_unit_size.first) {
+        if (access_kind.unit_size != narrow_down_to_unit_size.first) {
           AccessKind temp_a;
           temp_a.data_type = access_kind.data_type;
           temp_a.unit_size = narrow_down_to_unit_size.first;
           temp_a.vec_size = temp_a.unit_size * (access_kind.vec_size / access_kind.unit_size);
           cout << "signed: " << access_kind.to_string() << " --> " << temp_a.to_string() << "\t";
         }
-        if (redundat_zero_bits.second != narrow_down_to_unit_size.second) {
+        if (access_kind.unit_size != narrow_down_to_unit_size.second) {
           AccessKind temp_a;
           temp_a.data_type = access_kind.data_type;
           temp_a.unit_size = narrow_down_to_unit_size.second;
