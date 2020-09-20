@@ -139,8 +139,9 @@ EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analys
  *
  * @thread-safe: Yes
  */
-EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols,
-                                                uint64_t *symbol_pcs, const char *path);
+EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id,
+                                                uint32_t nsymbols, uint64_t *symbol_pcs,
+                                                const char *path);
 
 /**
  * @brief For a large-scale program that loads a large number of CUBINs, we do not analyze every of
@@ -156,8 +157,9 @@ EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_
  *
  * @thread-safe: Yes
  */
-EXTERNC redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols,
-                                                      uint64_t *symbol_pcs, const char *path);
+EXTERNC redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id,
+                                                      uint32_t nsymbols, uint64_t *symbol_pcs,
+                                                      const char *path);
 
 /**
  * @brief This function is used to unregister a module.
@@ -173,16 +175,16 @@ EXTERNC redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mo
 /**
  * @brief This function is used to register a global memory region.
  *
+ * @param memory_id
+ * @param host_op_id
  * @param start
  * @param end
- * @param host_op_id
- * @param memory_id
  * @return EXTERNC
  *
  * @thread-safe: Yes
  */
-EXTERNC redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, uint64_t host_op_id,
-                                                 uint64_t memory_id);
+EXTERNC redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
+                                                 uint64_t start, uint64_t end);
 
 /**
  * @brief This function is used to unregister a global memory region.
@@ -194,8 +196,8 @@ EXTERNC redshow_result_t redshow_memory_register(uint64_t start, uint64_t end, u
  *
  * @thread-safe: Yes
  */
-EXTERNC redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end,
-                                                   uint64_t host_op_id);
+EXTERNC redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t start,
+                                                   uint64_t end);
 
 /**
  * @brief This funciton is used to query the address of a shadow memory
@@ -210,14 +212,14 @@ EXTERNC redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end,
  * @thread-safe Yes
  */
 EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start,
-                                              uint64_t *memory_id, uint64_t *shadow_start,
+                                              int32_t *memory_id, uint64_t *shadow_start,
                                               uint64_t *len);
 
 /**
  * @brief This funciton is used to track a memcpy operation
  *
  * @param memcpy_id Calling context of the mempry operation
- * @param memcpy_op_id Unique identifier of a memcpy operation
+ * @param host_op_id Unique identifier of a memcpy operation
  * @param src_memory_id Unique identifier of a src memory object except for MEMORY_ID_HOST as we do
  * not track host memory objects
  * @param src_start Start address of a src memory (shadow) object
@@ -229,7 +231,7 @@ EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t star
  *
  * @thread-safe: Yes
  */
-EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t memcpy_op_id,
+EXTERNC redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
                                                  uint64_t src_memory_id, uint64_t src_start,
                                                  uint64_t dst_memory_id, uint64_t dst_start,
                                                  uint64_t len);
@@ -247,7 +249,7 @@ EXTERNC redshow_result_t redshow_memcpy_register(uint64_t memcpy_id, uint64_t me
  *
  * @thread-safe: yes
  */
-EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t memset_op_id,
+EXTERNC redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
                                                  uint64_t memory_id, uint64_t shadow_start,
                                                  uint32_t value, uint64_t len);
 
@@ -255,7 +257,7 @@ EXTERNC redshow_result_t redshow_memset_register(uint64_t memset_id, uint64_t me
  * @brief Callback function prototype
  *
  */
-typedef void (*redshow_log_data_callback_func)(uint64_t kernel_id, gpu_patch_buffer_t *trace_data);
+typedef void (*redshow_log_data_callback_func)(int32_t kernel_id, gpu_patch_buffer_t *trace_data);
 
 /**
  * @brief Let a user handle data when a trace log is done analyzing
@@ -269,7 +271,7 @@ EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_cal
  * @brief Callback function prototype
  *
  */
-typedef void (*redshow_record_data_callback_func)(uint32_t cubin_id, uint64_t kernel_id,
+typedef void (*redshow_record_data_callback_func)(uint32_t cubin_id, int32_t kernel_id,
                                                   redshow_record_data_t *record_data);
 
 /**
@@ -302,7 +304,8 @@ EXTERNC redshow_result_t redshow_record_data_callback_register(
  * @thread-safe yes
  */
 EXTERNC redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint32_t mod_id,
-                                         uint64_t kernel_id, uint64_t host_op_id, gpu_patch_buffer_t *trace_data);
+                                         int32_t kernel_id, uint64_t host_op_id,
+                                         gpu_patch_buffer_t *trace_data);
 
 /**
  * @brief Mark the begin of the current analysis region
