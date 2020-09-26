@@ -134,19 +134,19 @@ static std::mutex kernel_map_lock;
 struct Memcpy {
   uint64_t memcpy_id;
   int32_t memcpy_op_id;
-  uint64_t src_memory_id;
-  uint64_t dst_memory_id;
+  uint64_t src_memory_op_id;
+  uint64_t dst_memory_op_id;
   std::string hash;
   double redundancy;
 
   Memcpy() = default;
 
-  Memcpy(uint64_t memcpy_id, int32_t memcpy_op_id, uint64_t src_memory_id, uint64_t dst_memory_id,
+  Memcpy(uint64_t memcpy_id, int32_t memcpy_op_id, uint32_t src_memory_op_id, uint32_t dst_memory_op_id,
          const std::string &hash, double redundancy)
       : memcpy_id(memcpy_id),
         memcpy_op_id(memcpy_op_id),
-        src_memory_id(src_memory_id),
-        dst_memory_id(dst_memory_id),
+        src_memory_op_id(src_memory_op_id),
+        dst_memory_op_id(dst_memory_op_id),
         hash(hash),
         redundancy(redundancy) {}
 };
@@ -157,23 +157,26 @@ static std::mutex memcpy_map_lock;
 struct Memset {
   uint64_t memset_id;
   int32_t memset_op_id;
-  uint64_t memory_id;
+  uint64_t memory_op_id;
   const std::string hash;
   double redundancy;
 
   Memset() = default;
 
-  Memset(uint64_t memset_id, int32_t memset_op_id, uint64_t memory_id, const std::string &hash,
+  Memset(uint64_t memset_id, int32_t memset_op_id, uint64_t memory_op_id, const std::string &hash,
          double redundancy)
       : memset_id(memset_id),
         memset_op_id(memset_op_id),
-        memory_id(memory_id),
+        memory_op_id(memory_op_id),
         hash(hash),
         redundancy(redundancy) {}
 };
 
 static std::map<std::string, std::vector<Memset>> memset_map;
 static std::mutex memset_map_lock;
+
+static redshow::ValueFlowGraph value_flow_graph;
+static std::mutex value_flow_graph_lock;
 
 static std::set<redshow_analysis_type_t> analysis_enabled;
 
@@ -311,6 +314,7 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id,
 
   auto cubin_id = kernel.cubin_id;
   auto mod_id = kernel.mod_id;
+  auto kernel_id = kernel.kernel_id;
   auto &read_spatial_trace = kernel.read_spatial_trace;
   auto &write_spatial_trace = kernel.write_spatial_trace;
   auto &read_temporal_trace = kernel.read_temporal_trace;
@@ -402,6 +406,9 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id,
     return result;
   }
 
+  // Records involved memory ids
+  std::set<uint64_t> read_memory_op_ids;
+  std::set<uint64_t> write_memory_op_ids;
   size_t size = trace_data->head_index;
   gpu_patch_record_t *records = reinterpret_cast<gpu_patch_record_t *>(trace_data->records);
 
@@ -534,6 +541,11 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id,
                     unit_access_kind, write_temporal_trace, write_pc_pairs);
               }
             } else if (analysis == REDSHOW_ANALYSIS_VALUE_FLOW) {
+              if (record->flags & GPU_PATCH_READ) {
+                read_memory_op_ids.insert(memory_op_id);
+              } else {
+                write_memory_op_ids.insert(memory_op_id);
+              }
             } else {
               // Pass
             }
@@ -541,6 +553,38 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id,
         }
       }
     }
+  }
+
+  if (analysis_enabled.find(REDSHOW_ANALYSIS_VALUE_FLOW) != analysis_enabled.end()) {
+    // Hold this lock during analysis
+    value_flow_graph_lock.lock();
+
+    // Add a calling context node
+    if (!value_flow_graph.has_node(kernel_id)) {
+      redshow::ValueFlowNode node(redshow::VALUE_FLOW_NODE_KERNEL, kernel_id);
+      value_flow_graph.add_node(kernel_id, node);
+    }
+
+    for (auto memory_op_id : read_memory_op_ids) {
+      if (memory_op_id != REDSHOW_MEMORY_SHARED && memory_op_id != REDSHOW_MEMORY_LOCAL) {
+        auto node_id = value_flow_graph.op_node_id(memory_op_id);
+        // Link a pure read edge between two calling contexts
+        if (!value_flow_graph.has_edge(node_id, kernel_id, redshow::VALUE_FLOW_EDGE_ORDER)) {
+          value_flow_graph.add_edge(node_id, kernel_id, redshow::VALUE_FLOW_EDGE_READ);
+        }
+      }
+    }
+
+    for (auto memory_op_id : write_memory_op_ids) {
+      if (memory_op_id != REDSHOW_MEMORY_SHARED && memory_op_id != REDSHOW_MEMORY_LOCAL) {
+        auto node_id = value_flow_graph.op_node_id(memory_op_id);
+        value_flow_graph.remove_edge(node_id, kernel_id, redshow::VALUE_FLOW_EDGE_READ);
+        // Point the operation to the calling context
+        value_flow_graph.update_op_node(memory_op_id, kernel_id);
+      }
+    }
+
+    value_flow_graph_lock.unlock();
   }
 
   return result;
@@ -767,6 +811,23 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
   }
   memory_snapshot_lock.unlock();
 
+  if (result == REDSHOW_SUCCESS) {
+    if (analysis_enabled.find(REDSHOW_ANALYSIS_VALUE_FLOW) != analysis_enabled.end()) {
+      value_flow_graph_lock.lock();
+
+      if (!value_flow_graph.has_node(memory_id)) {
+        // Allocate calling context node
+        redshow::ValueFlowNode node(redshow::VALUE_FLOW_NODE_ALLOC, memory_id);
+        value_flow_graph.add_node(memory_id, node);
+      }
+
+      // Point the operation to the calling context
+      value_flow_graph.update_op_node(host_op_id, memory_id);
+    
+      value_flow_graph_lock.unlock();
+    }
+  }
+
   return result;
 }
 
@@ -799,8 +860,8 @@ redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_
   return result;
 }
 
-redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32_t *memory_id,
-                                      uint64_t *shadow_start, uint64_t *len) {
+redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint64_t *memory_op_id,
+                                      int32_t *memory_id, uint64_t *shadow_start, uint64_t *len) {
   PRINT("\nredshow->Enter redshow_memory_query\nop_id: %lu\nstart: %p\n", host_op_id, start);
 
   redshow_result_t result;
@@ -814,9 +875,10 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
     auto memory_map_iter = memory_map.find(memory_range);
     if (memory_map_iter != memory_map.end()) {
       *memory_id = memory_map_iter->second.memory_id;
+      *memory_op_id = memory_map_iter->second.memory_op_id;
       *shadow_start = reinterpret_cast<uint64_t>(memory_map_iter->second.value.get());
       *len = memory_map_iter->first.end - memory_map_iter->first.start;
-      PRINT("Get memory_id: %d\nshadow: %p\nlen: %lu\n", *memory_id, *shadow_start, *len);
+      PRINT("Get memory_id: %d\nmemory_op_id: %lu\nshadow: %p\nlen: %lu\n", *memory_id, *memory_op_id, *shadow_start, *len);
       result = REDSHOW_SUCCESS;
     } else {
       result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
@@ -830,60 +892,83 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
 }
 
 redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
-                                         uint64_t src_memory_id, uint64_t src_start,
-                                         uint64_t dst_memory_id, uint64_t dst_start, uint64_t len) {
+                                         uint64_t src_memory_op_id, uint64_t src_start,
+                                         uint64_t dst_memory_op_id, uint64_t dst_start,
+                                         uint64_t len) {
   PRINT(
-      "\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %d\nhost_op_id: %lu\nsrc_memory_id: "
-      "%lu\nsrc_start: %p\ndst_memory_id: %lu\ndst_start: %p\nlen: %lu\n",
-      memcpy_id, host_op_id, src_memory_id, src_start, dst_memory_id, dst_start, len);
+      "\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %d\nhost_op_id: %lu\nsrc_memory_op_id: "
+      "%lu\nsrc_start: %p\ndst_memory_op_id: %lu\ndst_start: %p\nlen: %lu\n",
+      memcpy_id, host_op_id, src_memory_op_id, src_start, dst_memory_op_id, dst_start, len);
 
-  redshow_result_t result;
-
-  std::string hash;
-  double redundancy = 0.0;
+  redshow_result_t result = REDSHOW_SUCCESS;
 
   if (analysis_enabled.find(REDSHOW_ANALYSIS_VALUE_FLOW) != analysis_enabled.end()) {
-    hash = redshow::compute_memory_hash(src_start, len);
-    redundancy = redshow::compute_memcpy_redundancy(dst_start, src_start, len);
+    std::string hash = redshow::compute_memory_hash(src_start, len);
+    double redundancy = redshow::compute_memcpy_redundancy(dst_start, src_start, len);
+
+    value_flow_graph_lock.lock();
+
+    // Allocate a calling context node
+    redshow::ValueFlowNode node(redshow::VALUE_FLOW_NODE_MEMCPY, memcpy_id);
+    value_flow_graph.add_node(memcpy_id, node);
+
+    if (dst_memory_op_id != REDSHOW_MEMORY_HOST) {
+      // If the dst node is for GPU memory, point the operation to the calling context node
+      value_flow_graph.update_op_node(dst_memory_op_id, memcpy_id);
+
+      if (src_memory_op_id != REDSHOW_MEMORY_HOST) {
+        // If the src node is for GPU memory, linking a read edge between two nodes
+        value_flow_graph.add_op_edge(src_memory_op_id, dst_memory_op_id, redshow::VALUE_FLOW_EDGE_READ);
+      }
+    }
+
+    value_flow_graph_lock.unlock();
+
+    memcpy_map_lock.lock();
+
+    if (hash != "") {
+      auto memcpy = Memcpy(memcpy_id, host_op_id, src_memory_op_id, dst_memory_op_id, hash, redundancy);
+      memcpy_map[hash].emplace_back(std::move(memcpy));
+    }
+
+    memcpy_map_lock.unlock();
   }
-
-  memcpy_map_lock.lock();
-
-  if (hash != "") {
-    auto memcpy = Memcpy(memcpy_id, host_op_id, src_memory_id, dst_memory_id, hash, redundancy);
-    memcpy_map[hash].emplace_back(std::move(memcpy));
-  }
-
-  memcpy_map_lock.unlock();
 
   return result;
 }
 
-redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id, uint64_t memory_id,
+redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id, uint64_t memory_op_id,
                                          uint64_t shadow_start, uint32_t value, uint64_t len) {
   PRINT(
-      "\nredshow->Enter redshow_memset_register\nmemset_id: %d\nmemset_op_id: %lu\nmemory_id: "
+      "\nredshow->Enter redshow_memset_register\nmemset_id: %d\nmemset_op_id: %lu\nmemory_op_id: "
       "%lu\nshadow_start: %p\nvalue: %u\nlen: %lu\n",
-      memset_id, host_op_id, memory_id, shadow_start, value, len);
+      memset_id, host_op_id, memory_op_id, shadow_start, value, len);
 
-  redshow_result_t result;
-
-  std::string hash;
-  double redundancy = 0.0;
+  redshow_result_t result = REDSHOW_SUCCESS;
 
   if (analysis_enabled.find(REDSHOW_ANALYSIS_VALUE_FLOW) != analysis_enabled.end()) {
-    hash = redshow::compute_memory_hash(shadow_start, len);
-    redundancy = redshow::compute_memset_redundancy(shadow_start, value, len);
+    std::string hash = redshow::compute_memory_hash(shadow_start, len);
+    double redundancy = redshow::compute_memset_redundancy(shadow_start, value, len);
+
+    value_flow_graph_lock.lock();
+    
+    // Add a calling context node
+    redshow::ValueFlowNode node(redshow::VALUE_FLOW_NODE_MEMCPY, memset_id);
+    value_flow_graph.add_node(memset_id, node);
+    // Point the operation to the calling context
+    value_flow_graph.update_op_node(memory_op_id, memset_id);
+
+    value_flow_graph_lock.unlock();
+
+    memset_map_lock.lock();
+
+    if (hash != "") {
+      auto memset = Memset(memset_id, host_op_id, memory_op_id, hash, redundancy);
+      memset_map[hash].emplace_back(std::move(memset));
+    }
+
+    memset_map_lock.unlock();
   }
-
-  memset_map_lock.lock();
-
-  if (hash != "") {
-    auto memset = Memset(memset_id, host_op_id, memory_id, hash, redundancy);
-    memset_map[hash].emplace_back(std::move(memset));
-  }
-
-  memset_map_lock.unlock();
 
   return result;
 }
@@ -898,6 +983,7 @@ redshow_result_t redshow_record_data_callback_register(redshow_record_data_callb
   pc_views_limit = pc_views;
   mem_views_limit = mem_views;
 }
+
 
 redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint32_t mod_id,
                                  int32_t kernel_id, uint64_t host_op_id,
@@ -921,6 +1007,7 @@ redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint32_t
   kernel.kernel_id = kernel_id;
   kernel.cubin_id = cubin_id;
   kernel.mod_id = mod_id;
+
   result = trace_analyze(kernel, host_op_id, trace_data);
 
   if (result == REDSHOW_SUCCESS) {

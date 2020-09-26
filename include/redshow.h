@@ -205,6 +205,7 @@ EXTERNC redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t
  * @param host_op_id Unique identifier of the current timestamp
  * @param start The address of the memory object
  * @param memory_id The calling context of the memory object
+ * @param memory_op_id The operation id the memory object
  * @param shadow_start The shadow memory address of the memory object
  * @param len The size of the memory object
  * @return EXTERNC
@@ -212,18 +213,18 @@ EXTERNC redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t
  * @thread-safe Yes
  */
 EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start,
-                                              int32_t *memory_id, uint64_t *shadow_start,
-                                              uint64_t *len);
+                                              int32_t *memory_id, uint64_t *memory_op_id,
+                                              uint64_t *shadow_start, uint64_t *len);
 
 /**
  * @brief This funciton is used to track a memcpy operation
  *
  * @param memcpy_id Calling context of the mempry operation
  * @param host_op_id Unique identifier of a memcpy operation
- * @param src_memory_id Unique identifier of a src memory object except for MEMORY_ID_HOST as we do
+ * @param src_memory_op_id Unique identifier of a src memory object except for MEMORY_ID_HOST as we do
  * not track host memory objects
  * @param src_start Start address of a src memory (shadow) object
- * @param dst_memory_id Unique identifier of a dst memory object except for MEMORY_ID_HOST as we do
+ * @param dst_memory_op_id Unique identifier of a dst memory object except for MEMORY_ID_HOST as we do
  * not track host memory objects
  * @param dst_start Start address of a dst memory (shadow) object
  * @param len Number of copied bytes
@@ -232,8 +233,8 @@ EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t star
  * @thread-safe: Yes
  */
 EXTERNC redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
-                                                 uint64_t src_memory_id, uint64_t src_start,
-                                                 uint64_t dst_memory_id, uint64_t dst_start,
+                                                 uint64_t src_memory_op_id, uint64_t src_start,
+                                                 uint64_t dst_memory_op_id, uint64_t dst_start,
                                                  uint64_t len);
 
 /**
@@ -250,7 +251,7 @@ EXTERNC redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t hos
  * @thread-safe: yes
  */
 EXTERNC redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
-                                                 uint64_t memory_id, uint64_t shadow_start,
+                                                 uint64_t memory_op_id, uint64_t shadow_start,
                                                  uint32_t value, uint64_t len);
 
 /**

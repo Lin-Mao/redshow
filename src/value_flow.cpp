@@ -43,4 +43,5 @@ double compute_memset_redundancy(uint64_t start, uint32_t value, uint64_t len) {
   return same / len;
 }
 
+
 }  // namespace redshow
