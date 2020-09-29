@@ -2,6 +2,7 @@
 
 #include <map>
 #include <queue>
+#include <fstream>
 #include <set>
 #include <string>
 
@@ -99,7 +100,7 @@ static void analyze_hot_api(const std::vector<ValueFlowOp> &value_flow_ops,
 static void backprop_bfs(const ValueFlowGraph &value_flow_graph,
                          const std::map<int32_t, std::pair<double, int>> &hot_apis, int32_t node_id,
                          std::map<int32_t, std::set<int32_t>> &trace_graph) {
-  const int BACKPROP_RED = 0.9;
+  const double BACKPROP_RED = 0.9;
 
   std::queue<int32_t> queue;
   queue.push(node_id);
@@ -158,6 +159,27 @@ bool analyze_value_flow(const ValueFlowGraph &value_flow_graph,
 }
 
 void report_value_flow(const std::map<int32_t, ValueFlowRecord> &value_flow_records) {
+  std::ofstream out("value_flow.csv", std::ios::app);
+  for (auto &iter : value_flow_records) {
+    auto node_id = iter.first;
+    auto &record = iter.second;
+    out << "node," << node_id << std::endl;
+    out << "duplicate_node,total" << std::endl;
+    for (auto &dup_iter : record.duplicate) {
+      auto dup_node_id = dup_iter.first;
+      auto total = dup_iter.second;
+      out << std::to_string(dup_node_id) << "," << std::to_string(total) << std::endl;
+    }
+    out << "trace_node,edges" << std::endl;
+    for (auto &trace_iter : record.backtrace) {
+      auto trace_node_id = trace_iter.first;
+      out << std::to_string(trace_node_id);
+      for (auto &neighbor : trace_iter.second) {
+        out << "," << std::to_string(neighbor);
+      }
+      out << std::endl;
+    }
+  }
 }
 
 }  // namespace redshow
