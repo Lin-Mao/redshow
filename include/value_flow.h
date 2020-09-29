@@ -1,9 +1,10 @@
 #ifndef REDSHOW_VALUE_FLOW_H
 #define REDSHOW_VALUE_FLOW_H
 
-#include <string>
 #include <map>
 #include <set>
+#include <string>
+#include <vector>
 
 namespace redshow {
 
@@ -48,6 +49,42 @@ enum ValueFlowEdgeType {
   VALUE_FLOW_EDGE_READ
 };
 
+struct ValueFlowOp {
+  // Operation id;
+  uint64_t op_id;
+  // Calling context id
+  int32_t id;
+  // Only used by kernel pcs
+  uint64_t pc;
+  ValueFlowNodeType type;
+  double redundancy;
+  std::string hash;
+
+  ValueFlowOp() = default;
+
+  ValueFlowOp(uint64_t op_id, int32_t id, uint64_t pc, ValueFlowNodeType type, double redundancy,
+              const std::string &hash)
+      : op_id(op_id), id(id), pc(pc), type(type), redundancy(redundancy), hash(hash) {}
+};
+
+struct ValueFlowRecord {
+  // Pattern
+  // Distribution
+  // Calling context id
+  int32_t id;
+  // Duplicate
+  std::map<int32_t, bool> duplicate;
+  // Trace graph
+  std::map<int32_t, std::set<int32_t>> backtrace;
+
+  ValueFlowRecord() = default;
+
+  ValueFlowRecord(int32_t id) : id(id) {}
+
+  ValueFlowRecord(int32_t id, std::map<int32_t, std::set<int32_t>> &backtrace)
+      : id(id), backtrace(backtrace) {}
+};
+
 struct ValueFlowNode {
   ValueFlowNodeType type;
 
@@ -78,23 +115,23 @@ class ValueFlowGraph {
 
   typename OpNodeMap::iterator op_nodes_end() { return _op_nodes.end(); }
 
-  size_t outgoing_nodes_size(int32_t node_id) {
+  size_t outgoing_nodes_size(int32_t node_id) const {
     if (_outgoing_nodes.find(node_id) == _outgoing_nodes.end()) {
       return 0;
     }
     return _outgoing_nodes.at(node_id).size();
   }
 
-  const std::set<std::pair<ValueFlowEdgeType, int32_t>> &outgoing_nodes(int32_t node_id) { return _outgoing_nodes.at(node_id); }
+  const std::set<std::pair<ValueFlowEdgeType, int32_t>> &outgoing_nodes(int32_t node_id) const { return _outgoing_nodes.at(node_id); }
 
-  size_t incoming_nodes_size(int32_t node_id) {
+  size_t incoming_nodes_size(int32_t node_id) const {
     if (_incoming_nodes.find(node_id) == _incoming_nodes.end()) {
       return 0;
     }
     return _incoming_nodes.at(node_id).size();
   }
 
-  const std::set<std::pair<ValueFlowEdgeType, int32_t>> &incoming_nodes(int32_t node_id) { return _incoming_nodes.at(node_id); }
+  const std::set<std::pair<ValueFlowEdgeType, int32_t>> &incoming_nodes(int32_t node_id) const { return _incoming_nodes.at(node_id); }
 
   bool has_edge(int32_t from, int32_t to, ValueFlowEdgeType edge_type) {
     const auto &iter = _outgoing_nodes.find(from);
@@ -150,6 +187,12 @@ class ValueFlowGraph {
   NodeMap _nodes;
   OpNodeMap _op_nodes;
 };
+
+bool analyze_value_flow(const ValueFlowGraph &value_flow_graph,
+                        const std::vector<ValueFlowOp> &value_flow_ops,
+                        std::map<int32_t, ValueFlowRecord> &value_flow_records);
+
+void report_value_flow(const std::map<int32_t, ValueFlowRecord> &value_flow_records);
 
 }  // namespace redshow
 

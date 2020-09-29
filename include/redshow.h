@@ -64,7 +64,7 @@ typedef struct redshow_record_view {
   uint32_t function_index;
   uint64_t pc_offset;
   uint64_t memory_id;
-  uint64_t memory_op_id;
+  int32_t memory_op_id;
   uint64_t red_count;
   uint64_t access_count;
 } redshow_record_view_t;
@@ -92,7 +92,7 @@ EXTERNC redshow_result_t redshow_data_type_config(redshow_data_type_t data_type)
  * @param data_type
  * @return redshow_result_t
  *
- * @thread-safe: Yes
+ * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_data_type_get(redshow_data_type_t *data_type);
 
@@ -100,7 +100,7 @@ EXTERNC redshow_result_t redshow_data_type_get(redshow_data_type_t *data_type);
  * @brief Config floating point redundancy approximate level
  *
  * @param level
- * @return EXTERNC
+ * @return reshow_result_t
  *
  * @thread-safe: No
  */
@@ -110,7 +110,7 @@ EXTERNC redshow_result_t redshow_approx_level_config(redshow_approx_level_t leve
  * @brief This function is used to setup specific analysis types.
  *
  * @param analysis_type
- * @return EXTERNC
+ * @return reshow_result_t
  *
  * @thread-safe: No
  */
@@ -120,7 +120,7 @@ EXTERNC redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysi
  * @brief This function is used to cancel specific analysis types.
  *
  * @param analysis_type
- * @return EXTERNC
+ * @return reshow_result_t
  *
  * @thread-safe: NO
  */
@@ -135,9 +135,9 @@ EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analys
  * @param nsymbols Number of symbols in cubin
  * @param symbol_pcs An array of symbol start addresses in memory. Use 0 for non-function symbols
  * @param path
- * @return EXTERNC
+ * @return reshow_result_t
  *
- * @thread-safe: Yes
+ * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id,
                                                 uint32_t nsymbols, uint64_t *symbol_pcs,
@@ -153,9 +153,9 @@ EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_
  * @param nsymbols Number of symbols in cubin
  * @param symbol_pcs An array of symbol start addresses in memory. Use 0 for non-function symbols
  * @param path
- * @return EXTERNC
+ * @return reshow_result_t
  *
- * @thread-safe: Yes
+ * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id,
                                                       uint32_t nsymbols, uint64_t *symbol_pcs,
@@ -166,9 +166,9 @@ EXTERNC redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_
  *
  * @param cubin_id Unique identifier for cubins
  * @param mod_id Unique identifier for modules that use the cubin
- * @return EXTERNC
+ * @return reshow_result_t
  *
- * @thread-safe: Yes
+ * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mod_id);
 
@@ -179,9 +179,9 @@ EXTERNC redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mo
  * @param host_op_id
  * @param start
  * @param end
- * @return EXTERNC
+ * @return reshow_result_t
  *
- * @thread-safe: Yes
+ * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
                                                  uint64_t start, uint64_t end);
@@ -192,9 +192,9 @@ EXTERNC redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t hos
  * @param start
  * @param end
  * @param host_op_id
- * @return EXTERNC
+ * @return reshow_result_t
  *
- * @thread-safe: Yes
+ * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t start,
                                                    uint64_t end);
@@ -208,9 +208,9 @@ EXTERNC redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t
  * @param memory_op_id The operation id the memory object
  * @param shadow_start The shadow memory address of the memory object
  * @param len The size of the memory object
- * @return EXTERNC
+ * @return reshow_result_t
  *
- * @thread-safe Yes
+ * @thread-safe YES
  */
 EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start,
                                               int32_t *memory_id, uint64_t *memory_op_id,
@@ -228,9 +228,9 @@ EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t star
  * not track host memory objects
  * @param dst_start Start address of a dst memory (shadow) object
  * @param len Number of copied bytes
- * @return EXTERNC
+ * @return reshow_result_t
  *
- * @thread-safe: Yes
+ * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
                                                  uint64_t src_memory_op_id, uint64_t src_start,
@@ -246,9 +246,9 @@ EXTERNC redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t hos
  * @param shadow_start
  * @param value
  * @param len
- * @return EXTERNC
+ * @return reshow_result_t
  *
- * @thread-safe: yes
+ * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
                                                  uint64_t memory_op_id, uint64_t shadow_start,
@@ -257,6 +257,7 @@ EXTERNC redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t hos
 /**
  * @brief Callback function prototype
  *
+ * @thread-safe NO
  */
 typedef void (*redshow_log_data_callback_func)(int32_t kernel_id, gpu_patch_buffer_t *trace_data);
 
@@ -264,7 +265,9 @@ typedef void (*redshow_log_data_callback_func)(int32_t kernel_id, gpu_patch_buff
  * @brief Let a user handle data when a trace log is done analyzing
  *
  * @param func
- * @return EXTERNC
+ * @return reshow_result_t
+ * 
+ * @thread-safe NO
  */
 EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_func func);
 
@@ -281,7 +284,7 @@ typedef void (*redshow_record_data_callback_func)(uint32_t cubin_id, int32_t ker
  * @param func
  * @param pc_views_limit
  * @param mem_views_limit
- * @return EXTERNC
+ * @return reshow_result_t
  */
 EXTERNC redshow_result_t redshow_record_data_callback_register(
     redshow_record_data_callback_func func, uint32_t pc_views_limit, uint32_t mem_views_limit);
@@ -300,9 +303,9 @@ EXTERNC redshow_result_t redshow_record_data_callback_register(
  * @param kernel_id Unique identifier for a calling context
  * @param host_op_id Unique identifier for the operation
  * @param trace_data GPU memory trace for a single kernel launch.
- * @return EXTERNC
+ * @return reshow_result_t
  *
- * @thread-safe yes
+ * @thread-safe YES
  */
 EXTERNC redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint32_t mod_id,
                                          int32_t kernel_id, uint64_t host_op_id,
@@ -311,26 +314,40 @@ EXTERNC redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, 
 /**
  * @brief Mark the begin of the current analysis region
  *
- * @return EXTERNC
+ * @return reshow_result_t
+ * 
+ * @thread-safe YES
  */
 EXTERNC redshow_result_t redshow_analysis_begin();
 
 /**
  * @brief Mark the end of the current analysis region
  *
- * @return EXTERNC
+ * @return reshow_result_t
+ * 
+ * @thread-safe YES
  */
 EXTERNC redshow_result_t redshow_analysis_end();
 
 /**
  * @brief Flush back all the result. This function is supposed to be called when all the analysis
- * and kernel launches are done.
+ * and kernel launches of each thread is done.
  *
  * @param thread_id
- * @return EXTERNC
+ * @return reshow_result_t
  *
+ * @thread-safe YES
+ */
+EXTERNC redshow_result_t redshow_flush_thread(uint32_t thread_id);
+
+/**
+ * @brief  Flush back all the result. This function is supposed to be called when all the analysis
+ * and kernel launches of the whole program is done.
+ * 
+ * @return reshow_result_t 
+ * 
  * @thread-safe NO
  */
-EXTERNC redshow_result_t redshow_flush(uint32_t thread_id);
+EXTERNC redshow_result_t redshow_flush();
 
 #endif  // REDSHOW_H

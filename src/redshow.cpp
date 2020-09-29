@@ -102,7 +102,6 @@ static std::mutex memory_snapshot_lock;
 
 struct Kernel {
   int32_t kernel_id;
-  uint64_t kernel_op_id;
   uint32_t cubin_id;
   uint32_t mod_id;
   uint32_t func_index;
@@ -128,9 +127,11 @@ struct Kernel {
       : kernel_id(kernel_id), cubin_id(cubin_id), func_index(func_index), func_addr(func_addr) {}
 };
 
-static std::map<uint32_t, std::map<uint64_t, Kernel>> kernel_map;
+static std::map<uint32_t, std::map<int32_t, Kernel>> kernel_map;
 static std::mutex kernel_map_lock;
 
+// Memcpy and memset must be analyzed by runtime threads.
+// Therefore we cannot use a static structure in value_flow.cpp
 struct Memcpy {
   uint64_t memcpy_id;
   int32_t memcpy_op_id;
@@ -151,8 +152,8 @@ struct Memcpy {
         redundancy(redundancy) {}
 };
 
-static std::map<std::string, std::vector<Memcpy>> memcpy_map;
-static std::mutex memcpy_map_lock;
+static std::vector<Memcpy> memcpys;
+static std::mutex memcpys_lock;
 
 struct Memset {
   uint64_t memset_id;
@@ -172,8 +173,8 @@ struct Memset {
         redundancy(redundancy) {}
 };
 
-static std::map<std::string, std::vector<Memset>> memset_map;
-static std::mutex memset_map_lock;
+static std::vector<Memset> memsets;
+static std::mutex memsets_lock;
 
 static redshow::ValueFlowGraph value_flow_graph;
 static std::mutex value_flow_graph_lock;
@@ -924,14 +925,14 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
 
     value_flow_graph_lock.unlock();
 
-    memcpy_map_lock.lock();
+    memcpys_lock.lock();
 
     if (hash != "") {
-      auto memcpy = Memcpy(memcpy_id, host_op_id, src_memory_op_id, dst_memory_op_id, hash, redundancy);
-      memcpy_map[hash].emplace_back(std::move(memcpy));
+      memcpys.emplace_back(std::move(
+          Memcpy(memcpy_id, host_op_id, src_memory_op_id, dst_memory_op_id, hash, redundancy)));
     }
 
-    memcpy_map_lock.unlock();
+    memcpys_lock.unlock();
   }
 
   return result;
@@ -960,14 +961,13 @@ redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
 
     value_flow_graph_lock.unlock();
 
-    memset_map_lock.lock();
+    memsets_lock.lock();
 
     if (hash != "") {
-      auto memset = Memset(memset_id, host_op_id, memory_op_id, hash, redundancy);
-      memset_map[hash].emplace_back(std::move(memset));
+      memsets.emplace_back(std::move(Memset(memset_id, host_op_id, memory_op_id, hash, redundancy)));
     }
 
-    memset_map_lock.unlock();
+    memsets_lock.unlock();
   }
 
   return result;
@@ -1071,7 +1071,7 @@ redshow_result_t redshow_analysis_end() {
   return result;
 }
 
-void redundancy_flush(uint32_t thread_id, std::map<uint64_t, Kernel> &thread_kernel_map) {
+void redundancy_flush(uint32_t thread_id, std::map<int32_t, Kernel> &thread_kernel_map) {
   redshow_record_data_t record_data;
 
   record_data.views = new redshow_record_view_t[pc_views_limit]();
@@ -1205,9 +1205,40 @@ void redundancy_flush(uint32_t thread_id, std::map<uint64_t, Kernel> &thread_ker
   delete[] record_data.views;
 }
 
-void value_flow_flush(uint32_t thread_id, std::map<uint64_t, Kernel> &thread_kernel_map) {}
+void value_flow_flush() {
+  // 1. high redundancy nodes
+  // 2. duplication graph
+  // 3. backpropagate intra-kernel redundancy 
+  std::vector<redshow::ValueFlowOp> value_flow_ops;
 
-redshow_result_t redshow_flush(uint32_t thread_id) {
+  for (auto &memset : memsets) {
+    redshow::ValueFlowOp op(memset.memory_op_id, memset.memset_id, 0,
+                            redshow::VALUE_FLOW_NODE_MEMSET, memset.redundancy, memset.hash);
+    value_flow_ops.emplace_back(std::move(op));
+  }
+
+  for (auto &memcpy : memcpys) {
+    redshow::ValueFlowOp op(memcpy.memcpy_op_id, memcpy.memcpy_id, 0,
+                            redshow::VALUE_FLOW_NODE_MEMCPY, memcpy.redundancy, memcpy.hash);
+    value_flow_ops.emplace_back(std::move(op));
+  }
+
+  for (auto &thread_iter : kernel_map) {
+    for (auto &kernel_iter : thread_iter.second) {
+      auto kernel_id = kernel_iter.first;
+      redshow::ValueFlowOp op(0, kernel_id, 0, redshow::VALUE_FLOW_NODE_KERNEL, 0, "");
+      value_flow_ops.emplace_back(std::move(op));
+    }
+  }
+
+  std::map<int32_t, redshow::ValueFlowRecord> value_flow_records;
+  if (redshow::analyze_value_flow(value_flow_graph, value_flow_ops, value_flow_records)) {
+    // report result
+    redshow::report_value_flow(value_flow_records);
+  }
+}
+
+redshow_result_t redshow_flush_thread(uint32_t thread_id) {
   PRINT("\nredshow->Enter redshow_flush thread_id %u\n", thread_id);
   kernel_map_lock.lock();
 
@@ -1220,16 +1251,24 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
     redundancy_flush(thread_id, thread_kernel_map);
   }
 
-  if (analysis_enabled.find(REDSHOW_ANALYSIS_VALUE_FLOW) != analysis_enabled.end()) {
-    value_flow_flush(thread_id, thread_kernel_map);
-  }
-
   // Remove all kernel records
   kernel_map_lock.lock();
 
   kernel_map.erase(thread_id);
 
   kernel_map_lock.unlock();
+
+  return REDSHOW_SUCCESS;
+}
+
+redshow_result_t redshow_flush() {
+  PRINT("\nredshow->Enter redshow_flush\n");
+
+  // No lock is required for all analysis done in this function because it is only called when a
+  // process terminates
+  if (analysis_enabled.find(REDSHOW_ANALYSIS_VALUE_FLOW) != analysis_enabled.end()) {
+    value_flow_flush();
+  }
 
   return REDSHOW_SUCCESS;
 }
