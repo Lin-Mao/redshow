@@ -82,16 +82,16 @@ struct MemoryRange {
 
 struct Memory {
   MemoryRange memory_range;
-  uint64_t memory_op_id;
   int32_t memory_id;
+  uint64_t memory_op_id;
   std::shared_ptr<uint8_t> value;
 
   Memory() = default;
 
-  Memory(MemoryRange &memory_range, uint64_t memory_op_id, int32_t memory_id)
+  Memory(MemoryRange &memory_range, int32_t memory_id, uint64_t memory_op_id)
       : memory_range(memory_range),
-        memory_op_id(memory_op_id),
         memory_id(memory_id),
+        memory_op_id(memory_op_id),
         value(new uint8_t[memory_range.end - memory_range.start],
               std::default_delete<uint8_t[]>()) {}
 };
@@ -119,7 +119,7 @@ struct Kernel {
   redshow::PCPairs write_pc_pairs;
   redshow::PCAccessCount write_pc_count;
 
-  // Value flow
+  // value flow
 
   Kernel() = default;
 
@@ -596,7 +596,7 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id,
  */
 
 redshow_result_t redshow_data_type_config(redshow_data_type_t data_type) {
-  PRINT("\nredshow->Enter redshow_data_type_config\n data_type: %u\n", data_type);
+  PRINT("\nredshow->Enter redshow_data_type_config\ndata_type: %u\n", data_type);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -623,7 +623,7 @@ redshow_result_t redshow_data_type_get(redshow_data_type_t *data_type) {
 }
 
 redshow_result_t redshow_approx_level_config(redshow_approx_level_t level) {
-  PRINT("\nredshow->Enter redshow_approx_level_config\n level: %u\n", level);
+  PRINT("\nredshow->Enter redshow_approx_level_config\nlevel: %u\n", level);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -775,7 +775,7 @@ redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mod_id) {
 redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id, uint64_t start,
                                          uint64_t end) {
   PRINT(
-      "\nredshow->Enter redshow_memory_register\nmemory_id: %d\nhost_op_id: %lu\nstart: %p\nend: "
+      "\nredshow->Enter redshow_memory_register\nmemory_id: %d\nhost_op_id: %llu\nstart: %p\nend: "
       "%p\n",
       memory_id, host_op_id, start, end);
 
@@ -790,7 +790,7 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
     memory_map[memory_range] = memory;
     memory_snapshot[host_op_id] = memory_map;
     result = REDSHOW_SUCCESS;
-    PRINT("First host_op_id: %lu, shadow: %p registered\n", host_op_id, memory.value.get());
+    PRINT("host_op_id: %llu\nshadow: %p\n", host_op_id, memory.value.get());
   } else {
     auto iter = memory_snapshot.upper_bound(host_op_id);
     if (iter != memory_snapshot.begin()) {
@@ -802,7 +802,7 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
         memory_map[memory_range] = memory;
         memory_snapshot[host_op_id] = memory_map;
         result = REDSHOW_SUCCESS;
-        PRINT("First host_op_id: %lu, shadow: %p registered\n", host_op_id, memory.value.get());
+        PRINT("host_op_id: %llu\nshadow: %p\n", host_op_id, memory.value.get());
       } else {
         result = REDSHOW_ERROR_DUPLICATE_ENTRY;
       }
@@ -833,7 +833,7 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
 }
 
 redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_t host_op_id) {
-  PRINT("\nredshow->Enter redshow_memory_unregister\nstart: %p\nend: %p\n", start, end);
+  PRINT("\nredshow->Enter redshow_memory_unregister\nstart: %p\nend: %p\nhost_op_id: %llu\n", start, end, host_op_id);
 
   redshow_result_t result;
   MemoryMap memory_map;
@@ -861,9 +861,9 @@ redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_
   return result;
 }
 
-redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint64_t *memory_op_id,
-                                      int32_t *memory_id, uint64_t *shadow_start, uint64_t *len) {
-  PRINT("\nredshow->Enter redshow_memory_query\nop_id: %lu\nstart: %p\n", host_op_id, start);
+redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32_t *memory_id,
+                                      uint64_t *memory_op_id, uint64_t *shadow_start, uint64_t *len) {
+  PRINT("\nredshow->Enter redshow_memory_query\nhost_op_id: %lu\nstart: %p\n", host_op_id, start);
 
   redshow_result_t result;
   MemoryRange memory_range(start, 0);
@@ -879,7 +879,7 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, uint6
       *memory_op_id = memory_map_iter->second.memory_op_id;
       *shadow_start = reinterpret_cast<uint64_t>(memory_map_iter->second.value.get());
       *len = memory_map_iter->first.end - memory_map_iter->first.start;
-      PRINT("Get memory_id: %d\nmemory_op_id: %lu\nshadow: %p\nlen: %lu\n", *memory_id, *memory_op_id, *shadow_start, *len);
+      PRINT("memory_id: %d\nmemory_op_id: %llu\nshadow: %p\nlen: %llu\n", *memory_id, *memory_op_id, *shadow_start, *len);
       result = REDSHOW_SUCCESS;
     } else {
       result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
@@ -897,8 +897,8 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
                                          uint64_t dst_memory_op_id, uint64_t dst_start,
                                          uint64_t len) {
   PRINT(
-      "\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %d\nhost_op_id: %lu\nsrc_memory_op_id: "
-      "%lu\nsrc_start: %p\ndst_memory_op_id: %lu\ndst_start: %p\nlen: %lu\n",
+      "\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %d\nhost_op_id: %llu\nsrc_memory_op_id: "
+      "%llu\nsrc_start: %p\ndst_memory_op_id: %llu\ndst_start: %p\nlen: %llu\n",
       memcpy_id, host_op_id, src_memory_op_id, src_start, dst_memory_op_id, dst_start, len);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -941,8 +941,8 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
 redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id, uint64_t memory_op_id,
                                          uint64_t shadow_start, uint32_t value, uint64_t len) {
   PRINT(
-      "\nredshow->Enter redshow_memset_register\nmemset_id: %d\nmemset_op_id: %lu\nmemory_op_id: "
-      "%lu\nshadow_start: %p\nvalue: %u\nlen: %lu\n",
+      "\nredshow->Enter redshow_memset_register\nmemset_id: %d\nhost_op_id: %llu\nmemory_op_id: "
+      "%llu\nshadow_start: %p\nvalue: %u\nlen: %llu\n",
       memset_id, host_op_id, memory_op_id, shadow_start, value, len);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -989,9 +989,9 @@ redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint32_t
                                  int32_t kernel_id, uint64_t host_op_id,
                                  gpu_patch_buffer_t *trace_data) {
   PRINT(
-      "\nredshow->Enter redshow_analyze\ncubin_id: %u\nkernel_id: %d\nhost_op_id: "
-      "%lu\ntrace_data: %p\n",
-      cubin_id, kernel_id, host_op_id, trace_data);
+      "\nredshow->Enter redshow_analyze\nthread_id: %u\ncubin_id: %u\nmod_id: %u\n"
+      "kernel_id: %d\nhost_op_id: %llu\ntrace_data: %p\n",
+      thread_id, cubin_id, mod_id, kernel_id, host_op_id, trace_data);
 
   redshow_result_t result;
 

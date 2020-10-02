@@ -164,13 +164,13 @@ void report_value_flow(const std::map<int32_t, ValueFlowRecord> &value_flow_reco
     auto node_id = iter.first;
     auto &record = iter.second;
     out << "node," << node_id << std::endl;
-    out << "duplicate_node,total" << std::endl;
+    out << "duplicate node,level" << std::endl;
     for (auto &dup_iter : record.duplicate) {
       auto dup_node_id = dup_iter.first;
-      auto total = dup_iter.second;
-      out << std::to_string(dup_node_id) << "," << std::to_string(total) << std::endl;
+      auto total = dup_iter.second ? "total" : "partial";
+      out << std::to_string(dup_node_id) << "," << total << std::endl;
     }
-    out << "trace_node,edges" << std::endl;
+    out << "trace node,edges" << std::endl;
     for (auto &trace_iter : record.backtrace) {
       auto trace_node_id = trace_iter.first;
       out << std::to_string(trace_node_id);
