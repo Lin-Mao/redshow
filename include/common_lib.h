@@ -31,6 +31,10 @@ using std::get;
 using std::vector;
 using std::min;
 using std::max;
+using std::cout;
+using std::endl;
+using std::string;
+
 struct ThreadId {
   u32 flat_block_id;
   u32 flat_thread_id;
@@ -274,11 +278,28 @@ u64 store2basictype(u64 a, AccessKind akind, int decimal_degree_f32, int decimal
 void output_kind_value(u64 a, AccessKind akind, std::streambuf *buf, bool is_signed);
 
 
-void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessKind access_kind, u64 memory_size);
 pair<int, int> get_redundant_zeros_bits(u64 a, AccessKind &accessKind);
+
 bool float_no_decimal(u64 a, AccessKind &accessKind);
-void detect_type_overuse(pair<int, int> &redundat_zero_bits, AccessKind accessKind,
-                         pair<int, int> &narrow_down_to_unit_size);
+
+vector<value_pattern_type_t>
+dense_value_pattern(ItemsValueCount *array_items, AccessKind access_kind, u64 memory_size,
+                    pair<int, int> &narrow_down_to_unit_size, vector<pair<u64, u64>> &top_value_count_vec,
+                    int unique_value_count, vector<pair<u64, u64>> &value_count_vec);
+
+redshow_result_t
+approx_level_config_local(redshow_approx_level_t level, int &decimal_degree_f32, int &decimal_degree_f64);
+
+vector<value_pattern_type_t>
+approximate_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessKind access_kind, u64 memory_size,
+                          redshow_approx_level_t approx_level, pair<int, int> &narrow_down_to_unit_size,
+                          vector<pair<u64, u64>> &top_value_count_vec, int unique_value_count,
+                          vector<pair<u64, u64>> &value_count_vec);
+
+void show_value_pattern(vector<value_pattern_type_t> vpts, u64 memory_op_id, AccessKind access_kind, u64 memory_size,
+                        pair<int, int> &narrow_down_to_unit_size, vector<pair<u64, u64>> &top_value_count_vec,
+                        int unique_value_count, vector<pair<u64, u64>> &value_count_vec);
+
 #endif  // REDSHOW_COMMON_LIB_H
 
 

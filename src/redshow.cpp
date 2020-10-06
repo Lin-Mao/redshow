@@ -472,10 +472,10 @@ static redshow_result_t trace_analyze(Kernel &kernel, uint64_t host_op_id, gpu_p
                 continue;
               }
               uint64_t item_index = (record->address[j] - iter->first.start) / (unit_access_kind.unit_size / 8);
-              if (record->flags & GPU_PATCH_READ) {
-                get_value_trace(record->pc, value, memory_op_id, item_index, unit_access_kind, value_dist, memory_size,
-                                decimal_degree_f32, decimal_degree_f64);
-              }
+//              if (record->flags & GPU_PATCH_READ || record->flags & GPU_PATCH_WRITE) {
+              get_value_trace(record->pc, value, memory_op_id, item_index, unit_access_kind, value_dist, memory_size,
+                              decimal_degree_f32, decimal_degree_f64);
+//              }
             } else {
               // Pass
             }
@@ -950,7 +950,43 @@ redshow_result_t redshow_flush(uint32_t thread_id) {
         auto access_kind = get<1>(array_items.first);
         auto memory_size = get<2>(array_items.first);
         auto memory_op_id = get<0>(array_items.first);
-        dense_value_pattern(array_items.second, memory_op_id, access_kind, memory_size);
+        pair<int, int> narrow_down_to_unit_size;
+        vector<pair<u64, u64>> top_value_count_vec;
+        int unique_value_count;
+        vector<pair<u64, u64>> value_count_vec;
+        auto vpts = dense_value_pattern(array_items.second, access_kind, memory_size, narrow_down_to_unit_size,
+                                        top_value_count_vec, unique_value_count, value_count_vec);
+        show_value_pattern(vpts, memory_op_id, access_kind, memory_size, narrow_down_to_unit_size, top_value_count_vec,
+                           unique_value_count, value_count_vec);
+//        Now we set approxiamte level is mid.
+        vector<pair<u64, u64>> value_count_vec2;
+        int unique_value_count2;
+        vector<pair<u64, u64>> top_value_count_vec2;
+        auto new_vpts = approximate_value_pattern(array_items.second, memory_op_id, access_kind, memory_size,
+                                                  REDSHOW_APPROX_MID, narrow_down_to_unit_size, top_value_count_vec2,
+                                                  unique_value_count2, value_count_vec2);
+        if (new_vpts.size() > 0) {
+          bool valid_approx = false;
+          if (new_vpts.size() != vpts.size()) {
+            valid_approx = true;
+          } else {
+            sort(new_vpts.begin(), new_vpts.end());
+            sort(vpts.begin(), vpts.end());
+            for (int i = 0; i < new_vpts.size(); i++) {
+              if (vpts[i] != new_vpts[i]) {
+                valid_approx = true;
+                break;
+              }
+            }
+          }
+          if (valid_approx) {
+            std::cout << "====  approximate ====" << endl;
+            show_value_pattern(new_vpts, memory_op_id, access_kind, memory_size, narrow_down_to_unit_size,
+                               top_value_count_vec2, unique_value_count2, value_count_vec2);
+            std::cout << "==== end approximate ====" << endl;
+          }
+        }
+
       }
 
     }

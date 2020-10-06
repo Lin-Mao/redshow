@@ -422,10 +422,6 @@ void get_value_trace(u64 pc, u64 value, u64 memory_op_id, u64 offset, AccessKind
   if (items_value_count == value_dist.end()) {
     value_dist[temp_tuple] = new ItemsValueCount[memory_size];
   }
-//debug
-//  if(memory_op_id == 1){
-//    std::cout<<"ok";
-//  }
   if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
     if (access_kind.unit_size == 32) {
       value = store2float(value, decimal_degree_f32);
@@ -464,19 +460,19 @@ pair<int, int> get_redundant_zeros_bits(u64 a, AccessKind &accessKind) {
 /** Check wehther the float number has decimal part or not.*/
 bool float_no_decimal(u64 a, AccessKind &accessKind) {
   using std::abs;
-  if(accessKind.unit_size == 32){
+  if (accessKind.unit_size == 32) {
     float b;
     u32 c = a & 0xffffffffu;
     memcpy(&b, &c, sizeof(c));
-    int d = (int)b;
-    if(abs(b - d ) > 1e-6){
+    int d = (int) b;
+    if (abs(b - d) > 1e-6) {
       return false;
     }
-  }else if(accessKind.unit_size == 64){
+  } else if (accessKind.unit_size == 64) {
     double b;
     memcpy(&b, &a, sizeof(a));
-    long long d = (long long)b;
-    if(abs(b - d ) > 1e-14){
+    long long d = (long long) b;
+    if (abs(b - d) > 1e-14) {
       return false;
     }
   }
@@ -547,20 +543,20 @@ void detect_type_overuse(pair<int, int> &redundat_zero_bits, AccessKind accessKi
  * @arg value_count_vec: {value: count}. We only save single-value item's value
  * @arg array_items: {offset: {value: count}}
  * */
-void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessKind access_kind, u64 memory_size) {
+vector<value_pattern_type_t>
+dense_value_pattern(ItemsValueCount *array_items, AccessKind access_kind, u64 memory_size,
+                    pair<int, int> &narrow_down_to_unit_size, vector<pair<u64, u64>> &top_value_count_vec,
+                    int unique_value_count, vector<pair<u64, u64>> &value_count_vec) {
+  top_value_count_vec.clear();
 // @todo one array may be considered as multiple types. What if one type is single_value_pattern but another type is not?
 // @todo what if the array item is single-value at read and write with two different values?
-
-
   float THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE = 0.1;
   float THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 = 0.5;
   int TOP_NUM_VALUE = 10;
-  int unique_value_count = 0;
 //  How many value patterns will this array fit
   vector<value_pattern_type_t> vpts;
   ItemsValueCount value_count;
   pair<int, int> redundat_zero_bits = make_pair(access_kind.unit_size, access_kind.unit_size);
-  pair<int, int> narrow_down_to_unit_size;
   bool inappropriate_float_type = true;
 // Type ArrayItems is part of ValueDist: {offset: {value: count}}
   for (u64 i = 0; i < memory_size; i++) {
@@ -587,23 +583,20 @@ void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessK
   }
   if (access_kind.data_type == REDSHOW_DATA_INT) {
     detect_type_overuse(redundat_zero_bits, access_kind, narrow_down_to_unit_size);
-    if (access_kind.unit_size != narrow_down_to_unit_size.first || access_kind.unit_size != narrow_down_to_unit_size.second) {
+    if (access_kind.unit_size != narrow_down_to_unit_size.first ||
+        access_kind.unit_size != narrow_down_to_unit_size.second) {
 //      it is type overuse pattern
       vpts.emplace_back(VP_TYPE_OVERUSE);
     }
   }
 
-  vector<pair<u64, u64>> value_count_vec;
   for (auto iter: value_count) {
     value_count_vec.emplace_back(iter.first, iter.second);
   }
-  vector<pair<u64, u64>> top_value_count_vec;
   sort(value_count_vec.begin(), value_count_vec.end(), sortByVal);
   for (int i = 0; i < std::min((size_t) TOP_NUM_VALUE, value_count_vec.size()); i++) {
     top_value_count_vec.emplace_back(value_count_vec[i]);
   }
-
-
   value_pattern_type_t vpt = VP_NO_PATTERN;
 //  single value pattern, redundant zeros
   if (value_count.size() == 1) {
@@ -634,9 +627,7 @@ void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessK
       }
     }
   } else {
-    //      debug
-    std::cout << "unique value count " << unique_value_count << " value_count_vec.size() " << value_count_vec.size()
-              << std::endl;
+
     if (unique_value_count >= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 * memory_size) {
       if (value_count_vec.size() <= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE * memory_size) {
         vpt = VP_DENSE_VALUE;
@@ -645,15 +636,105 @@ void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessK
   }
   vpts.emplace_back(vpt);
 
-  using std::cout;
-  using std::endl;
-  using std::string;
-  // @todo
+  return vpts;
+}
+
+/**
+ * @arg array_items: [offset: {value: count}] It is an array to save the value distribution of the target array. */
+vector<value_pattern_type_t>
+approximate_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessKind access_kind, u64 memory_size,
+                          redshow_approx_level_t approx_level, pair<int, int> &narrow_down_to_unit_size,
+                          vector<pair<u64, u64>> &top_value_count_vec, int unique_value_count,
+                          vector<pair<u64, u64>> &value_count_vec) {
+  vector<value_pattern_type_t> tmp;
+  if (access_kind.data_type != REDSHOW_DATA_FLOAT) {
+    return tmp;
+  }
+  int decimal_degree_f32, decimal_degree_f64;
+  if (approx_level_config_local(approx_level, decimal_degree_f32, decimal_degree_f64) != REDSHOW_SUCCESS) {
+    cout << "Set approximate level error." << endl;
+    return tmp;
+  } else {
+//    cout << "After set approximate level to mid." << endl;
+  }
+  ItemsValueCount *array_items_approx;
+  array_items_approx = new ItemsValueCount[memory_size];
+  for (int i = 0; i < memory_size; ++i) {
+    auto one_item_value_count = array_items[i];
+    for (auto one_value_count: one_item_value_count) {
+      if (access_kind.unit_size == 32) {
+        u64 new_value = store2float(one_value_count.first, decimal_degree_f32);
+        array_items_approx[i][new_value] += one_value_count.second;
+      } else if (access_kind.unit_size == 64) {
+        u64 new_value = store2double(one_value_count.first, decimal_degree_f64);
+        array_items_approx[i][new_value] += one_value_count.second;
+      }
+    }
+  }
+
+  return dense_value_pattern(array_items_approx, access_kind, memory_size, narrow_down_to_unit_size,
+                             top_value_count_vec, unique_value_count, value_count_vec);
+}
+
+redshow_result_t
+approx_level_config_local(redshow_approx_level_t level, int &decimal_degree_f32, int &decimal_degree_f64) {
+
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  switch (level) {
+    case REDSHOW_APPROX_NONE:
+      decimal_degree_f32 = VALID_FLOAT_DIGITS;
+      decimal_degree_f64 = VALID_DOUBLE_DIGITS;
+      break;
+    case REDSHOW_APPROX_MIN:
+      decimal_degree_f32 = MIN_FLOAT_DIGITS;
+      decimal_degree_f64 = MIN_DOUBLE_DIGITS;
+      break;
+    case REDSHOW_APPROX_LOW:
+      decimal_degree_f32 = LOW_FLOAT_DIGITS;
+      decimal_degree_f64 = LOW_DOUBLE_DIGITS;
+      break;
+    case REDSHOW_APPROX_MID:
+      decimal_degree_f32 = MID_FLOAT_DIGITS;
+      decimal_degree_f64 = MID_DOUBLE_DIGITS;
+      break;
+    case REDSHOW_APPROX_HIGH:
+      decimal_degree_f32 = HIGH_FLOAT_DIGITS;
+      decimal_degree_f64 = HIGH_DOUBLE_DIGITS;
+      break;
+    case REDSHOW_APPROX_MAX:
+      decimal_degree_f32 = MAX_FLOAT_DIGITS;
+      decimal_degree_f64 = MAX_DOUBLE_DIGITS;
+      break;
+    default:
+      result = REDSHOW_ERROR_NO_SUCH_APPROX;
+      break;
+  }
+
+  return result;
+}
+
+void show_value_pattern(vector<value_pattern_type_t> vpts, u64 memory_op_id, AccessKind access_kind, u64 memory_size,
+                        pair<int, int> &narrow_down_to_unit_size, vector<pair<u64, u64>> &top_value_count_vec,
+                        int unique_value_count, vector<pair<u64, u64>> &value_count_vec) {
+// @todo There are hiden index information.
   string pattern_names[] = {"Redundant zeros", "Single value", "Dense value", "Type overuse", "Approximate value",
                             "Silent store", "Silent load", "No pattern", "Inappropriate float type"};
+  std::cout << "unique value count " << unique_value_count << " value_count_vec.size " << value_count_vec.size()
+            << std::endl;
+  std::ofstream outfile;
+  outfile.open(std::to_string(memory_op_id)+" " + access_kind.to_string() + ".log");
+  outfile << "array " << memory_op_id << " : memory size " << memory_size << " value type " << access_kind.to_string()<<endl;
+  int i = 0;
+  for (auto value:value_count_vec){
+    output_kind_value(value.first, access_kind, outfile.rdbuf(), true);
+    outfile<<"\t"<<value.second<<endl;
+    if (i++ > 100){break;}
+  }
+  outfile.close();
   cout << "array " << memory_op_id << " : memory size " << memory_size << " value type " << access_kind.to_string()
        << "\npattern type\n";
-  if(vpts.size() == 0)
+  if (vpts.size() == 0)
     vpts.emplace_back(VP_NO_PATTERN);
   for (auto a_vpt: vpts) {
     cout << pattern_names[a_vpt] << "\t";
@@ -683,11 +764,9 @@ void dense_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessK
         break;
     }
   }
-  cout <<endl<< "value\tcount" << endl;
+  cout << endl << "value\tcount" << endl;
   for (auto item: top_value_count_vec) {
     output_kind_value(item.first, access_kind, cout.rdbuf(), true);
     cout << "\t" << item.second << endl;
   }
-//  return arr_pattern_type;
-
 }
