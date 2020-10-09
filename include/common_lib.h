@@ -89,6 +89,36 @@ struct RealPCPair {
       access_count(access_count) {}
 };
 
+typedef enum value_pattern_type {
+  VP_REDUNDANT_ZEROS = 0,
+  VP_SINGLE_VALUE = 1,
+  VP_DENSE_VALUE = 2,
+  VP_TYPE_OVERUSE = 3,
+  VP_APPROXIMATE_VALUE = 4,
+  VP_SILENT_STORE = 5,
+  VP_SILENT_LOAD = 6,
+  VP_NO_PATTERN = 7,
+  VP_INAPPROPRIATE_FLOAT = 8,
+} value_pattern_type_t;
+
+struct ArrayPatternInfo {
+  AccessKind access_kind;
+  u64 memory_size;
+  pair<int, int> narrow_down_to_unit_size;
+  vector<pair<u64, u64>> top_value_count_vec;
+//  How many items are unique value
+  int unique_item_count;
+//  The sum access number of unique value
+  u64 unique_value_count;
+  vector<pair<u64, u64>> unqiue_value_count_vec;
+  u64 total_access_count;
+  vector<value_pattern_type_t> vpts;
+
+  ArrayPatternInfo() = default;
+
+  ArrayPatternInfo(AccessKind &accessKind, u64 memory_size) : access_kind(accessKind), memory_size(memory_size) {}
+};
+
 //{value: count}.
 typedef std::map<u64, u64> ItemsValueCount;
 
@@ -118,26 +148,6 @@ typedef std::map<tuple<u64, AccessKind, u64>, ItemsValueCount *> ValueDist;
 void get_value_trace(u64 pc, u64 value, u64 memory_op_id, u64 offset, AccessKind access_kind, ValueDist &value_dist,
                      u64 memory_size, int decimal_degree_f32, int decimal_degree_f64);
 
-
-typedef enum value_pattern_type {
-  VP_REDUNDANT_ZEROS = 0,
-  VP_SINGLE_VALUE = 1,
-  VP_DENSE_VALUE = 2,
-  VP_TYPE_OVERUSE = 3,
-  VP_APPROXIMATE_VALUE = 4,
-  VP_SILENT_STORE = 5,
-  VP_SILENT_LOAD = 6,
-  VP_NO_PATTERN = 7,
-  VP_INAPPROPRIATE_FLOAT = 8,
-} value_pattern_type_t;
-
-struct array_pattern_type {
-  redshow_data_type_t data_type;
-  value_pattern_type_t value_pattern_type;
-  pair<redshow_data_type_t, int> type_overuse_before;
-  pair<redshow_data_type_t, int> type_overuse_after;
-  std::vector<std::pair<u64, u64>> value_count_vec;
-};
 
 struct CompareRealPCPair {
   bool operator()(RealPCPair const &r1, RealPCPair const &r2) {
@@ -282,23 +292,15 @@ pair<int, int> get_redundant_zeros_bits(u64 a, AccessKind &accessKind);
 
 bool float_no_decimal(u64 a, AccessKind &accessKind);
 
-vector<value_pattern_type_t>
-dense_value_pattern(ItemsValueCount *array_items, AccessKind access_kind, u64 memory_size,
-                    pair<int, int> &narrow_down_to_unit_size, vector<pair<u64, u64>> &top_value_count_vec,
-                    int unique_value_count, vector<pair<u64, u64>> &value_count_vec);
+void dense_value_pattern(ItemsValueCount *array_items, ArrayPatternInfo &array_pattern_info);
 
 redshow_result_t
 approx_level_config_local(redshow_approx_level_t level, int &decimal_degree_f32, int &decimal_degree_f64);
 
-vector<value_pattern_type_t>
-approximate_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessKind access_kind, u64 memory_size,
-                          redshow_approx_level_t approx_level, pair<int, int> &narrow_down_to_unit_size,
-                          vector<pair<u64, u64>> &top_value_count_vec, int unique_value_count,
-                          vector<pair<u64, u64>> &value_count_vec);
+bool approximate_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, redshow_approx_level_t approx_level,
+                               ArrayPatternInfo &array_pattern_info, ArrayPatternInfo &array_pattern_info_approx);
 
-void show_value_pattern(vector<value_pattern_type_t> vpts, u64 memory_op_id, AccessKind access_kind, u64 memory_size,
-                        pair<int, int> &narrow_down_to_unit_size, vector<pair<u64, u64>> &top_value_count_vec,
-                        int unique_value_count, vector<pair<u64, u64>> &value_count_vec);
+void show_value_pattern(u64 memory_op_id, ArrayPatternInfo &array_pattern_info);
 
 #endif  // REDSHOW_COMMON_LIB_H
 

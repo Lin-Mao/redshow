@@ -539,23 +539,24 @@ void detect_type_overuse(pair<int, int> &redundat_zero_bits, AccessKind accessKi
   narrow_down_to_unit_size = make_pair(narrow_down_to_unit_size_signed, narrow_down_to_unit_size_unsigned);
 }
 
-/**Array_items is part of ValueDist which focuses on every offset's value. This function is going to transform offset center to value center.
- * @arg value_count_vec: {value: count}. We only save single-value item's value
- * @arg array_items: {offset: {value: count}}
- * */
-vector<value_pattern_type_t>
-dense_value_pattern(ItemsValueCount *array_items, AccessKind access_kind, u64 memory_size,
-                    pair<int, int> &narrow_down_to_unit_size, vector<pair<u64, u64>> &top_value_count_vec,
-                    int unique_value_count, vector<pair<u64, u64>> &value_count_vec) {
-  top_value_count_vec.clear();
+void dense_value_pattern(ItemsValueCount *array_items, ArrayPatternInfo &array_pattern_info) {
+  auto &access_kind = array_pattern_info.access_kind;
+  u64 memory_size = array_pattern_info.memory_size;
+//  the following variables will be updated.
+  auto &top_value_count_vec = array_pattern_info.top_value_count_vec;
+  int unique_item_count = 0;
+  auto &vpts = array_pattern_info.vpts;
+  auto &narrow_down_to_unit_size = array_pattern_info.narrow_down_to_unit_size;
+  auto &unique_value_count_vec = array_pattern_info.unqiue_value_count_vec;
+  u64 total_access_count = 0;
+  u64 total_unique_item_access_count = 0;
 // @todo one array may be considered as multiple types. What if one type is single_value_pattern but another type is not?
 // @todo what if the array item is single-value at read and write with two different values?
   float THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE = 0.1;
   float THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 = 0.5;
   int TOP_NUM_VALUE = 10;
-//  How many value patterns will this array fit
-  vector<value_pattern_type_t> vpts;
-  ItemsValueCount value_count;
+
+  ItemsValueCount unique_value_count;
   pair<int, int> redundat_zero_bits = make_pair(access_kind.unit_size, access_kind.unit_size);
   bool inappropriate_float_type = true;
 // Type ArrayItems is part of ValueDist: {offset: {value: count}}
@@ -574,10 +575,17 @@ dense_value_pattern(ItemsValueCount *array_items, AccessKind access_kind, u64 me
       }
     }
     if (temp_item_value_count.size() == 1) {
-      value_count[temp_item_value_count.begin()->first] += 1;
-      unique_value_count++;
+      unique_value_count[temp_item_value_count.begin()->first] += 1;
+      unique_item_count++;
+    }
+    for (auto item_value_count_one: temp_item_value_count) {
+      total_access_count += item_value_count_one.second;
+      if (temp_item_value_count.size() == 1)
+        total_unique_item_access_count += item_value_count_one.second;
     }
   }
+  array_pattern_info.total_access_count = total_access_count;
+  array_pattern_info.unique_item_count = unique_item_count;
   if (access_kind.data_type == REDSHOW_DATA_FLOAT && inappropriate_float_type) {
     vpts.emplace_back(VP_INAPPROPRIATE_FLOAT);
   }
@@ -590,70 +598,69 @@ dense_value_pattern(ItemsValueCount *array_items, AccessKind access_kind, u64 me
     }
   }
 
-  for (auto iter: value_count) {
-    value_count_vec.emplace_back(iter.first, iter.second);
+  for (auto iter: unique_value_count) {
+    unique_value_count_vec.emplace_back(iter.first, iter.second);
   }
-  sort(value_count_vec.begin(), value_count_vec.end(), sortByVal);
-  for (int i = 0; i < std::min((size_t) TOP_NUM_VALUE, value_count_vec.size()); i++) {
-    top_value_count_vec.emplace_back(value_count_vec[i]);
+  sort(unique_value_count_vec.begin(), unique_value_count_vec.end(), sortByVal);
+  for (int i = 0; i < std::min((size_t) TOP_NUM_VALUE, unique_value_count_vec.size()); i++) {
+    top_value_count_vec.emplace_back(unique_value_count_vec[i]);
   }
   value_pattern_type_t vpt = VP_NO_PATTERN;
 //  single value pattern, redundant zeros
-  if (value_count.size() == 1) {
-    if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
-      if (access_kind.unit_size == 32) {
-        uint32_t value_hex = value_count.begin()->first & 0xffffffffu;
-        float b = *reinterpret_cast<float *>(&value_hex);
-        if (std::abs(b) < 1e-6) {
+  if (unique_value_count.size() == 1) {
+    if (total_access_count == total_unique_item_access_count) {
+      if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
+        if (access_kind.unit_size == 32) {
+          uint32_t value_hex = unique_value_count.begin()->first & 0xffffffffu;
+          float b = *reinterpret_cast<float *>(&value_hex);
+          if (std::abs(b) < 1e-6) {
+            vpt = VP_REDUNDANT_ZEROS;
+          } else {
+            vpt = VP_SINGLE_VALUE;
+          }
+        } else if (access_kind.unit_size == 64) {
+          double b;
+          u64 cur_hex_value = unique_value_count.begin()->first;
+          memcpy(&b, &cur_hex_value, sizeof(cur_hex_value));
+          if (std::abs(b) < 1e-14) {
+            vpt = VP_REDUNDANT_ZEROS;
+          } else {
+            vpt = VP_SINGLE_VALUE;
+          }
+        }
+      } else if (access_kind.data_type == REDSHOW_DATA_INT) {
+        if (unique_value_count.begin()->first == 0) {
           vpt = VP_REDUNDANT_ZEROS;
         } else {
           vpt = VP_SINGLE_VALUE;
         }
-      } else if (access_kind.unit_size == 64) {
-        double b;
-        u64 cur_hex_value = value_count.begin()->first;
-        memcpy(&b, &cur_hex_value, sizeof(cur_hex_value));
-        if (std::abs(b) < 1e-14) {
-          vpt = VP_REDUNDANT_ZEROS;
-        } else {
-          vpt = VP_SINGLE_VALUE;
-        }
-      }
-    } else if (access_kind.data_type == REDSHOW_DATA_INT) {
-      if (value_count.begin()->first == 0) {
-        vpt = VP_REDUNDANT_ZEROS;
-      } else {
-        vpt = VP_SINGLE_VALUE;
       }
     }
   } else {
-
-    if (unique_value_count >= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 * memory_size) {
-      if (value_count_vec.size() <= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE * memory_size) {
+    if (unique_item_count >= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 * memory_size) {
+      if (unique_value_count_vec.size() <= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE * memory_size) {
         vpt = VP_DENSE_VALUE;
       }
     }
   }
   vpts.emplace_back(vpt);
-
-  return vpts;
 }
 
 /**
  * @arg array_items: [offset: {value: count}] It is an array to save the value distribution of the target array. */
-vector<value_pattern_type_t>
-approximate_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, AccessKind access_kind, u64 memory_size,
-                          redshow_approx_level_t approx_level, pair<int, int> &narrow_down_to_unit_size,
-                          vector<pair<u64, u64>> &top_value_count_vec, int unique_value_count,
-                          vector<pair<u64, u64>> &value_count_vec) {
+bool approximate_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, redshow_approx_level_t approx_level,
+                               ArrayPatternInfo &array_pattern_info, ArrayPatternInfo &array_pattern_info_approx) {
   vector<value_pattern_type_t> tmp;
+  auto access_kind = array_pattern_info.access_kind;
+  auto memory_size = array_pattern_info.memory_size;
+
   if (access_kind.data_type != REDSHOW_DATA_FLOAT) {
-    return tmp;
+    return false;
   }
   int decimal_degree_f32, decimal_degree_f64;
   if (approx_level_config_local(approx_level, decimal_degree_f32, decimal_degree_f64) != REDSHOW_SUCCESS) {
     cout << "Set approximate level error." << endl;
-    return tmp;
+    return false;
   } else {
 //    cout << "After set approximate level to mid." << endl;
   }
@@ -671,9 +678,25 @@ approximate_value_pattern(ItemsValueCount *array_items, u64 memory_op_id, Access
       }
     }
   }
-
-  return dense_value_pattern(array_items_approx, access_kind, memory_size, narrow_down_to_unit_size,
-                             top_value_count_vec, unique_value_count, value_count_vec);
+  dense_value_pattern(array_items_approx, array_pattern_info_approx);
+  auto new_vpts = array_pattern_info_approx.vpts;
+  auto vpts = array_pattern_info.vpts;
+  bool valid_approx = false;
+  if (new_vpts.size() > 0) {
+    if (new_vpts.size() != vpts.size()) {
+      valid_approx = true;
+    } else {
+      sort(new_vpts.begin(), new_vpts.end());
+      sort(vpts.begin(), vpts.end());
+      for (int i = 0; i < new_vpts.size(); i++) {
+        if (vpts[i] != new_vpts[i]) {
+          valid_approx = true;
+          break;
+        }
+      }
+    }
+  }
+  return valid_approx;
 }
 
 redshow_result_t
@@ -714,22 +737,28 @@ approx_level_config_local(redshow_approx_level_t level, int &decimal_degree_f32,
   return result;
 }
 
-void show_value_pattern(vector<value_pattern_type_t> vpts, u64 memory_op_id, AccessKind access_kind, u64 memory_size,
-                        pair<int, int> &narrow_down_to_unit_size, vector<pair<u64, u64>> &top_value_count_vec,
-                        int unique_value_count, vector<pair<u64, u64>> &value_count_vec) {
+void show_value_pattern(u64 memory_op_id, ArrayPatternInfo &array_pattern_info) {
+  int unique_item_count = array_pattern_info.unique_item_count;
+  auto value_count_vec = array_pattern_info.unqiue_value_count_vec;
+  auto access_kind = array_pattern_info.access_kind;
+  auto memory_size = array_pattern_info.memory_size;
+  auto vpts = array_pattern_info.vpts;
+  auto narrow_down_to_unit_size = array_pattern_info.narrow_down_to_unit_size;
+  auto top_value_count_vec = array_pattern_info.top_value_count_vec;
 // @todo There are hiden index information.
   string pattern_names[] = {"Redundant zeros", "Single value", "Dense value", "Type overuse", "Approximate value",
                             "Silent store", "Silent load", "No pattern", "Inappropriate float type"};
-  std::cout << "unique value count " << unique_value_count << " value_count_vec.size " << value_count_vec.size()
+  std::cout << "unique item count " << unique_item_count << " unqiue_value_count_vec.size " << value_count_vec.size()
             << std::endl;
   std::ofstream outfile;
-  outfile.open(std::to_string(memory_op_id)+" " + access_kind.to_string() + ".log");
-  outfile << "array " << memory_op_id << " : memory size " << memory_size << " value type " << access_kind.to_string()<<endl;
+  outfile.open(std::to_string(memory_op_id) + " " + access_kind.to_string() + ".log");
+  outfile << "array " << memory_op_id << " : memory size " << memory_size << " value type " << access_kind.to_string()
+          << endl;
   int i = 0;
-  for (auto value:value_count_vec){
+  for (auto value:value_count_vec) {
     output_kind_value(value.first, access_kind, outfile.rdbuf(), true);
-    outfile<<"\t"<<value.second<<endl;
-    if (i++ > 100){break;}
+    outfile << "\t" << value.second << endl;
+    if (i++ > 100) { break; }
   }
   outfile.close();
   cout << "array " << memory_op_id << " : memory size " << memory_size << " value type " << access_kind.to_string()
