@@ -109,7 +109,7 @@ struct ArrayPatternInfo {
 //  How many items are unique value
   int unique_item_count;
 //  The sum access number of unique value
-  u64 unique_value_count;
+  u64 unique_item_access_count;
   vector<pair<u64, u64>> unqiue_value_count_vec;
   u64 total_access_count;
   vector<value_pattern_type_t> vpts;

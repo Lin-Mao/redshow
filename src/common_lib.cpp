@@ -586,6 +586,7 @@ void dense_value_pattern(ItemsValueCount *array_items, ArrayPatternInfo &array_p
   }
   array_pattern_info.total_access_count = total_access_count;
   array_pattern_info.unique_item_count = unique_item_count;
+  array_pattern_info.unique_item_access_count = total_unique_item_access_count;
   if (access_kind.data_type == REDSHOW_DATA_FLOAT && inappropriate_float_type) {
     vpts.emplace_back(VP_INAPPROPRIATE_FLOAT);
   }
@@ -748,8 +749,10 @@ void show_value_pattern(u64 memory_op_id, ArrayPatternInfo &array_pattern_info) 
 // @todo There are hiden index information.
   string pattern_names[] = {"Redundant zeros", "Single value", "Dense value", "Type overuse", "Approximate value",
                             "Silent store", "Silent load", "No pattern", "Inappropriate float type"};
-  std::cout << "unique item count " << unique_item_count << " unqiue_value_count_vec.size " << value_count_vec.size()
-            << std::endl;
+  cout << "unique item count " << unique_item_count << " unqiue_value_count_vec.size " << value_count_vec.size()
+       << endl;
+  cout << "total access " << array_pattern_info.total_access_count << "\tunqiue value access count"
+       << array_pattern_info.unique_item_access_count << endl;
   std::ofstream outfile;
   outfile.open(std::to_string(memory_op_id) + " " + access_kind.to_string() + ".log");
   outfile << "array " << memory_op_id << " : memory size " << memory_size << " value type " << access_kind.to_string()
@@ -766,7 +769,7 @@ void show_value_pattern(u64 memory_op_id, ArrayPatternInfo &array_pattern_info) 
   if (vpts.size() == 0)
     vpts.emplace_back(VP_NO_PATTERN);
   for (auto a_vpt: vpts) {
-    cout << pattern_names[a_vpt] << "\t";
+    cout << " * " << pattern_names[a_vpt] << "\t";
     switch (a_vpt) {
       case VP_TYPE_OVERUSE:
         if (access_kind.unit_size != narrow_down_to_unit_size.first) {
@@ -798,4 +801,5 @@ void show_value_pattern(u64 memory_op_id, ArrayPatternInfo &array_pattern_info) 
     output_kind_value(item.first, access_kind, cout.rdbuf(), true);
     cout << "\t" << item.second << endl;
   }
+  cout << endl;
 }
