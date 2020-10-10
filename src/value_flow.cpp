@@ -54,17 +54,17 @@ static void analyze_duplicate(const std::vector<ValueFlowOp> &value_flow_ops,
                               std::map<int32_t, ValueFlowRecord> &value_flow_records) {
   std::map<uint32_t, std::set<std::string>> node_hashes;
   for (auto &op : value_flow_ops) {
-    node_hashes[op.id].emplace(op.hash);
+    node_hashes[op.id].insert(op.hash);
   }
 
   std::map<std::string, std::map<int32_t, bool>> hash_nodes;
   for (auto &op : value_flow_ops) {
     if (node_hashes[op.id].size() > 1) {
       // Partial duplicate
-      hash_nodes[op.hash].emplace(std::make_pair(op.id, false));
+      hash_nodes[op.hash][op.id] = false;
     } else {
       // Total duplicate
-      hash_nodes[op.hash].emplace(std::make_pair(op.id, true));
+      hash_nodes[op.hash][op.id] = true;
     }
   }
 
@@ -76,7 +76,7 @@ static void analyze_duplicate(const std::vector<ValueFlowOp> &value_flow_ops,
         auto dup_node_id = node_iter.first;
         auto total = node_iter.second;
         value_flow_records[node_id].id = node_id;
-        value_flow_records[node_id].duplicate.emplace(std::make_pair(dup_node_id, total));
+        value_flow_records[node_id].duplicate[dup_node_id] = total;
       }
     }
   }
@@ -86,10 +86,9 @@ static void analyze_hot_api(const std::vector<ValueFlowOp> &value_flow_ops,
                             std::map<int32_t, std::pair<double, int>> &hot_apis) {
   for (auto &op : value_flow_ops) {
     if (op.redundancy > 0) {
-      auto redundancy_count = hot_apis[op.id];
+      auto &redundancy_count = hot_apis[op.id];
       redundancy_count.first += op.redundancy;
       redundancy_count.second += 1;
-      hot_apis.emplace(std::make_pair(op.id, redundancy_count));
     }
   }
 
@@ -117,11 +116,21 @@ static void backprop_bfs(const ValueFlowGraph &value_flow_graph,
         auto edge_type = iter.first;
         auto out_id = iter.second;
 
-        if (edge_type == VALUE_FLOW_EDGE_READ || hot_apis.at(out_id).first > BACKPROP_RED) {
+        bool prop = false;
+        if (edge_type == VALUE_FLOW_EDGE_READ) {
+          prop = true;
+        } else {
+          const auto &hot_iter = hot_apis.find(out_id);
+          if (hot_iter != hot_apis.end() && hot_iter->first > BACKPROP_RED) {
+            prop = true;
+          }
+        }
+
+        if (prop) {
           if (trace_graph.find(curr_id) == trace_graph.end()) {
             queue.push(curr_id);
           }
-          trace_graph[curr_id].emplace(out_id);
+          trace_graph[curr_id].insert(out_id);
         }
       }
     }
@@ -149,12 +158,26 @@ static void backprop(const ValueFlowGraph &value_flow_graph,
 bool analyze_value_flow(const ValueFlowGraph &value_flow_graph,
                         const std::vector<ValueFlowOp> &value_flow_ops,
                         std::map<int32_t, ValueFlowRecord> &value_flow_records) {
+  analyze_duplicate(value_flow_ops, value_flow_records);
+
+  std::map<int32_t, std::pair<double, int>> hot_apis;
+  analyze_hot_api(value_flow_ops, hot_apis);
+
+  // analyze_hot_pc
+
+  backprop(value_flow_graph, hot_apis, value_flow_records);
+
   if (DEBUG_VALUE_FLOW) {
+    for (auto &value_flow_op : value_flow_ops) {
+      std::cout << "op: (" << value_flow_op.id << "," << value_flow_op.type << ")" << std::endl;
+      std::cout << "redundancy: " << value_flow_op.redundancy << std::endl;
+    }
+    std::cout << std::endl;
+
     for (auto node_iter = value_flow_graph.nodes_begin(); node_iter != value_flow_graph.nodes_end(); ++node_iter) {
       auto node_id = node_iter->first;
       auto &node = node_iter->second;
-      std::cout << "node: " << node_id << std::endl;
-      std::cout << "type: " << node.type << std::endl;
+      std::cout << "node: (" << node_id << ", " << node.type << ")" << std::endl;
       std::cout << "edge: ";
       if (value_flow_graph.incoming_nodes_size(node_id) > 0) {
         auto &incoming_nodes = value_flow_graph.incoming_nodes(node_id);
@@ -165,16 +188,16 @@ bool analyze_value_flow(const ValueFlowGraph &value_flow_graph,
       }
       std::cout << std::endl;
     }
+    std::cout << std::endl;
+
+    std::cout << "hot nodes: ";
+    for (auto &iter : hot_apis) {
+      auto &node_id = iter.first;
+      auto &api = iter.second;
+      std::cout << "(" << node_id << "," << api.first << "),";
+    }
+    std::cout << std::endl;
   }
-
-  analyze_duplicate(value_flow_ops, value_flow_records);
-
-  std::map<int32_t, std::pair<double, int>> hot_apis;
-  analyze_hot_api(value_flow_ops, hot_apis);
-
-  // analyze_hot_pc
-
-  backprop(value_flow_graph, hot_apis, value_flow_records);
 
   return true;
 }

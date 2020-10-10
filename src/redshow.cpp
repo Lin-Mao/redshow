@@ -790,7 +790,6 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
     memory_map[memory_range] = memory;
     memory_snapshot[host_op_id] = memory_map;
     result = REDSHOW_SUCCESS;
-    PRINT("host_op_id: %llu\nshadow: %p\n", host_op_id, memory.value.get());
   } else {
     auto iter = memory_snapshot.upper_bound(host_op_id);
     if (iter != memory_snapshot.begin()) {
@@ -802,7 +801,6 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
         memory_map[memory_range] = memory;
         memory_snapshot[host_op_id] = memory_map;
         result = REDSHOW_SUCCESS;
-        PRINT("host_op_id: %llu\nshadow: %p\n", host_op_id, memory.value.get());
       } else {
         result = REDSHOW_ERROR_DUPLICATE_ENTRY;
       }
