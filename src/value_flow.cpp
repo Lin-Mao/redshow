@@ -3,11 +3,14 @@
 #include <map>
 #include <queue>
 #include <fstream>
+#include <iostream>
 #include <set>
 #include <string>
 
 #include "hash.h"
 #include "utils.h"
+
+#define DEBUG_VALUE_FLOW 1
 
 namespace redshow {
 
@@ -146,6 +149,24 @@ static void backprop(const ValueFlowGraph &value_flow_graph,
 bool analyze_value_flow(const ValueFlowGraph &value_flow_graph,
                         const std::vector<ValueFlowOp> &value_flow_ops,
                         std::map<int32_t, ValueFlowRecord> &value_flow_records) {
+  if (DEBUG_VALUE_FLOW) {
+    for (auto node_iter = value_flow_graph.nodes_begin(); node_iter != value_flow_graph.nodes_end(); ++node_iter) {
+      auto node_id = node_iter->first;
+      auto &node = node_iter->second;
+      std::cout << "node: " << node_id << std::endl;
+      std::cout << "type: " << node.type << std::endl;
+      std::cout << "edge: ";
+      if (value_flow_graph.incoming_nodes_size(node_id) > 0) {
+        auto &incoming_nodes = value_flow_graph.incoming_nodes(node_id);
+
+        for (auto &neighbor_iter : incoming_nodes) {
+          std::cout << neighbor_iter.second << ",";
+        }
+      }
+      std::cout << std::endl;
+    }
+  }
+
   analyze_duplicate(value_flow_ops, value_flow_records);
 
   std::map<int32_t, std::pair<double, int>> hot_apis;

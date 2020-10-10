@@ -107,11 +107,19 @@ class ValueFlowGraph {
  public:
   ValueFlowGraph() {}
 
+  typename NodeMap::const_iterator nodes_begin() const { return _nodes.begin(); }
+
   typename NodeMap::iterator nodes_begin() { return _nodes.begin(); }
+
+  typename NodeMap::const_iterator nodes_end() const { return _nodes.end(); }
 
   typename NodeMap::iterator nodes_end() { return _nodes.end(); }
 
+  typename OpNodeMap::const_iterator op_nodes_begin() const { return _op_nodes.begin(); }
+
   typename OpNodeMap::iterator op_nodes_begin() { return _op_nodes.begin(); }
+  
+  typename OpNodeMap::const_iterator op_nodes_end() const { return _op_nodes.end(); }
 
   typename OpNodeMap::iterator op_nodes_end() { return _op_nodes.end(); }
 
