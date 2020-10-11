@@ -235,6 +235,8 @@ static void dump_value_flow(const ValueFlowGraph &value_flow_graph,
 
   boost::dynamic_properties dp;
   dp.property("node_id", boost::get(&VertexProperty::node_id, g));
+  dp.property("overwrite", boost::get(&VertexProperty::overwrite, g));
+  dp.property("redundancy", boost::get(&VertexProperty::redundancy, g));
   dp.property("type", boost::get(&EdgeProperty::type, g));
 
   std::ofstream out("value_flow.csv");
