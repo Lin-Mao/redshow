@@ -105,6 +105,7 @@ struct ArrayPatternInfo {
   AccessKind access_kind;
   u64 memory_size;
   pair<int, int> narrow_down_to_unit_size;
+// E.g., <<10,1000>, > there are 1000 items have single value 10.
   vector<pair<u64, u64>> top_value_count_vec;
 //  How many items are unique value
   int unique_item_count;

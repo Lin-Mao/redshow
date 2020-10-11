@@ -644,7 +644,11 @@ void dense_value_pattern(ItemsValueCount *array_items, ArrayPatternInfo &array_p
       }
     }
   }
-  vpts.emplace_back(vpt);
+  if (vpts.size() != 0 && vpt == VP_NO_PATTERN) {
+
+  } else {
+    vpts.emplace_back(vpt);
+  }
 }
 
 /**
@@ -751,7 +755,7 @@ void show_value_pattern(u64 memory_op_id, ArrayPatternInfo &array_pattern_info) 
                             "Silent store", "Silent load", "No pattern", "Inappropriate float type"};
   cout << "unique item count " << unique_item_count << " unqiue_value_count_vec.size " << value_count_vec.size()
        << endl;
-  cout << "total access " << array_pattern_info.total_access_count << "\tunqiue value access count"
+  cout << "total access " << array_pattern_info.total_access_count << "\tunqiue value access count "
        << array_pattern_info.unique_item_access_count << endl;
   std::ofstream outfile;
   outfile.open(std::to_string(memory_op_id) + " " + access_kind.to_string() + ".log");
@@ -784,7 +788,7 @@ void show_value_pattern(u64 memory_op_id, ArrayPatternInfo &array_pattern_info) 
           temp_a.data_type = access_kind.data_type;
           temp_a.unit_size = narrow_down_to_unit_size.second;
           temp_a.vec_size = temp_a.unit_size * (access_kind.vec_size / access_kind.unit_size);
-          cout << "unsigned: " << access_kind.to_string() << " --> " << temp_a.to_string() << endl;
+          cout << "unsigned: " << access_kind.to_string() << " --> " << temp_a.to_string();
         }
         break;
       case VP_INAPPROPRIATE_FLOAT:
@@ -792,11 +796,12 @@ void show_value_pattern(u64 memory_op_id, ArrayPatternInfo &array_pattern_info) 
         temp_a.data_type = REDSHOW_DATA_INT;
         temp_a.unit_size = access_kind.unit_size;
         temp_a.vec_size = access_kind.vec_size;
-        cout << access_kind.to_string() << " --> " << temp_a.to_string() << endl;
+        cout << access_kind.to_string() << " --> " << temp_a.to_string();
         break;
     }
+    cout << endl;
   }
-  cout << endl << "value\tcount" << endl;
+  cout << "value\tcount" << endl;
   for (auto item: top_value_count_vec) {
     output_kind_value(item.first, access_kind, cout.rdbuf(), true);
     cout << "\t" << item.second << endl;
