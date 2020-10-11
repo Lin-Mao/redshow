@@ -1040,7 +1040,8 @@ redshow_result_t redshow_analysis_end() {
 
   redshow_result_t result;
 
-  if (mini_host_op_id != 0) {
+  if (mini_host_op_id != 0 &&
+      analysis_enabled.find(REDSHOW_ANALYSIS_VALUE_FLOW) == analysis_enabled.end()) {
     // Remove all the memory snapshots before mini_host_op_id
     std::vector<uint64_t> ids;
 
@@ -1063,7 +1064,7 @@ redshow_result_t redshow_analysis_end() {
 
     result = REDSHOW_SUCCESS;
   } else {
-    result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
+    result = REDSHOW_ERROR_NOT_REGISTER_CALLBACK;
   }
 
   return result;
@@ -1229,11 +1230,7 @@ void value_flow_flush() {
     }
   }
 
-  std::map<int32_t, redshow::ValueFlowRecord> value_flow_records;
-  if (redshow::analyze_value_flow(value_flow_graph, value_flow_ops, value_flow_records)) {
-    // report result
-    redshow::report_value_flow(value_flow_records);
-  }
+  redshow::report_value_flow(value_flow_graph, value_flow_ops);
 }
 
 redshow_result_t redshow_flush_thread(uint32_t thread_id) {

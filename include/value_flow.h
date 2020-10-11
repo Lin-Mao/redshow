@@ -44,10 +44,11 @@ enum ValueFlowNodeType {
   VALUE_FLOW_NODE_KERNEL
 };
 
-enum ValueFlowEdgeType {
-  VALUE_FLOW_EDGE_ORDER,
-  VALUE_FLOW_EDGE_READ
-};
+std::string get_value_flow_node_type(ValueFlowNodeType type);
+
+enum ValueFlowEdgeType { VALUE_FLOW_EDGE_ORDER, VALUE_FLOW_EDGE_READ };
+
+std::string get_value_flow_edge_type(ValueFlowEdgeType type);
 
 struct ValueFlowOp {
   // Operation id;
@@ -67,6 +68,7 @@ struct ValueFlowOp {
       : op_id(op_id), id(id), pc(pc), type(type), redundancy(redundancy), hash(hash) {}
 };
 
+/*
 struct ValueFlowRecord {
   // Pattern
   // Distribution
@@ -84,6 +86,7 @@ struct ValueFlowRecord {
   ValueFlowRecord(int32_t id, std::map<int32_t, std::set<int32_t>> &backtrace)
       : id(id), backtrace(backtrace) {}
 };
+*/
 
 struct ValueFlowNode {
   ValueFlowNodeType type;
@@ -91,11 +94,10 @@ struct ValueFlowNode {
   // Calling context id
   int32_t id;
 
-  ValueFlowNode(ValueFlowNodeType type, int32_t id) : type(type), id(id) {} 
+  ValueFlowNode(ValueFlowNodeType type, int32_t id) : type(type), id(id) {}
 
-  ValueFlowNode() : ValueFlowNode(VALUE_FLOW_NODE_ALLOC, 0) {} 
+  ValueFlowNode() : ValueFlowNode(VALUE_FLOW_NODE_ALLOC, 0) {}
 };
-
 
 class ValueFlowGraph {
  public:
@@ -118,7 +120,7 @@ class ValueFlowGraph {
   typename OpNodeMap::const_iterator op_nodes_begin() const { return _op_nodes.begin(); }
 
   typename OpNodeMap::iterator op_nodes_begin() { return _op_nodes.begin(); }
-  
+
   typename OpNodeMap::const_iterator op_nodes_end() const { return _op_nodes.end(); }
 
   typename OpNodeMap::iterator op_nodes_end() { return _op_nodes.end(); }
@@ -130,7 +132,9 @@ class ValueFlowGraph {
     return _outgoing_nodes.at(node_id).size();
   }
 
-  const std::set<std::pair<ValueFlowEdgeType, int32_t>> &outgoing_nodes(int32_t node_id) const { return _outgoing_nodes.at(node_id); }
+  const std::set<std::pair<ValueFlowEdgeType, int32_t>> &outgoing_nodes(int32_t node_id) const {
+    return _outgoing_nodes.at(node_id);
+  }
 
   size_t incoming_nodes_size(int32_t node_id) const {
     if (_incoming_nodes.find(node_id) == _incoming_nodes.end()) {
@@ -139,7 +143,9 @@ class ValueFlowGraph {
     return _incoming_nodes.at(node_id).size();
   }
 
-  const std::set<std::pair<ValueFlowEdgeType, int32_t>> &incoming_nodes(int32_t node_id) const { return _incoming_nodes.at(node_id); }
+  const std::set<std::pair<ValueFlowEdgeType, int32_t>> &incoming_nodes(int32_t node_id) const {
+    return _incoming_nodes.at(node_id);
+  }
 
   bool has_edge(int32_t from, int32_t to, ValueFlowEdgeType edge_type) {
     const auto &iter = _outgoing_nodes.find(from);
@@ -164,7 +170,7 @@ class ValueFlowGraph {
   void add_op_edge(uint64_t from_op, uint64_t to_op, ValueFlowEdgeType edge_type) {
     auto from_node_id = _op_nodes.at(from_op);
     auto to_node_id = _op_nodes.at(to_op);
-    add_edge(from_op, to_op, edge_type);  
+    add_edge(from_op, to_op, edge_type);
   }
 
   void add_node(int32_t node_id, const ValueFlowNode &n) { _nodes[node_id] = n; }
@@ -174,6 +180,8 @@ class ValueFlowGraph {
   bool has_op_node(uint64_t op_id) { return _op_nodes.find(op_id) != _op_nodes.end(); }
 
   ValueFlowNode &node(int32_t node_id) { return _nodes.at(node_id); }
+
+  const ValueFlowNode &node(int32_t node_id) const { return _nodes.at(node_id); }
 
   void update_op_node(uint64_t op_id, int32_t node_id) {
     if (_op_nodes.find(op_id) != _op_nodes.end()) {
@@ -185,10 +193,10 @@ class ValueFlowGraph {
 
   int32_t &op_node_id(uint64_t op_id) { return _op_nodes.at(op_id); }
 
-  size_t size() { return _nodes.size(); }
+  size_t size() const { return _nodes.size(); }
 
   size_t op_size() { return _op_nodes.size(); }
- 
+
  private:
   NeighborNodeMap _incoming_nodes;
   NeighborNodeMap _outgoing_nodes;
@@ -196,11 +204,8 @@ class ValueFlowGraph {
   OpNodeMap _op_nodes;
 };
 
-bool analyze_value_flow(const ValueFlowGraph &value_flow_graph,
-                        const std::vector<ValueFlowOp> &value_flow_ops,
-                        std::map<int32_t, ValueFlowRecord> &value_flow_records);
-
-void report_value_flow(const std::map<int32_t, ValueFlowRecord> &value_flow_records);
+bool report_value_flow(const ValueFlowGraph &value_flow_graph,
+                       const std::vector<ValueFlowOp> &value_flow_ops);
 
 }  // namespace redshow
 
