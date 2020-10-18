@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "redshow.h"
-#include "utils.h"
+#include "common/utils.h"
 
 #ifdef DEBUG_INSTRUCTION
 #define PRINT(...) fprintf(stderr, __VA_ARGS__)
@@ -19,11 +19,9 @@
 #define PRINT(...)
 #endif
 
-#define MIN2(x, y) (x > y ? y : x)
-
 namespace redshow {
 
-static void default_access_kind(Instruction &inst) {
+void InstructionParser::default_access_kind(Instruction &inst) {
   if (inst.access_kind->vec_size == 0) {
     // Determine the vec size of data,
     if (inst.op.find(".128") != std::string::npos) {
@@ -54,8 +52,8 @@ static void default_access_kind(Instruction &inst) {
   }
 }
 
-static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_graph,
-                                   std::set<unsigned int> &visited, bool load) {
+AccessKind InstructionParser::init_access_kind(Instruction &inst, InstructionGraph &inst_graph,
+                                               std::set<unsigned int> &visited, bool load) {
   if (visited.find(inst.pc) != visited.end()) {
     return AccessKind();
   }
@@ -197,8 +195,9 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
   return access_kind;
 }
 
-bool parse_instructions(const std::string &file_path, std::vector<Symbol> &symbols,
-                        InstructionGraph &inst_graph) {
+bool InstructionParser::parse_instructions(const std::string &file_path,
+                                           std::vector<Symbol> &symbols,
+                                           InstructionGraph &inst_graph) {
   boost::property_tree::ptree root;
   boost::property_tree::read_json(file_path, root);
 

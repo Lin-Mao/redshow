@@ -1,9 +1,6 @@
 #ifndef REDSHOW_UTILS_H
 #define REDSHOW_UTILS_H
 
-#include <string>
-#include <tuple>
-
 #define MIN2(x, y) (x > y ? y : x)
 #define MAX2(x, y) (x > y ? x : y)
 

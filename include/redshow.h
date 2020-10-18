@@ -11,9 +11,8 @@
 
 typedef enum redshow_analysis_type {
   REDSHOW_ANALYSIS_UNKNOWN = 0,
-  REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY = 1,
-  REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY = 2,
-  REDSHOW_ANALYSIS_VALUE_FLOW = 3
+  REDSHOW_ANALYSIS_REDUNDANCY = 1,
+  REDSHOW_ANALYSIS_VALUE_FLOW = 2
 } redshow_analysis_type_t;
 
 typedef enum redshow_access_type {
@@ -48,7 +47,8 @@ typedef enum redshow_result {
   REDSHOW_ERROR_FAILED_ANALYZE_CUBIN = 6,
   REDSHOW_ERROR_FAILED_ANALYZE_TRACE = 7,
   REDSHOW_ERROR_NO_SUCH_APPROX = 8,
-  REDSHOW_ERROR_NO_SUCH_DATA_TYPE = 9
+  REDSHOW_ERROR_NO_SUCH_DATA_TYPE = 9,
+  REDSHOW_ERROR_NO_SUCH_ANALYSIS = 10
 } redshow_result_t;
 
 typedef enum redshow_approx_level {
@@ -77,6 +77,16 @@ typedef struct redshow_record_data {
 } redshow_record_data_t;
 
 /**
+ * @brief Config default output directory
+ * 
+ * @param dir 
+ * @return EXTERNC 
+ * 
+ * @thread-safe: No
+ */
+EXTERNC redshow_result_t redshow_output_dir_config(const char *dir);
+
+/**
  * @brief Config default data type
  *
  * @param data_type
@@ -95,6 +105,22 @@ EXTERNC redshow_result_t redshow_data_type_config(redshow_data_type_t data_type)
  * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_data_type_get(redshow_data_type_t *data_type);
+
+/**
+ * @brief Get pc views limit
+ * 
+ * @param views 
+ * @return EXTERNC 
+ */
+EXTERNC redshow_result_t redshow_pc_views_get(uint32_t *views);
+
+/**
+ * @brief Get mem views limit
+ * 
+ * @param views 
+ * @return EXTERNC 
+ */
+EXTERNC redshow_result_t redshow_mem_views_get(uint32_t *views);
 
 /**
  * @brief Config floating point redundancy approximate level

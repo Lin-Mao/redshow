@@ -1,5 +1,5 @@
-#ifndef REDSHOW_INSTRUCTION_H
-#define REDSHOW_INSTRUCTION_H
+#ifndef REDSHOW_BINUTILS_INSTRUCTION_H
+#define REDSHOW_BINUTILS_INSTRUCTION_H
 
 #include <map>
 #include <memory>
@@ -7,29 +7,12 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include <iostream>
 
+#include "common/graph.h"
+#include "common/utils.h"
 #include "redshow.h"
-#include "utils.h"
 
 namespace redshow {
-
-struct Symbol {
-  uint32_t index;
-  uint64_t cubin_offset;
-  uint64_t pc;
-
-  Symbol(uint32_t index, uint64_t cubin_offset, uint64_t pc)
-      : index(index), cubin_offset(cubin_offset), pc(pc) {}
-
-  Symbol(uint32_t index, uint64_t cubin_offset) : Symbol(index, cubin_offset, 0) {}
-
-  Symbol(uint64_t pc) : Symbol(0, 0, pc) {}
-
-  Symbol() : Symbol(0, 0, 0) {}
-
-  bool operator<(const Symbol &other) const { return this->pc < other.pc; }
-};
 
 struct AccessKind {
   // 8, 16, 32, 64, 128
@@ -100,66 +83,32 @@ struct Instruction {
   bool operator<(const Instruction &other) const { return this->pc < other.pc; }
 };
 
-class InstructionGraph {
- public:
-  typedef std::map<unsigned int, std::set<unsigned int> > NeighborNodeMap;
-  typedef std::map<unsigned int, Instruction> NodeMap;
-
- public:
-  InstructionGraph() {}
-
-  typename NodeMap::iterator nodes_begin() { return _nodes.begin(); }
-
-  typename NodeMap::iterator nodes_end() { return _nodes.end(); }
-
-  size_t outgoing_nodes_size(unsigned int pc) {
-    if (_outgoing_nodes.find(pc) == _outgoing_nodes.end()) {
-      return 0;
-    }
-    return _outgoing_nodes.at(pc).size();
-  }
-
-  const std::set<unsigned int> &outgoing_nodes(unsigned int pc) { return _outgoing_nodes.at(pc); }
-
-  size_t incoming_nodes_size(unsigned int pc) {
-    if (_incoming_nodes.find(pc) == _incoming_nodes.end()) {
-      return 0;
-    }
-    return _incoming_nodes.at(pc).size();
-  }
-
-  const std::set<unsigned int> &incoming_nodes(unsigned int pc) { return _incoming_nodes.at(pc); }
-
-  void add_edge(unsigned int from, unsigned int to) {
-    _incoming_nodes[to].insert(from);
-    _outgoing_nodes[from].insert(to);
-  }
-
-  void add_node(unsigned int pc, const Instruction &inst) { _nodes[pc] = inst; }
-
-  bool has_node(unsigned int pc) { return _nodes.find(pc) != _nodes.end(); }
-
-  Instruction &node(unsigned int pc) { return _nodes.at(pc); }
-
-  size_t size() { return _nodes.size(); }
-
- private:
-  NeighborNodeMap _incoming_nodes;
-  NeighborNodeMap _outgoing_nodes;
-  NodeMap _nodes;
+struct Dependency {
+  bool inter_function = false;
 };
 
-/**
- * @brief instruction parsing interface
- *
- * @param file_path
- * @param symbols
- * @param graph
- * @return true
- * @return false
- */
-bool parse_instructions(const std::string &file_path, std::vector<Symbol> &symbols,
-                        InstructionGraph &graph);
+typedef Graph<u64, Instruction, Dependency> InstructionGraph;
+
+class InstructionParser {
+ public:
+  InstructionParser() = default;
+  /**
+   * @brief instruction parsing interface
+   *
+   * @param file_path
+   * @param symbols
+   * @param graph
+   * @return true
+   * @return false
+   */
+  static bool parse(const std::string &file_path, std::vector<Symbol> &symbols, InstructionGraph &graph);
+
+ private:
+  static void default_access_kind(Instruction &inst);
+
+  static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_graph,
+                                     std::set<unsigned int> &visited, bool load);
+};
 
 }  // namespace redshow
 
