@@ -23,6 +23,10 @@ struct Kernel : public Operation {
 
   Kernel(u64 op_id, u32 ctx_id, u32 cubin_id, u32 mod_id)
       : Kernel(op_id, ctx_id, cubin_id, mod_id, 0, 0) {}
+
+  Kernel(u64 op_id, u32 ctx_id) : Kernel(op_id, ctx_id, 0, 0, 0, 0) {}
+
+  virtual ~Kernel() {}
 };
 
 }  // namespace redshow

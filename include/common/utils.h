@@ -4,6 +4,8 @@
 #define MIN2(x, y) (x > y ? y : x)
 #define MAX2(x, y) (x > y ? x : y)
 
+#include <cstdint>
+
 namespace redshow {
 
 typedef int8_t i8;

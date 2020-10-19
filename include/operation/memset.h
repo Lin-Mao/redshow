@@ -20,6 +20,8 @@ struct Memset : public Operation {
         memory_op_id(memory_op_id),
         hash(hash),
         redundancy(redundancy) {}
+  
+  virtual ~Memset() {}
 };
 
 /**

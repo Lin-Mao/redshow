@@ -27,7 +27,7 @@ struct Cubin {
 struct CubinCache {
   u32 cubin_id;
   u32 nsymbols;
-  Map<u32, Vector<u64>> symbol_pcs;
+  Map<u32, u64 *> symbol_pcs;
   std::string path;
 
   CubinCache() = default;

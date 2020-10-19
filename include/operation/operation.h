@@ -2,8 +2,9 @@
 #define REDSHOW_ANALYSIS_OPERATION_H
 
 #include <string>
+#include <memory>
 
-#include "utils.h"
+#include "common/utils.h"
 
 namespace redshow {
 
@@ -26,6 +27,8 @@ struct Operation {
 
   Operation(u64 op_id, u32 ctx_id, OperationType type)
       : op_id(op_id), ctx_id(ctx_id), type(type) {}
+
+  virtual ~Operation() = 0;
 };
 
 typedef std::shared_ptr<Operation> OperationPtr;

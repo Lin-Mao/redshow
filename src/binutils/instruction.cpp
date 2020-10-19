@@ -1,4 +1,4 @@
-#include "instruction.h"
+#include "binutils/instruction.h"
 
 #include <algorithm>
 #include <boost/lexical_cast.hpp>
@@ -10,9 +10,9 @@
 #include <queue>
 #include <vector>
 
+#include "binutils/symbol.h"
 #include "common/utils.h"
 #include "redshow.h"
-#include "symbol.h"
 
 #ifdef DEBUG_INSTRUCTION
 #define PRINT(...) fprintf(stderr, __VA_ARGS__)
@@ -84,7 +84,7 @@ AccessKind InstructionParser::init_access_kind(Instruction &inst, InstructionGra
   auto &edges = load ? inst_graph.outgoing_edges(inst.pc) : inst_graph.incoming_edges(inst.pc);
 
   for (auto iter = edges.begin(); iter != edges.end(); ++iter) {
-    auto pc = iter->second;
+    auto pc = iter->to;
     auto &neighbor_inst = inst_graph.node(pc);
     AccessKind neighbor_access_kind;
 
@@ -262,8 +262,8 @@ bool InstructionParser::parse(const std::string &file_path, SymbolVector &symbol
     for (; i < inst.srcs.size(); ++i) {
       int src = inst.srcs[i];
       for (auto src_pc : inst.assign_pcs[src]) {
-        auto edge_index = std::make_pair(src_pc, inst.pc);
-        inst_graph.add_edge(std::move(edge_index));
+        auto edge_index = InstructionDependencyIndex(src_pc, inst.pc);
+        inst_graph.add_edge(std::move(edge_index), false);
       }
     }
   }

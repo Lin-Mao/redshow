@@ -1,4 +1,4 @@
-#include "operation.h"
+#include "operation/operation.h"
 
 namespace redshow {
 
@@ -9,5 +9,7 @@ const std::string get_operation_type(OperationType type) {
 
   return operation_types[type];
 }
+
+Operation::~Operation() {}
 
 }  // namespace redshow

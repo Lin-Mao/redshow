@@ -15,9 +15,10 @@
 #include "binutils/instruction.h"
 #include "binutils/cubin.h"
 #include "binutils/symbol.h"
-#include "analysis/temporal-redundancy.h"
-#include "analysis/spatial-redundancy.h"
-#include "analysis/value-flow.h"
+#include "binutils/real_pc.h"
+#include "analysis/temporal_redundancy.h"
+#include "analysis/spatial_redundancy.h"
+#include "analysis/value_flow.h"
 #include "operation/memcpy.h"
 #include "operation/memory.h"
 #include "operation/memset.h"
@@ -33,22 +34,24 @@
 #define PRINT(...)
 #endif
 
+using namespace redshow;
+
 /*
  * Global data structures
  */
 
-static redshow::LockableMap<uint32_t, redshow::Cubin> cubin_map;
+static LockableMap<uint32_t, Cubin> cubin_map;
 
-static redshow::LockableMap<uint32_t, redshow::CubinCache> cubin_cache_map；
+static LockableMap<uint32_t, CubinCache> cubin_cache_map;
 
-typedef redshow::LockableMap<redshow::MemoryRange, std::shared_ptr<redshow::Memory>> MemoryMap;
-static redshow::LockableMap<uint64_t, MemoryMap> memory_snapshot;
+typedef Map<MemoryRange, std::shared_ptr<Memory>> MemoryMap;
+static LockableMap<uint64_t, MemoryMap> memory_snapshot;
 
-static redshow::LockableVector<std::shared_ptr<redshow::Memcpy>> memcpys;
-static redshow::LockableVector<std::shared_ptr<redshow::Memset>> memsets;
+static LockableVector<std::shared_ptr<Memcpy>> memcpys;
+static LockableVector<std::shared_ptr<Memset>> memsets;
 
 // Init analysis instance
-static Map<redshow_analysis_type_t, std::shared_ptr<redshow::Analysis>> analysis_enabled;
+static Map<redshow_analysis_type_t, std::shared_ptr<Analysis>> analysis_enabled;
 
 static std::string output_dir;
 
@@ -61,13 +64,13 @@ static thread_local uint64_t mini_host_op_id = 0;
 static uint32_t pc_views_limit = 0;
 static uint32_t mem_views_limit = 0;
 
-static int decimal_degree_f32 = redshow::VALID_FLOAT_DIGITS;
-static int decimal_degree_f64 = redshow::VALID_DOUBLE_DIGITS;
+static int decimal_degree_f32 = VALID_FLOAT_DIGITS;
+static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
 
 static redshow_data_type_t default_data_type = REDSHOW_DATA_FLOAT;
 
 static redshow_result_t analyze_cubin(const char *path, SymbolVector &symbols,
-                                      redshow::InstructionGraph &inst_graph) {
+                                      InstructionGraph &inst_graph) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
   std::string cubin_path = std::string(path);
@@ -106,7 +109,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
   redshow_result_t result = REDSHOW_SUCCESS;
 
   SymbolVector *symbols = NULL;
-  redshow::InstructionGraph *inst_graph = NULL;
+  InstructionGraph *inst_graph = NULL;
   // Cubin path is added just for debugging purpose
   std::string cubin_path;
 
@@ -186,8 +189,8 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
     return result;
   }
 
-  for (auto analysis : analysis_enabled) {
-    analysis->analysis_begin(cpu_thread, kernel_id);
+  for (auto aiter : analysis_enabled) {
+    aiter.second->analysis_begin(cpu_thread, kernel_id, cubin_id, mod_id);
   }
 
   size_t size = trace_data->head_index;
@@ -210,9 +213,9 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
         if (record->active & (0x1u << j)) {
           uint32_t flat_thread_id =
               record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
-          redshow::ThreadId thread_id{record->flat_block_id, flat_thread_id};
-          for (auto analysis : analysis_enabled) {
-            analysis->block_exit(thread_id)
+          ThreadId thread_id{record->flat_block_id, flat_thread_id};
+          for (auto aiter : analysis_enabled) {
+            aiter.second->block_exit(thread_id);
           }
         }
       }
@@ -230,7 +233,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
       }
 
       // record->size * 8, byte to bits
-      redshow::AccessKind access_kind;
+      AccessKind access_kind;
 
       if (inst_graph->size() != 0) {
         // Accurate mode, when we have instruction information
@@ -259,26 +262,26 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
 
         uint32_t flat_thread_id =
             record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
-        redshow::ThreadId thread_id{record->flat_block_id, flat_thread_id};
+        ThreadId thread_id{record->flat_block_id, flat_thread_id};
 
-        redshow::MemoryRange memory_range(record->address[j], record->address[j]);
+        MemoryRange memory_range(record->address[j], record->address[j]);
         auto iter = memory_map->prev(memory_range);
         uint64_t memory_op_id = 0;
         if (iter != memory_map->end()) {
-          memory_op_id = iter->second.memory_op_id;
+          memory_op_id = iter->second->op_id;
         }
 
-        uint32_t stride = redshow::GLOBAL_MEMORY_OFFSET;
+        uint32_t stride = GLOBAL_MEMORY_OFFSET;
         if (memory_op_id == 0) {
           // XXX(Keren): memory_op_id == 1 ?
           // Memory object not found, it means the memory is local, shared, or allocated in an
           // unknown way
           if (record->flags & GPU_PATCH_LOCAL) {
             memory_op_id = REDSHOW_MEMORY_SHARED;
-            stride = redshow::LOCAL_MEMORY_OFFSET;
+            stride = LOCAL_MEMORY_OFFSET;
           } else if (record->flags & GPU_PATCH_SHARED) {
             memory_op_id = REDSHOW_MEMORY_LOCAL;
-            stride = redshow::SHARED_MEMORY_OFFSET;
+            stride = SHARED_MEMORY_OFFSET;
           } else {
             // Unknown allocation
           }
@@ -290,7 +293,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
         }
 
         auto num_units = access_kind.vec_size / access_kind.unit_size;
-        redshow::AccessKind unit_access_kind = access_kind;
+        AccessKind unit_access_kind = access_kind;
         // We iterate through all the units such that every unit's vec_size = unit_size
         unit_access_kind.vec_size = unit_access_kind.unit_size;
 
@@ -303,17 +306,17 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
           value =
               unit_access_kind.value_to_basic_type(value, decimal_degree_f32, decimal_degree_f64);
 
-          for (auto analysis : analysis_enabled) {
-            analysis->unit_access(thread_id, unit_access_kind, memory_op_id, record->pc, value,
-                                  record->address[j], stride, m, read);
+          for (auto aiter : analysis_enabled) {
+            aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory_op_id,
+                                      record->pc, value, record->address[j], stride, m, read);
           }
         }
       }
     }
   }
 
-  for (auto analysis : analysis_enabled) {
-    analysis->analysis_end();
+  for (auto aiter : analysis_enabled) {
+    aiter.second->analysis_end(cpu_thread, kernel_id);
   }
 
   return result;
@@ -363,28 +366,28 @@ redshow_result_t redshow_approx_level_config(redshow_approx_level_t level) {
 
   switch (level) {
     case REDSHOW_APPROX_NONE:
-      decimal_degree_f32 = redshow::VALID_FLOAT_DIGITS;
-      decimal_degree_f64 = redshow::VALID_DOUBLE_DIGITS;
+      decimal_degree_f32 = VALID_FLOAT_DIGITS;
+      decimal_degree_f64 = VALID_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_MIN:
-      decimal_degree_f32 = redshow::MIN_FLOAT_DIGITS;
-      decimal_degree_f64 = redshow::MIN_DOUBLE_DIGITS;
+      decimal_degree_f32 = MIN_FLOAT_DIGITS;
+      decimal_degree_f64 = MIN_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_LOW:
-      decimal_degree_f32 = redshow::LOW_FLOAT_DIGITS;
-      decimal_degree_f64 = redshow::LOW_DOUBLE_DIGITS;
+      decimal_degree_f32 = LOW_FLOAT_DIGITS;
+      decimal_degree_f64 = LOW_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_MID:
-      decimal_degree_f32 = redshow::MID_FLOAT_DIGITS;
-      decimal_degree_f64 = redshow::MID_DOUBLE_DIGITS;
+      decimal_degree_f32 = MID_FLOAT_DIGITS;
+      decimal_degree_f64 = MID_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_HIGH:
-      decimal_degree_f32 = redshow::HIGH_FLOAT_DIGITS;
-      decimal_degree_f64 = redshow::HIGH_DOUBLE_DIGITS;
+      decimal_degree_f32 = HIGH_FLOAT_DIGITS;
+      decimal_degree_f64 = HIGH_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_MAX:
-      decimal_degree_f32 = redshow::MAX_FLOAT_DIGITS;
-      decimal_degree_f64 = redshow::MAX_DOUBLE_DIGITS;
+      decimal_degree_f32 = MAX_FLOAT_DIGITS;
+      decimal_degree_f64 = MAX_DOUBLE_DIGITS;
       break;
     default:
       result = REDSHOW_ERROR_NO_SUCH_APPROX;
@@ -402,14 +405,14 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
   switch (analysis_type) {
     case REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY,
-                               std::make_shared<redshow::SpatialRedundancy>());
+                               std::make_shared<SpatialRedundancy>());
       break;
     case REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY,
-                               std::make_shared<redshow::TemporalRedundancy>());
+                               std::make_shared<TemporalRedundancy>());
       break;
     case REDSHOW_ANALYSIS_VALUE_FLOW:
-      analysis_enabled.emplace(REDSHOW_ANALYSIS_VALUE_FLOW, std::make_shared<redshow::ValueFlow>());
+      analysis_enabled.emplace(REDSHOW_ANALYSIS_VALUE_FLOW, std::make_shared<ValueFlow>());
       break;
     default:
       result = REDSHOW_ERROR_NO_SUCH_ANALYSIS;
@@ -428,14 +431,14 @@ redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type)
 }
 
 redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols,
-                                        uint64_t *symbol_pcs, const char *path) {
+                                        const uint64_t *symbol_pcs, const char *path) {
   PRINT("\nredshow->Enter redshow_cubin_register\ncubin_id: %u\nmode_id: %u\npath: %s\n", cubin_id,
         mod_id, path);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  redshow::InstructionGraph inst_graph;
-  redshow::SymbolVector symbols(nsymbols);
+  InstructionGraph inst_graph;
+  SymbolVector symbols(nsymbols);
   result = analyze_cubin(path, symbols, inst_graph);
 
   if (result == REDSHOW_SUCCESS || result == REDSHOW_ERROR_NO_SUCH_FILE) {
@@ -494,7 +497,7 @@ redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id
 
   if (result != REDSHOW_ERROR_DUPLICATE_ENTRY) {
     for (size_t i = 0; i < nsymbols; ++i) {
-      cubin_cache_map[cubin_id].symbol_pcs[mod_id].emplace_back(symbol_pcs[i]);
+      cubin_cache_map[cubin_id].symbol_pcs[mod_id][i] = symbol_pcs[i];
     }
   }
   cubin_cache_map.unlock();
@@ -532,8 +535,8 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
   redshow_result_t result = REDSHOW_SUCCESS;
 
   MemoryMap memory_map;
-  redshow::MemoryRange memory_range(start, end);
-  auto memory = std::make_shared<Memory>(memory_range, memory_id, host_op_id);
+  MemoryRange memory_range(start, end);
+  auto memory = std::make_shared<Memory>(host_op_id, memory_id, memory_range);
 
   memory_snapshot.lock();
   if (memory_snapshot.size() == 0) {
@@ -560,8 +563,8 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
   memory_snapshot.unlock();
 
   if (result == REDSHOW_SUCCESS) {
-    for (auto analysis : analysis_enabled) {
-      analysis->op_callback(memory)
+    for (auto aiter : analysis_enabled) {
+      aiter.second->op_callback(memory);
     }
   }
 
@@ -574,7 +577,7 @@ redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_
   redshow_result_t result = REDSHOW_SUCCESS;
 
   MemoryMap memory_map;
-  redshow::MemoryRange memory_range(start, end);
+  MemoryRange memory_range(start, end);
 
   memory_snapshot.lock();
   auto snapshot_iter = memory_snapshot.prev(host_op_id);
@@ -603,7 +606,7 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  redshow::MemoryRange memory_range(start, 0);
+  MemoryRange memory_range(start, 0);
 
   memory_snapshot.lock();
   auto snapshot_iter = memory_snapshot.prev(host_op_id);
@@ -611,9 +614,9 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
     auto &memory_map = snapshot_iter->second;
     auto memory_map_iter = memory_map.find(memory_range);
     if (memory_map_iter != memory_map.end()) {
-      *memory_id = memory_map_iter->second.memory_id;
-      *memory_op_id = memory_map_iter->second.memory_op_id;
-      *shadow_start = reinterpret_cast<uint64_t>(memory_map_iter->second.value.get());
+      *memory_id = memory_map_iter->second->ctx_id;
+      *memory_op_id = memory_map_iter->second->op_id;
+      *shadow_start = reinterpret_cast<uint64_t>(memory_map_iter->second->value.get());
       *len = memory_map_iter->first.end - memory_map_iter->first.start;
       PRINT("memory_id: %d\nmemory_op_id: %llu\nshadow: %p\nlen: %llu\n", *memory_id, *memory_op_id, *shadow_start, *len);
       result = REDSHOW_SUCCESS;
@@ -639,8 +642,8 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  std::string hash = redshow::compute_memory_hash(src_start, len);
-  double redundancy = redshow::compute_memcpy_redundancy(dst_start, src_start, len);
+  std::string hash = compute_memory_hash(src_start, len);
+  double redundancy = compute_memcpy_redundancy(dst_start, src_start, len);
 
   auto memcpy = std::make_shared<Memcpy>(memcpy_id, host_op_id, src_memory_op_id, dst_memory_op_id,
                                          hash, redundancy);
@@ -649,8 +652,8 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
   memcpys.emplace_back(memcpy);
   memcpys.unlock();
 
-  for (auto *analysis : analysis_enabled) {
-    analysis->op_callback(memcpy);
+  for (auto aiter : analysis_enabled) {
+    aiter.second->op_callback(memcpy);
   }
 
   return result;
@@ -665,8 +668,8 @@ redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  std::string hash = redshow::compute_memory_hash(shadow_start, len);
-  double redundancy = redshow::compute_memset_redundancy(shadow_start, value, len);
+  std::string hash = compute_memory_hash(shadow_start, len);
+  double redundancy = compute_memset_redundancy(shadow_start, value, len);
 
   auto memset = std::make_shared<Memset>(memset_id, host_op_id, memory_op_id, hash, redundancy);
 
@@ -674,8 +677,8 @@ redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
   memsets.emplace_back(memset);
   memsets.unlock();
 
-  for (auto *analysis : analysis_enabled) {
-    analysis->op_callback(memset);
+  for (auto aiter : analysis_enabled) {
+    aiter.second->op_callback(memset);
   }
 
   return result;
@@ -741,7 +744,7 @@ redshow_result_t redshow_analysis_end() {
   if (mini_host_op_id != 0 &&
       !analysis_enabled.has(REDSHOW_ANALYSIS_VALUE_FLOW)) {
     // Remove all the memory snapshots before mini_host_op_id
-    std::vector<uint64_t> ids;
+    Vector<uint64_t> ids;
 
     memory_snapshot.lock();
     uint64_t max_min_host_op_id = 0;
@@ -771,8 +774,8 @@ redshow_result_t redshow_analysis_end() {
 redshow_result_t redshow_flush_thread(uint32_t cpu_thread) {
   PRINT("\nredshow->Enter redshow_flush cpu_thread %u\n", cpu_thread);
 
-  for (auto *analysis : analysis_enabled) {
-    analysis->flush_thread(cpu_thread, output_dir, cubin_map, record_data_callback);
+  for (auto aiter : analysis_enabled) {
+    aiter.second->flush_thread(cpu_thread, output_dir, cubin_map, record_data_callback);
   }
 
   return REDSHOW_SUCCESS;
@@ -781,13 +784,13 @@ redshow_result_t redshow_flush_thread(uint32_t cpu_thread) {
 redshow_result_t redshow_flush() {
   PRINT("\nredshow->Enter redshow_flush\n");
 
-  redshow::Vector<redshow::OperationPtr> operations;
+  Vector<OperationPtr> operations;
 
-  operations.insert(operations.end(), memsets.begin(), memsets.end())
-  operations.insert(operations.end(), memcpys.begin(), memcpys.end())
+  operations.insert(operations.end(), memsets.begin(), memsets.end());
+  operations.insert(operations.end(), memcpys.begin(), memcpys.end());
 
-  for (auto *analysis : analysis_enabled) {
-    analysis->flush(output_dir, cubin_map, operations, record_data_callback);
+  for (auto aiter : analysis_enabled) {
+    aiter.second->flush(output_dir, cubin_map, operations, record_data_callback);
   }
 
   return REDSHOW_SUCCESS;

@@ -11,18 +11,6 @@ class Map : public std::map<K, V> {
  public:
   Map() = default;
 
-  // Not conflict with "contains" in C++20
-  bool has(const K &k) const noexcept { return this->find(k) != this->end(); }
-};
-
-template <typename K, typename V>
-class LockableMap : public Map<K, V> {
- public:
-  void lock() const { _lock.lock(); }
-  void unlock() const { _lock.unlock(); }
-
-  LockableMap() = default;
-
   typename Map<K, V>::iterator prev(K &key) {
     auto iter = this->upper_bound(key);
     if (iter == this->begin()) {
@@ -42,6 +30,18 @@ class LockableMap : public Map<K, V> {
       return iter;
     }
   }
+
+  // Not conflict with "contains" in C++20
+  bool has(const K &k) const noexcept { return this->find(k) != this->end(); }
+};
+
+template <typename K, typename V>
+class LockableMap : public Map<K, V> {
+ public:
+  void lock() const { _lock.lock(); }
+  void unlock() const { _lock.unlock(); }
+
+  LockableMap() = default;
 
  private:
   mutable std::mutex _lock;

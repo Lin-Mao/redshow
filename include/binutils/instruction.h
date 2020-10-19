@@ -84,15 +84,31 @@ struct Instruction {
   bool operator<(const Instruction &other) const { return this->pc < other.pc; }
 };
 
-struct Dependency {
+struct InstructionDependency {
   bool inter_function = false;
 
-  Dependency() = default;
+  InstructionDependency() = default;
 
-  Dependency(bool inter_function) : inter_function(inter_function) {}
+  InstructionDependency(bool inter_function) : inter_function(inter_function) {}
 };
 
-typedef Graph<u64, Instruction, std::pair<u64, u64>, Dependency> InstructionGraph;
+struct InstructionDependencyIndex {
+  u64 from;
+  u64 to;
+
+  InstructionDependencyIndex() = default;
+
+  InstructionDependencyIndex(u64 from, u64 to) : from(from), to(to) {}
+
+  bool operator<(const InstructionDependencyIndex &other) const {
+    if (this->from == other.from) {
+      return this->to < other.to;
+    }
+    return this->from < other.from;
+  }
+};
+
+typedef Graph<u64, Instruction, InstructionDependencyIndex, InstructionDependency> InstructionGraph;
 
 class InstructionParser {
  public:

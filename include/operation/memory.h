@@ -30,6 +30,8 @@ struct Memory : public Operation {
         memory_range(memory_range),
         value(new uint8_t[memory_range.end - memory_range.start],
               std::default_delete<uint8_t[]>()) {}
+  
+  virtual ~Memory() {}
 };
 
 /**

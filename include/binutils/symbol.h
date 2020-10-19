@@ -1,11 +1,13 @@
 #ifndef REDSHOW_BINUTILS_SYMBOL_H
 #define REDSHOW_BINUTILS_SYMBOL_H
 
+#include <algorithm>
 #include <optional>
 #include <tuple>
 
-#include "utils.h"
+#include "common/utils.h"
 #include "common/vector.h"
+#include "redshow.h"
 
 namespace redshow {
 
@@ -35,6 +37,8 @@ struct Symbol {
 class SymbolVector : public Vector<Symbol> {
  public:
   SymbolVector() = default;
+
+  SymbolVector(size_t size) : Vector<Symbol>(size) {}
 
   std::optional<std::tuple<u32, u64, u64>> transform_pc(uint64_t pc) const {
     u32 function_index;

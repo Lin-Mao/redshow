@@ -23,6 +23,8 @@ struct Memcpy : public Operation {
         dst_memory_op_id(dst_memory_op_id),
         hash(hash),
         redundancy(redundancy) {}
+  
+  virtual ~Memcpy() {}
 };
 
 /**
@@ -34,7 +36,6 @@ struct Memcpy : public Operation {
  * @return double 
  */
 double compute_memcpy_redundancy(uint64_t dst_start, uint64_t src_start, uint64_t len);
-}
 
 }  // namespace redshow
 

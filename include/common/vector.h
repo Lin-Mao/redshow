@@ -11,6 +11,8 @@ class Vector : public std::vector<V> {
  public:
   Vector() = default;
 
+  Vector(size_t size) : std::vector<V>(size) {}
+
   // Not conflict with "contains" in C++20
   bool has(const V &v) const noexcept {
     return std::find(this->begin(), this->end(), v) != this->end();
