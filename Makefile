@@ -20,7 +20,7 @@ else
 OFLAGS += -O3
 endif
 
-CFLAGS := -fPIC -std=c++11 $(OFLAGS)
+CFLAGS := -fPIC -std=c++17 $(OFLAGS)
 LDFLAGS := -fPIC -shared -static-libstdc++
 SRCS := $(shell find src -maxdepth 3 -name "*.cpp")
 OBJECTS := $(addprefix $(BUILD_DIR), $(patsubst %.cpp, %.o, $(SRCS)))

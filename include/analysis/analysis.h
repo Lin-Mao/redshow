@@ -65,6 +65,15 @@ class Analysis {
   std::mutex _lock;
 };
 
+struct CompareView {
+  bool operator()(redshow_record_view_t const &r1, redshow_record_view_t const &r2) {
+    return r1.red_count > r2.red_count;
+  }
+};
+
+typedef std::priority_queue<redshow_record_view_t, Vector<redshow_record_view_t>, CompareView>
+    TopViews;
+
 }  // namespace redshow
 
 #endif  // REDSHOW_ANALYSIS_ANALYSIS_H
