@@ -12,19 +12,21 @@ class Vector : public std::vector<V> {
   Vector() = default;
 
   // Not conflict with "contains" in C++20
-  bool has(const V &v) const { return std::find(this->begin(), this->end(), v) != this->end(); }
+  bool has(const V &v) const noexcept {
+    return std::find(this->begin(), this->end(), v) != this->end();
+  }
 };
 
 template <typename V>
 class LockableVector : public Vector<V> {
  public:
-  void lock() { _lock.lock(); }
-  void unlock() { _lock.unlock(); }
+  void lock() const { _lock.lock(); }
+  void unlock() const { _lock.unlock(); }
 
   LockableVector() = default;
 
  private:
-  std::mutex _lock;
+  mutable std::mutex _lock;
 };
 
 }  // namespace redshow

@@ -34,11 +34,9 @@ struct Symbol {
 
 class SymbolVector : public Vector<Symbol> {
  public:
-  bool has(const Symbol &symbol) {
-    return std::find(this->begin(), this->end(), symbol) != this->end();
-  }
+  SymbolVector() = default;
 
-  std::optional<std::tuple<u32, u64, u64>> transform_pc(uint64_t pc) {
+  std::optional<std::tuple<u32, u64, u64>> transform_pc(uint64_t pc) const {
     u32 function_index;
     u64 cubin_offset;
     u64 pc_offset;
@@ -49,13 +47,25 @@ class SymbolVector : public Vector<Symbol> {
     if (symbols_iter != this->begin()) {
       --symbols_iter;
       pc_offset = pc - symbols_iter->pc;
-      cubin_offset = pc_offset + symbols_iter->cubin_offset;
+      cubin_offset = pc_offset + symbols_iter->offset;
       function_index = symbols_iter->index;
     } else {
       return {};
     }
 
     return std::make_tuple(function_index, cubin_offset, pc_offset);
+  }
+
+  void transform_data_views(redshow_record_data_t &record_data) const {
+    // Transform pcs
+    for (auto i = 0; i < record_data.num_views; ++i) {
+      uint64_t pc = record_data.views[i].pc_offset;
+      auto ret = this->transform_pc(pc);
+      if (ret.has_value()) {
+        record_data.views[i].function_index = std::get<0>(ret.value());
+        record_data.views[i].pc_offset = std::get<1>(ret.value());
+      }
+    }
   }
 };
 

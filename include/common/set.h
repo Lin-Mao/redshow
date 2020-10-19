@@ -12,7 +12,7 @@ class Set : public std::set<K> {
   Set() = default;
 
   // Not conflict with "contains" in C++20
-  bool has(const K &k) const { return this->find(k) != this->end(); }
+  bool has(const K &k) const noexcept { return this->find(k) != this->end(); }
 };
 
 }  // namespace redshow

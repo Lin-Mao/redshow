@@ -4,21 +4,21 @@
 #include <string>
 
 #include "common/utils.h"
-#include "operation.h"
+#include "operation/operation.h"
 
 namespace redshow {
 
 struct Memcpy : public Operation {
-  uint64_t src_memory_op_id;
-  uint64_t dst_memory_op_id;
+  u64 src_memory_op_id;
+  u64 dst_memory_op_id;
   std::string hash;
   double redundancy;
 
-  Memcpy() : operation(0, 0, OPERATION_TYPE_MEMCPY) {}
+  Memcpy() : Operation(0, 0, OPERATION_TYPE_MEMCPY) {}
 
   Memcpy(u64 op_id, u32 ctx_id, uint32_t src_memory_op_id, uint32_t dst_memory_op_id,
          const std::string &hash, double redundancy)
-      : operation(op_id, ctx_id, OPERATION_TYPE_MEMCPY),
+      : Operation(op_id, ctx_id, OPERATION_TYPE_MEMCPY),
         src_memory_op_id(src_memory_op_id),
         dst_memory_op_id(dst_memory_op_id),
         hash(hash),

@@ -4,6 +4,8 @@
 #define MIN2(x, y) (x > y ? y : x)
 #define MAX2(x, y) (x > y ? x : y)
 
+namespace redshow {
+
 typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
@@ -68,5 +70,7 @@ u64 value_to_float(u64 value, int decimal_degree_f32);
  * @return u64
  */
 u64 value_to_double(u64 value, int decimal_degree_f64);
+
+}
 
 #endif  // REDSHOW_UTILS_H

@@ -5,8 +5,10 @@
 #include <string>
 
 #include "analysis.h"
+#include "binutils/cubin.h"
 #include "common/graph.h"
 #include "common/map.h"
+#include "common/set.h"
 #include "common/utils.h"
 #include "operation/operation.h"
 #include "redshow.h"
@@ -17,8 +19,11 @@ class ValueFlow final : public Analysis {
  public:
   ValueFlow() : Analysis(REDSHOW_ANALYSIS_VALUE_FLOW) {}
 
-  // Derived functions
-  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id);
+  // Coarse-grained
+  virtual void op_callback(OperationPtr operation);
+
+  // Fine-grained
+  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mode_id);
 
   virtual void analysis_end(u32 cpu_thread, i32 kernel_id);
 
@@ -31,20 +36,21 @@ class ValueFlow final : public Analysis {
                            bool read);
 
   virtual void flush_thread(u32 cpu_thread, const std::string &output_dir,
-                            const Map<u32, Cubin> &cubins,
-                            redshow_record_data_callback_func *record_data_callback);
+                            const LockableMap<u32, Cubin> &cubins,
+                            redshow_record_data_callback_func record_data_callback);
 
-  virtual void flush(const Map<u32, Cubin> &cubins, const std::string &output_dir,
-                     const std::vector<OperationPtr> operations,
-                     redshow_record_data_callback_func *record_data_callback);
+  virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
+                     const Vector<OperationPtr> &operations,
+                     redshow_record_data_callback_func record_data_callback);
+
+  ~ValueFlow() {}
 
  private:
-  void update_op_node(u64 op_id, i32 ctx_id);
-  
-  void analyze_duplicate(const std::vector<OperationPtr> &ops,
-                         Map<i32, Map<i32, bool>> &duplicate);
+  void update_op_node(OperationPtr op);
 
-  void analyze_hot_api(const std::vector<OperationPtr> &value_flow_ops,
+  void analyze_duplicate(const Vector<OperationPtr> &ops, Map<i32, Map<i32, bool>> &duplicate);
+
+  void analyze_hot_api(const Vector<OperationPtr> &value_flow_ops,
                        Map<i32, std::pair<double, int>> &hot_apis);
 
   void dump(const std::string &output_dir, const Map<i32, Map<i32, bool>> &duplicate,
@@ -59,7 +65,7 @@ class ValueFlow final : public Analysis {
 
     Node(i32 ctx_id, OperationType type) : ctx_id(ctx_id), type(type) {}
 
-    Node() : Node(VALUE_FLOW_NODE_ALLOC, 0) {}
+    Node() : Node(0, OPERATION_TYPE_KERNEL) {}
   };
 
   enum EdgeType { VALUE_FLOW_EDGE_ORDER, VALUE_FLOW_EDGE_READ };
@@ -84,20 +90,16 @@ class ValueFlow final : public Analysis {
     Edge(EdgeType type) : type(type) {}
   };
 
-  typedef Graph<NodeIndex, Node, EdgeIndex, Edge> ValueFlowGraph;
+  typedef Graph<Index, Node, EdgeIndex, Edge> ValueFlowGraph;
 
-  struct Trace {
+  struct ValueFlowTrace final : public Trace {
     Set<u64> read_memory_op_ids;
     Set<u64> write_memory_op_ids;
   };
 
  private:
-  thread_local Trace *_trace;
-  Map<u32, Map<i32, Trace>> _kernel_trace;
-
   ValueFlowGraph _graph;
   Map<u64, i32> _op_node;
-  std::mutex _lock;
 };
 
 }  // namespace redshow

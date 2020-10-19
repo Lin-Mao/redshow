@@ -19,7 +19,7 @@ const std::string get_operation_type(OperationType type);
 
 struct Operation {
   u64 op_id;
-  u32 ctx_id;
+  i32 ctx_id;
   OperationType type;
 
   Operation() = default;

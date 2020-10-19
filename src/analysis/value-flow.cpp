@@ -1,9 +1,10 @@
-#include "value_flow.h"
+#include "value-flow.h"
 
 #include <map>
 #include <queue>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <set>
 #include <string>
 
@@ -12,63 +13,74 @@
 #include "redshow_graphviz.h"
 #include "common/hash.h"
 #include "common/utils.h"
+#include "operation/memcpy.h"
+#include "operation/memset.h"
 
 #define DEBUG_VALUE_FLOW 1
 
 namespace redshow {
 
-std::string get_value_flow_edge_type(ValueFlowEdgeType type) {
+std::string ValueFlow::get_value_flow_edge_type(EdgeType type) {
   static std::string value_flow_edge_type[] = {
     "WRITE", "READ"
   };
   return value_flow_edge_type[type];
 }
 
-void ValueFlow::op_callback(std::shared_ptr<Operation> op) {
+void ValueFlow::op_callback(OperationPtr op) {
   // Add a calling context node
-  _graph.lock();
-  
-  update_op_node(op->op_id, op->ctx_id);
+  _lock.lock();
 
-  _graph.unlock();
+  update_op_node(op);
+
+  _lock.unlock();
 }
 
-void ValueFlow::analysis_begin(u32 cpu_thread, i32 kernel_id) {
-  *trace = &(_kernel_trace.at(cpu_thread).at(kernel_id));
+void ValueFlow::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id) {
+  _lock.lock();
+
+  if (!_kernel_trace[cpu_thread].has(kernel_id)) {
+    auto trace = std::make_shared<ValueFlowTrace>();
+    trace->kernel.ctx_id = kernel_id;
+    trace->kernel.cubin_id = cubin_id;
+    trace->kernel.mod_id = mod_id;
+    this->_kernel_trace[cpu_thread][kernel_id] = trace;
+  }
+
+  _trace = std::dynamic_pointer_cast<ValueFlowTrace>(this->_kernel_trace[cpu_thread][kernel_id]);
+
+  _lock.unlock();
 }
 
 void ValueFlow::analysis_end(u32 cpu_thread, i32 kernel_id) {
-  // Hold this lock during analysis
-  _graph.lock();
+  _lock.lock();
 
   // Add a calling context node
   if (!_graph.has_node(kernel_id)) {
-    _graph.add_node(kernel_id, kernel_id, redshow::VALUE_FLOW_NODE_KERNEL);
+    _graph.add_node(std::move(kernel_id), kernel_id, OPERATION_TYPE_KERNEL);
   }
 
   for (auto memory_op_id : _trace->read_memory_op_ids) {
     if (memory_op_id != REDSHOW_MEMORY_SHARED && memory_op_id != REDSHOW_MEMORY_LOCAL) {
-      auto node_id = _op_nodes.at(memory_op_id);
+      auto node_id = _op_node.at(memory_op_id);
       // Link a pure read edge between two calling contexts
-      EdgeIndex edge_index = EdgeIndex(node_id, kernel_id, redshow::VALUE_FLOW_EDGE_READ);
-      _graph.add_edge(std::move(edge_index), redshow::VALUE_FLOW_EDGE_READ);
+      EdgeIndex edge_index = EdgeIndex(node_id, kernel_id, VALUE_FLOW_EDGE_READ);
+      _graph.add_edge(std::move(edge_index), VALUE_FLOW_EDGE_READ);
     }
   }
 
   for (auto memory_op_id : _trace->write_memory_op_ids) {
     if (memory_op_id != REDSHOW_MEMORY_SHARED && memory_op_id != REDSHOW_MEMORY_LOCAL) {
-      auto node_id = _op_nodes.at(memory_op_id);
-      EdgeIndex edge_index = EdgeIndex(node_id, kernel_id, redshow::VALUE_FLOW_EDGE_READ);
-      _graph.remove_edge(std::make_pair(node_id, kernel_id), redshow::VALUE_FLOW_EDGE_READ);
       // Point the operation to the calling context
-      update_op_node(memory_op_id, kernel_id);
+      OperationPtr op = std::make_shared<Operation>(memory_op_id, kernel_id, VALUE_FLOW_EDGE_ORDER);
+      update_op_node(op);
     }
   }
 
-  _graph.unlock();
+  _lock.unlock();
 
-  _trace->read_memory_op_id.clear();
-  _trace->write_memory_op_id.clear();
+  _trace->read_memory_op_ids.clear();
+  _trace->write_memory_op_ids.clear();
   _trace = NULL;
 }
 
@@ -80,7 +92,7 @@ void ValueFlow::block_exit(const ThreadId &thread_id) {
   // No operation
 }
 
-void ValueFlow::unit_access(const ThreadId &thread_id, const AccessKind &access_kind,
+void ValueFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
                             u64 memory_op_id, u64 pc, u64 value, u64 addr, u32 stride, u32 index,
                             bool read) {
   if (read) {
@@ -90,40 +102,50 @@ void ValueFlow::unit_access(const ThreadId &thread_id, const AccessKind &access_
   }
 }
 
-void flush_thread(u32 cpu_thread, const std::string &output_dir, const Map<u32, Cubin> &cubins,
-                  redshow_record_data_callback_func *record_data_callback) {}
+void ValueFlow::flush_thread(u32 cpu_thread, const std::string &output_dir,
+                             const LockableMap<u32, Cubin> &cubins,
+                             redshow_record_data_callback_func record_data_callback) {}
 
-void ValueFlow::flush(const std::string &output_dir, const Map<u32, Cubin> &cubins,
-                      const std::vector<OperationPtr> &operations,
-                      redshow_record_data_callback_func *record_data_callback) {
+void ValueFlow::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
+                      const Vector<OperationPtr> &ops,
+                      redshow_record_data_callback_func record_data_callback) {
   Map<i32, Map<i32, bool>> duplicate;
-  analyze_duplicate(operations, duplicate);
+  analyze_duplicate(ops, duplicate);
 
   Map<i32, std::pair<double, int>> hot_apis;
-  analyze_hot_api(operations, hot_apis);
+  analyze_hot_api(ops, hot_apis);
 
   // analyze_hot_pc
 
-  dump_value_flow(output_dir, _graph, duplicate, hot_apis);
+  dump(output_dir, duplicate, hot_apis);
 
   if (DEBUG_VALUE_FLOW) {
-    for (auto &value_flow_op : operations) {
-      std::cout << "op: (" << value_flow_op.id << "," << value_flow_op.type << ")" << std::endl;
-      std::cout << "redundancy: " << value_flow_op.redundancy << std::endl;
+    for (auto &op : ops) {
+      std::cout << "op: (" << op->ctx_id << ", " << op->op_id << "," << get_operation_type(op->type)
+                << ")" << std::endl;
+
+      auto redundancy = 0.0;
+      if (op->type == OPERATION_TYPE_MEMCPY) {
+        auto op_memcpy = std::dynamic_pointer_cast<Memcpy>(op);
+        redundancy = op_memcpy->redundancy;
+      } else if (op->type == OPERATION_TYPE_MEMSET) {
+        auto op_memset = std::dynamic_pointer_cast<Memset>(op);
+        redundancy = op_memset->redundancy;
+      }
+      std::cout << "redundancy: " << redundancy << std::endl;
     }
     std::cout << std::endl;
 
-    for (auto node_iter = _graph.nodes_begin(); node_iter != _graph.nodes_end();
-         ++node_iter) {
+    for (auto node_iter = _graph.nodes_begin(); node_iter != _graph.nodes_end(); ++node_iter) {
       auto node_id = node_iter->first;
       auto &node = node_iter->second;
       std::cout << "node: (" << node_id << ", " << node.type << ")" << std::endl;
       std::cout << "edge: ";
-      if (_graph.incoming_nodes_size(node_id) > 0) {
-        auto &incoming_nodes = _graph.incoming_nodes(node_id);
+      if (_graph.incoming_edge_size(node_id) > 0) {
+        auto &incoming_edges = _graph.incoming_edges(node_id);
 
-        for (auto &neighbor_iter : incoming_nodes) {
-          std::cout << neighbor_iter.second << ",";
+        for (auto &edge_index : incoming_edges) {
+          std::cout << _graph.node(edge_index.to) << ",";
         }
       }
       std::cout << std::endl;
@@ -140,36 +162,60 @@ void ValueFlow::flush(const std::string &output_dir, const Map<u32, Cubin> &cubi
   }
 }
 
-void ValueFlow::update_op_node(i64 op_id, i32 ctx_id) {
+void ValueFlow::update_op_node(OperationPtr op) {
   if (!_graph.has_node(op->ctx_id)) {
     // Allocate calling context node
-    _graph.add_node(op->ctx_id, op->ctx_id, op->type);
+    _graph.add_node(std::move(op->ctx_id), op->ctx_id, op->type);
   }
 
   // Point the operation to the calling context
-  if (_op_nodes.find(op->op_id) != _op_nodes.end()) {
-    auto prev_ctx_id = _op_nodes.at(op->op_id);
-    _graph.add_edge(prev_ctx_id, op->ctx_id, VALUE_FLOW_EDGE_ORDER);
+  if (_op_node.find(op->op_id) != _op_node.end()) {
+    auto prev_ctx_id = _op_node.at(op->op_id);
+    auto edge_index = EdgeIndex(prev_ctx_id, op->ctx_id, VALUE_FLOW_EDGE_ORDER);
+    _graph.add_edge(std::move(edge_index), VALUE_FLOW_EDGE_ORDER);
   }
 
-  _op_nodes[op_id] = op->ctx_id;
+  _op_node[op->op_id] = op->ctx_id;
 }
 
-void ValueFlow::analyze_duplicate(const Vector<OperationPtr> &operations,
+void ValueFlow::analyze_duplicate(const Vector<OperationPtr> &ops,
                                   Map<i32, Map<i32, bool>> &duplicate) {
-  Map<ui32, std::set<std::string>> node_hashes;
-  for (auto &op : operations) {
-    node_hashes[op.id].insert(op.hash);
+  void analyze_duplicate(const Vector<OperationPtr> &ops,
+                         Map<i32, Map<i32, bool>> &duplicate);
+
+  Map<i32, std::set<std::string>> node_hashes;
+  for (auto op : ops) {
+    std::optional<std::string> hash;
+    if (op->type == OPERATION_TYPE_MEMCPY) {
+      auto op_memcpy = std::dynamic_pointer_cast<Memcpy>(op);
+      hash = op_memcpy->redundancy;
+    } else if (op->type == OPERATION_TYPE_MEMSET) {
+      auto op_memset = std::dynamic_pointer_cast<Memset>(op);
+      hash = op_memset->redundancy;
+    }
+    if (hash.has_value()) {
+      node_hashes[op->op_id].emplace(hash.value());
+    }
   }
 
   Map<std::string, Map<i32, bool>> hash_nodes;
-  for (auto &op : operations) {
-    if (node_hashes[op.id].size() > 1) {
-      // Partial duplicate
-      hash_nodes[op.hash][op.id] = false;
-    } else {
-      // Total duplicate
-      hash_nodes[op.hash][op.id] = true;
+  for (auto &op : ops) {
+    std::optional<std::string> hash;
+    if (op->type == OPERATION_TYPE_MEMCPY) {
+      auto op_memcpy = std::dynamic_pointer_cast<Memcpy>(op);
+      hash = op_memcpy->hash;
+    } else if (op->type == OPERATION_TYPE_MEMSET) {
+      auto op_memset = std::dynamic_pointer_cast<Memset>(op);
+      hash = op_memset->hash;
+    }
+    if (hash.has_value()) {
+      if (node_hashes[op->ctx_id].size() > 1) {
+        // Partial duplicate
+        hash_nodes[hash.value()][op->ctx_id] = false;
+      } else {
+        // Total duplicate
+        hash_nodes[hash.value()][op->ctx_id] = true;
+      }
     }
   }
 
@@ -187,12 +233,20 @@ void ValueFlow::analyze_duplicate(const Vector<OperationPtr> &operations,
   }
 }
 
-void ValueFlow::analyze_hot_api(const std::vector<std::shared_ptr<Operation>> &ops,
+void ValueFlow::analyze_hot_api(const Vector<OperationPtr> &ops,
                                 Map<i32, std::pair<double, int>> &hot_apis) {
-  for (auto &op : operations) {
-    if (op.redundancy > 0) {
-      auto &redundancy_count = hot_apis[op.id];
-      redundancy_count.first += op.redundancy;
+  for (auto op : ops) {
+    auto redundancy = 0.0;
+    if (op->type == OPERATION_TYPE_MEMCPY) {
+      auto op_memcpy = std::dynamic_pointer_cast<Memcpy>(op);
+      redundancy = op_memcpy->redundancy;
+    } else if (op->type == OPERATION_TYPE_MEMSET) {
+      auto op_memset = std::dynamic_pointer_cast<Memset>(op);
+      redundancy = op_memset->redundancy;
+    }
+    if (redundancy > 0) {
+      auto &redundancy_count = hot_apis[op->ctx_id];
+      redundancy_count.first += redundancy;
       redundancy_count.second += 1;
     }
   }
@@ -217,35 +271,35 @@ void ValueFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool
   Map<i32, vertex_descriptor> vertice;
   for (auto node_iter = _graph.nodes_begin(); node_iter != _graph.nodes_end();
        ++node_iter) {
-    auto &node = _graph.node(node_iter->first);
-    if (vertice.find(node.id) == vertice.end()) {
-      auto type = get_operation_node_type(node.type);
+    auto &node = node_iter->second;
+    if (vertice.find(node.ctx_id) == vertice.end()) {
+      auto type = get_operation_type(node.type);
       auto redundancy = 0.0;
-      if (hot_apis.find(node.id) != hot_apis.end()) {
-        redundancy = hot_apis.at(node.id).first;
+      if (hot_apis.find(node.ctx_id) != hot_apis.end()) {
+        redundancy = hot_apis.at(node.ctx_id).first;
       }
-      auto v = boost::add_vertex(VertexProperty(node.id, type, redundancy), g);
-      vertice[node.id] = v;
+      auto v = boost::add_vertex(VertexProperty(node.ctx_id, type, redundancy), g);
+      vertice[node.ctx_id] = v;
     }
-    auto v = vertice[node.id];
+    auto v = vertice[node.ctx_id];
 
-    if (_graph.incoming_nodes_size(node.id) > 0) {
-      auto &incoming_nodes = _graph.incoming_nodes(node.id);
+    if (_graph.incoming_edge_size(node.ctx_id) > 0) {
+      auto &incoming_edges = _graph.incoming_edges(node.ctx_id);
 
-      for (auto &neighbor_iter : incoming_nodes) {
-        auto &incoming_node = _graph.node(neighbor_iter.second);
+      for (auto &edge_index : incoming_edges) {
+        auto &incoming_node = _graph.node(edge_index.to);
 
-        if (vertice.find(incoming_node.id) == vertice.end()) {
-          auto type = get_operation_node_type(incoming_node.type);
+        if (vertice.find(incoming_node.ctx_id) == vertice.end()) {
+          auto type = get_operation_type(incoming_node.type);
           auto redundancy = 0.0;
-          if (hot_apis.find(incoming_node.id) != hot_apis.end()) {
-            redundancy = hot_apis.at(incoming_node.id).first;
+          if (hot_apis.find(incoming_node.ctx_id) != hot_apis.end()) {
+            redundancy = hot_apis.at(incoming_node.ctx_id).first;
           }
-          auto v = boost::add_vertex(VertexProperty(incoming_node.id, type, redundancy), g);
-          vertice[incoming_node.id] = v;
+          auto v = boost::add_vertex(VertexProperty(incoming_node.ctx_id, type, redundancy), g);
+          vertice[incoming_node.ctx_id] = v;
         }
-        auto iv = vertice[incoming_node.id];
-        auto type = get_value_flow_edge_type(neighbor_iter.first);
+        auto iv = vertice[incoming_node.ctx_id];
+        auto type = get_value_flow_edge_type(edge_index.type);
         boost::add_edge(iv, v, EdgeProperty(type), g);
       }
     }

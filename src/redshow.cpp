@@ -15,7 +15,8 @@
 #include "binutils/instruction.h"
 #include "binutils/cubin.h"
 #include "binutils/symbol.h"
-#include "analysis/redundancy.h"
+#include "analysis/temporal-redundancy.h"
+#include "analysis/spatial-redundancy.h"
 #include "analysis/value-flow.h"
 #include "operation/memcpy.h"
 #include "operation/memory.h"
@@ -36,14 +37,13 @@
  * Global data structures
  */
 
-static redshow::LockableMap<u32, redshow::Cubin> cubin_map;
+static redshow::LockableMap<uint32_t, redshow::Cubin> cubin_map;
 
-static redshow::LockableMap<u32, redshow::CubinCache> cubin_cache_map；
+static redshow::LockableMap<uint32_t, redshow::CubinCache> cubin_cache_map；
 
 typedef redshow::LockableMap<redshow::MemoryRange, std::shared_ptr<redshow::Memory>> MemoryMap;
-static redshow::LockableMap<u64, MemoryMap> memory_snapshot;
+static redshow::LockableMap<uint64_t, MemoryMap> memory_snapshot;
 
-static redshow::LockableVector<std::shared_ptr<redshow::Kernel>> kernels;
 static redshow::LockableVector<std::shared_ptr<redshow::Memcpy>> memcpys;
 static redshow::LockableVector<std::shared_ptr<redshow::Memset>> memsets;
 
@@ -56,13 +56,13 @@ static redshow_log_data_callback_func log_data_callback = NULL;
 
 static redshow_record_data_callback_func record_data_callback = NULL;
 
-static __thread uint64_t mini_host_op_id = 0;
+static thread_local uint64_t mini_host_op_id = 0;
 
 static uint32_t pc_views_limit = 0;
 static uint32_t mem_views_limit = 0;
 
-static int decimal_degree_f32 = VALID_FLOAT_DIGITS;
-static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
+static int decimal_degree_f32 = redshow::VALID_FLOAT_DIGITS;
+static int decimal_degree_f64 = redshow::VALID_DOUBLE_DIGITS;
 
 static redshow_data_type_t default_data_type = REDSHOW_DATA_FLOAT;
 
@@ -100,13 +100,11 @@ static redshow_result_t analyze_cubin(const char *path, SymbolVector &symbols,
   return result;
 }
 
-
-static redshow_result_t trace_analyze(u32 cpu_thread, std::shared_ptr<Kernel> kernel,
+static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_t mod_id,
+                                      int32_t kernel_id, uint64_t host_op_id,
                                       gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  auto cubin_id = kernel->cubin_id;
-  auto mod_id = kernel->mod_id;
   SymbolVector *symbols = NULL;
   redshow::InstructionGraph *inst_graph = NULL;
   // Cubin path is added just for debugging purpose
@@ -189,7 +187,7 @@ static redshow_result_t trace_analyze(u32 cpu_thread, std::shared_ptr<Kernel> ke
   }
 
   for (auto analysis : analysis_enabled) {
-    analysis->analysis_begin();
+    analysis->analysis_begin(cpu_thread, kernel_id);
   }
 
   size_t size = trace_data->head_index;
@@ -212,7 +210,7 @@ static redshow_result_t trace_analyze(u32 cpu_thread, std::shared_ptr<Kernel> ke
         if (record->active & (0x1u << j)) {
           uint32_t flat_thread_id =
               record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
-          ThreadId thread_id{record->flat_block_id, flat_thread_id};
+          redshow::ThreadId thread_id{record->flat_block_id, flat_thread_id};
           for (auto analysis : analysis_enabled) {
             analysis->block_exit(thread_id)
           }
@@ -224,7 +222,7 @@ static redshow_result_t trace_analyze(u32 cpu_thread, std::shared_ptr<Kernel> ke
       uint64_t pc_offset = 0;
 
       auto ret = symbols->transform_pc(record->pc);
-      if (ret.has_value) {
+      if (ret.has_value()) {
         std::tie(function_index, cubin_offset, pc_offset) = ret.value();
       } else {
         result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
@@ -261,26 +259,26 @@ static redshow_result_t trace_analyze(u32 cpu_thread, std::shared_ptr<Kernel> ke
 
         uint32_t flat_thread_id =
             record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
-        ThreadId thread_id{record->flat_block_id, flat_thread_id};
+        redshow::ThreadId thread_id{record->flat_block_id, flat_thread_id};
 
-        MemoryRange memory_range(record->address[j], record->address[j]);
+        redshow::MemoryRange memory_range(record->address[j], record->address[j]);
         auto iter = memory_map->prev(memory_range);
         uint64_t memory_op_id = 0;
         if (iter != memory_map->end()) {
           memory_op_id = iter->second.memory_op_id;
         }
 
-        uint32_t stride = GLOBAL_MEMORY_OFFSET;
+        uint32_t stride = redshow::GLOBAL_MEMORY_OFFSET;
         if (memory_op_id == 0) {
           // XXX(Keren): memory_op_id == 1 ?
           // Memory object not found, it means the memory is local, shared, or allocated in an
           // unknown way
           if (record->flags & GPU_PATCH_LOCAL) {
             memory_op_id = REDSHOW_MEMORY_SHARED;
-            stride = LOCAL_MEMORY_OFFSET;
+            stride = redshow::LOCAL_MEMORY_OFFSET;
           } else if (record->flags & GPU_PATCH_SHARED) {
             memory_op_id = REDSHOW_MEMORY_LOCAL;
-            stride = SHARED_MEMORY_OFFSET;
+            stride = redshow::SHARED_MEMORY_OFFSET;
           } else {
             // Unknown allocation
           }
@@ -295,12 +293,6 @@ static redshow_result_t trace_analyze(u32 cpu_thread, std::shared_ptr<Kernel> ke
         redshow::AccessKind unit_access_kind = access_kind;
         // We iterate through all the units such that every unit's vec_size = unit_size
         unit_access_kind.vec_size = unit_access_kind.unit_size;
-
-        if (record->flags & GPU_PATCH_READ) {
-          read_pc_count[record->pc] += num_units;
-        } else {
-          write_pc_count[record->pc] += num_units;
-        }
 
         bool read = (record->flags & GPU_PATCH_READ) ? true : false;
 
@@ -371,28 +363,28 @@ redshow_result_t redshow_approx_level_config(redshow_approx_level_t level) {
 
   switch (level) {
     case REDSHOW_APPROX_NONE:
-      decimal_degree_f32 = VALID_FLOAT_DIGITS;
-      decimal_degree_f64 = VALID_DOUBLE_DIGITS;
+      decimal_degree_f32 = redshow::VALID_FLOAT_DIGITS;
+      decimal_degree_f64 = redshow::VALID_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_MIN:
-      decimal_degree_f32 = MIN_FLOAT_DIGITS;
-      decimal_degree_f64 = MIN_DOUBLE_DIGITS;
+      decimal_degree_f32 = redshow::MIN_FLOAT_DIGITS;
+      decimal_degree_f64 = redshow::MIN_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_LOW:
-      decimal_degree_f32 = LOW_FLOAT_DIGITS;
-      decimal_degree_f64 = LOW_DOUBLE_DIGITS;
+      decimal_degree_f32 = redshow::LOW_FLOAT_DIGITS;
+      decimal_degree_f64 = redshow::LOW_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_MID:
-      decimal_degree_f32 = MID_FLOAT_DIGITS;
-      decimal_degree_f64 = MID_DOUBLE_DIGITS;
+      decimal_degree_f32 = redshow::MID_FLOAT_DIGITS;
+      decimal_degree_f64 = redshow::MID_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_HIGH:
-      decimal_degree_f32 = HIGH_FLOAT_DIGITS;
-      decimal_degree_f64 = HIGH_DOUBLE_DIGITS;
+      decimal_degree_f32 = redshow::HIGH_FLOAT_DIGITS;
+      decimal_degree_f64 = redshow::HIGH_DOUBLE_DIGITS;
       break;
     case REDSHOW_APPROX_MAX:
-      decimal_degree_f32 = MAX_FLOAT_DIGITS;
-      decimal_degree_f64 = MAX_DOUBLE_DIGITS;
+      decimal_degree_f32 = redshow::MAX_FLOAT_DIGITS;
+      decimal_degree_f64 = redshow::MAX_DOUBLE_DIGITS;
       break;
     default:
       result = REDSHOW_ERROR_NO_SUCH_APPROX;
@@ -408,11 +400,16 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
   redshow_result_t result = REDSHOW_SUCCESS;
 
   switch (analysis_type) {
-    case REDSHOW_ANALYSIS_REDUNDANCY:
-      analysis_enabled.emplace(REDSHOW_ANALYSIS_REDUNDANCY, std::make_shared<Redundancy>());
+    case REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY:
+      analysis_enabled.emplace(REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY,
+                               std::make_shared<redshow::SpatialRedundancy>());
+      break;
+    case REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY:
+      analysis_enabled.emplace(REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY,
+                               std::make_shared<redshow::TemporalRedundancy>());
       break;
     case REDSHOW_ANALYSIS_VALUE_FLOW:
-      analysis_enabled.emplace(REDSHOW_ANALYSIS_VALUE_FLOW, std::make_shared<ValueFlow>());
+      analysis_enabled.emplace(REDSHOW_ANALYSIS_VALUE_FLOW, std::make_shared<redshow::ValueFlow>());
       break;
     default:
       result = REDSHOW_ERROR_NO_SUCH_ANALYSIS;
@@ -535,7 +532,7 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
   redshow_result_t result = REDSHOW_SUCCESS;
 
   MemoryMap memory_map;
-  MemoryRange memory_range(start, end);
+  redshow::MemoryRange memory_range(start, end);
   auto memory = std::make_shared<Memory>(memory_range, memory_id, host_op_id);
 
   memory_snapshot.lock();
@@ -577,7 +574,7 @@ redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_
   redshow_result_t result = REDSHOW_SUCCESS;
 
   MemoryMap memory_map;
-  MemoryRange memory_range(start, end);
+  redshow::MemoryRange memory_range(start, end);
 
   memory_snapshot.lock();
   auto snapshot_iter = memory_snapshot.prev(host_op_id);
@@ -606,7 +603,7 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  MemoryRange memory_range(start, 0);
+  redshow::MemoryRange memory_range(start, 0);
 
   memory_snapshot.lock();
   auto snapshot_iter = memory_snapshot.prev(host_op_id);
@@ -706,14 +703,8 @@ redshow_result_t redshow_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_
 
   redshow_result_t result;
 
-  auto kernel = std::make_shared<Kernel>(host_op_id, kernel_id, cubin_id, mod_id);
-
-  kernels.lock();
-  kernels.emplace_back(std::move(kernel));
-  kernels.unlock();
-
   // Analyze trace_data
-  result = trace_analyze(cpu_thread, kernel, trace_data);
+  result = trace_analyze(cpu_thread, cubin_id, mod_id, kernel_id, host_op_id, trace_data);
 
   if (result == REDSHOW_SUCCESS) {
     if (log_data_callback) {
@@ -781,7 +772,7 @@ redshow_result_t redshow_flush_thread(uint32_t cpu_thread) {
   PRINT("\nredshow->Enter redshow_flush cpu_thread %u\n", cpu_thread);
 
   for (auto *analysis : analysis_enabled) {
-    analysis->flush_thread(cpu_thread, cubin_map, record_data_callback);
+    analysis->flush_thread(cpu_thread, output_dir, cubin_map, record_data_callback);
   }
 
   return REDSHOW_SUCCESS;
@@ -790,13 +781,13 @@ redshow_result_t redshow_flush_thread(uint32_t cpu_thread) {
 redshow_result_t redshow_flush() {
   PRINT("\nredshow->Enter redshow_flush\n");
 
-  Vector<OperationPtr> operations;
+  redshow::Vector<redshow::OperationPtr> operations;
 
   operations.insert(operations.end(), memsets.begin(), memsets.end())
   operations.insert(operations.end(), memcpys.begin(), memcpys.end())
 
   for (auto *analysis : analysis_enabled) {
-    analysis->flush(cubin_map, operations, record_data_callback);
+    analysis->flush(output_dir, cubin_map, operations, record_data_callback);
   }
 
   return REDSHOW_SUCCESS;

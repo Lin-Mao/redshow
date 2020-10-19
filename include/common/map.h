@@ -12,14 +12,14 @@ class Map : public std::map<K, V> {
   Map() = default;
 
   // Not conflict with "contains" in C++20
-  bool has(const K &k) const { return this->find(k) != this->end(); }
+  bool has(const K &k) const noexcept { return this->find(k) != this->end(); }
 };
 
 template <typename K, typename V>
 class LockableMap : public Map<K, V> {
  public:
-  void lock() { _lock.lock(); }
-  void unlock() { _lock.unlock(); }
+  void lock() const { _lock.lock(); }
+  void unlock() const { _lock.unlock(); }
 
   LockableMap() = default;
 
@@ -44,7 +44,7 @@ class LockableMap : public Map<K, V> {
   }
 
  private:
-  std::mutex _lock;
+  mutable std::mutex _lock;
 };
 
 }  // namespace redshow

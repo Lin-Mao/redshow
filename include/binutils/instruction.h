@@ -10,6 +10,7 @@
 
 #include "common/graph.h"
 #include "common/utils.h"
+#include "symbol.h"
 #include "redshow.h"
 
 namespace redshow {
@@ -85,9 +86,13 @@ struct Instruction {
 
 struct Dependency {
   bool inter_function = false;
+
+  Dependency() = default;
+
+  Dependency(bool inter_function) : inter_function(inter_function) {}
 };
 
-typedef Graph<u64, Instruction, Dependency> InstructionGraph;
+typedef Graph<u64, Instruction, std::pair<u64, u64>, Dependency> InstructionGraph;
 
 class InstructionParser {
  public:
@@ -101,7 +106,7 @@ class InstructionParser {
    * @return true
    * @return false
    */
-  static bool parse(const std::string &file_path, std::vector<Symbol> &symbols, InstructionGraph &graph);
+  static bool parse(const std::string &file_path, SymbolVector &symbols, InstructionGraph &graph);
 
  private:
   static void default_access_kind(Instruction &inst);
