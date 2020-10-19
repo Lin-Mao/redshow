@@ -15,7 +15,7 @@ void SpatialRedundancy::op_callback(OperationPtr op) {
 void SpatialRedundancy::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id) {
   lock();
 
-  if (!_kernel_trace[cpu_thread].has(kernel_id)) {
+  if (!this->_kernel_trace[cpu_thread].has(kernel_id)) {
     auto trace = std::make_shared<RedundancyTrace>();
     trace->kernel.ctx_id = kernel_id;
     trace->kernel.cubin_id = cubin_id;
@@ -53,11 +53,14 @@ void SpatialRedundancy::unit_access(i32 kernel_id, const ThreadId &thread_id,
   }
 }
 
+void SpatialRedundancy::update_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_kind,
+  SpatialTrace &spatial_trace) {
+  spatial_trace[std::make_pair(memory_op_id, access_kind)][pc][value] += 1;
+}
+
 void SpatialRedundancy::flush_thread(u32 cpu_thread, const std::string &output_dir,
                                      const LockableMap<u32, Cubin> &cubins,
                                      redshow_record_data_callback_func record_data_callback) {
-  lock();
-
   u32 pc_views_limit = 0;
   u32 mem_views_limit = 0;
 
@@ -68,7 +71,11 @@ void SpatialRedundancy::flush_thread(u32 cpu_thread, const std::string &output_d
 
   record_data.views = new redshow_record_view_t[pc_views_limit]();
 
-  auto &thread_kernel_trace = _kernel_trace.at(cpu_thread);
+  lock();
+
+  auto &thread_kernel_trace = this->_kernel_trace.at(cpu_thread);
+
+  unlock();
 
   u64 thread_count = 0;
   u64 thread_read_spatial_count = 0;
@@ -150,8 +157,6 @@ void SpatialRedundancy::flush_thread(u32 cpu_thread, const std::string &output_d
 
   // Release data
   delete[] record_data.views;
-
-  unlock();
 }
 
 void SpatialRedundancy::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,

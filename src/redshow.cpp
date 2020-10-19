@@ -114,7 +114,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
   std::string cubin_path;
 
   cubin_map.lock();
-  if (cubin_map.has(cubin_id) || cubin_map.at(cubin_id).symbols.has(mod_id)) {
+  if (!cubin_map.has(cubin_id) || !cubin_map.at(cubin_id).symbols.has(mod_id)) {
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
   } else {
     symbols = &(cubin_map.at(cubin_id).symbols.at(mod_id));
@@ -130,11 +130,11 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
     const char *path;
 
     cubin_cache_map.lock();
-    if (cubin_cache_map.has(cubin_id)) {
+    if (!cubin_cache_map.has(cubin_id)) {
       result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
     } else {
       auto &cubin_cache = cubin_cache_map.at(cubin_id);
-      if (cubin_cache.symbol_pcs.has(mod_id)) {
+      if (!cubin_cache.symbol_pcs.has(mod_id)) {
         result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
       } else {
         result = REDSHOW_SUCCESS;
@@ -152,11 +152,11 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
     // Try fetch cubin again
     if (result == REDSHOW_SUCCESS) {
       cubin_map.lock();
-      if (cubin_map.has(cubin_id)) {
+      if (!cubin_map.has(cubin_id)) {
         result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
       } else {
         auto &cubin = cubin_map.at(cubin_id);
-        if (cubin.symbols.has(mod_id)) {
+        if (!cubin.symbols.has(mod_id)) {
           result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
         } else {
           result = REDSHOW_SUCCESS;
@@ -481,7 +481,7 @@ redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id
   redshow_result_t result = REDSHOW_SUCCESS;
 
   cubin_cache_map.lock();
-  if (cubin_cache_map.has(cubin_id)) {
+  if (!cubin_cache_map.has(cubin_id)) {
     auto &cubin_cache = cubin_cache_map[cubin_id];
 
     cubin_cache.cubin_id = cubin_id;
@@ -496,6 +496,7 @@ redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id
   }
 
   if (result != REDSHOW_ERROR_DUPLICATE_ENTRY) {
+    cubin_cache_map[cubin_id].symbol_pcs[mod_id] = new uint64_t[nsymbols];
     for (size_t i = 0; i < nsymbols; ++i) {
       cubin_cache_map[cubin_id].symbol_pcs[mod_id][i] = symbol_pcs[i];
     }
@@ -544,15 +545,17 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
     memory_map[memory_range] = memory;
     memory_snapshot[host_op_id] = memory_map;
     result = REDSHOW_SUCCESS;
+    PRINT("Register memory_id %d\n", memory_id);
   } else {
     auto iter = memory_snapshot.prev(host_op_id);
     if (iter != memory_snapshot.end()) {
       // Take a snapshot
       memory_map = iter->second;
-      if (memory_map.has(memory_range)) {
+      if (!memory_map.has(memory_range)) {
         memory_map[memory_range] = memory;
         memory_snapshot[host_op_id] = memory_map;
         result = REDSHOW_SUCCESS;
+        PRINT("Register memory_id %d\n", memory_id);
       } else {
         result = REDSHOW_ERROR_DUPLICATE_ENTRY;
       }
@@ -695,6 +698,13 @@ redshow_result_t redshow_record_data_callback_register(redshow_record_data_callb
   mem_views_limit = mem_views;
 }
 
+redshow_result_t redshow_pc_views_get(uint32_t *views) {
+  *views = pc_views_limit;
+}
+
+redshow_result_t redshow_mem_views_get(uint32_t *views) {
+  *views = mem_views_limit;
+}
 
 redshow_result_t redshow_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_t mod_id,
                                  int32_t kernel_id, uint64_t host_op_id,

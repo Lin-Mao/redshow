@@ -167,7 +167,7 @@ EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analys
  * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id,
-                                                uint32_t nsymbols, uint64_t *symbol_pcs,
+                                                uint32_t nsymbols, const uint64_t *symbol_pcs,
                                                 const char *path);
 
 /**

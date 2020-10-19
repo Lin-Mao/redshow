@@ -1,4 +1,5 @@
 PROJECT := redshow
+PROJECT_GRAPHVIZ := redshow_graphviz
 CONFIGS := Makefile.config
 
 include $(CONFIGS)
@@ -65,6 +66,7 @@ install:
 	mkdir -p $(PREFIX)/$(INC_DIR)
 	cp -rf $(LIB_DIR) $(PREFIX)
 	cp -rf $(INC_DIR)$(PROJECT).h $(PREFIX)/$(INC_DIR)
+	cp -rf $(INC_DIR)$(PROJECT_GRAPHVIZ).h $(PREFIX)/$(INC_DIR)
 endif
 
 #utils

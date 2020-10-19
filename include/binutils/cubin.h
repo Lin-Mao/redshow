@@ -36,6 +36,14 @@ struct CubinCache {
 
   CubinCache(u32 cubin_id, const std::string &path)
       : cubin_id(cubin_id), path(path), nsymbols(0) {}
+
+  ~CubinCache() {
+    for (auto &iter : symbol_pcs) {
+      if (iter.second) {
+        delete[] iter.second;
+      }
+    }
+  }
 };
 
 }  // namespace redshow

@@ -29,17 +29,17 @@ std::string ValueFlow::get_value_flow_edge_type(EdgeType type) {
 
 void ValueFlow::op_callback(OperationPtr op) {
   // Add a calling context node
-  _lock.lock();
+  lock();
 
   update_op_node(op);
 
-  _lock.unlock();
+  unlock();
 }
 
 void ValueFlow::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id) {
-  _lock.lock();
+  lock();
 
-  if (!_kernel_trace[cpu_thread].has(kernel_id)) {
+  if (!this->_kernel_trace[cpu_thread].has(kernel_id)) {
     auto trace = std::make_shared<ValueFlowTrace>();
     trace->kernel.ctx_id = kernel_id;
     trace->kernel.cubin_id = cubin_id;
@@ -49,11 +49,11 @@ void ValueFlow::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 
 
   _trace = std::dynamic_pointer_cast<ValueFlowTrace>(this->_kernel_trace[cpu_thread][kernel_id]);
 
-  _lock.unlock();
+  unlock();
 }
 
 void ValueFlow::analysis_end(u32 cpu_thread, i32 kernel_id) {
-  _lock.lock();
+  lock();
 
   // Add a calling context node
   if (!_graph.has_node(kernel_id)) {
@@ -77,7 +77,7 @@ void ValueFlow::analysis_end(u32 cpu_thread, i32 kernel_id) {
     }
   }
 
-  _lock.unlock();
+  unlock();
 
   _trace->read_memory_op_ids.clear();
   _trace->write_memory_op_ids.clear();

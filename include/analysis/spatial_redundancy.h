@@ -90,11 +90,13 @@ class SpatialRedundancy final : public Analysis {
     PCAccessCount read_pc_count;
     PCAccessCount write_pc_count;
 
+    RedundancyTrace() = default;
+
     virtual ~RedundancyTrace() {}
   };
 
  private:
-  static thread_local std::shared_ptr<RedundancyTrace> _trace;
+  static inline thread_local std::shared_ptr<RedundancyTrace> _trace;
 };
 
 }  // namespace redshow

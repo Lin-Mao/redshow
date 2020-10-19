@@ -106,11 +106,13 @@ class ValueFlow final : public Analysis {
     Set<u64> read_memory_op_ids;
     Set<u64> write_memory_op_ids;
 
+    ValueFlowTrace() = default;
+
     virtual ~ValueFlowTrace() {}
   };
 
  private:
-  static thread_local std::shared_ptr<ValueFlowTrace> _trace;
+  static inline thread_local std::shared_ptr<ValueFlowTrace> _trace;
 
   ValueFlowGraph _graph;
   Map<u64, i32> _op_node;

@@ -2,6 +2,7 @@
 #define REDSHOW_ANALYSIS_ANALYSIS_H
 
 #include <string>
+#include <queue>
 
 #include "redshow.h"
 #include "common/map.h"
