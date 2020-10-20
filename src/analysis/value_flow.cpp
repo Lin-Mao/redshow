@@ -320,9 +320,21 @@ void ValueFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool
       if (overwrite_rate.find(node.ctx_id) != overwrite_rate.end()) {
         overwrite = overwrite_rate.at(node.ctx_id).first;
       }
-      auto v = boost::add_vertex(VertexProperty(node.ctx_id, type, redundancy, overwrite), g);
+      std::string dup;
+      if (duplicate.has(node.ctx_id)) {
+        for (auto &iter : duplicate.at(node.ctx_id)) {
+          auto total = iter.second ? "TOTAL" : "PARTIAL";
+          dup += std::to_string(iter.first) + "," + total + ";";
+        }
+      } 
+      auto v = boost::add_vertex(VertexProperty(node.ctx_id, type, dup, redundancy, overwrite), g);
       vertice[node.ctx_id] = v;
     }
+  }
+
+  for (auto node_iter = _graph.nodes_begin(); node_iter != _graph.nodes_end();
+       ++node_iter) {
+    auto &node = node_iter->second;
     auto v = vertice[node.ctx_id];
 
     if (_graph.incoming_edge_size(node.ctx_id) > 0) {
@@ -331,19 +343,6 @@ void ValueFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool
       for (auto &edge_index : incoming_edges) {
         auto &incoming_node = _graph.node(edge_index.to);
 
-        if (vertice.find(incoming_node.ctx_id) == vertice.end()) {
-          auto type = get_operation_type(incoming_node.type);
-          auto redundancy = 0.0;
-          if (hot_apis.find(incoming_node.ctx_id) != hot_apis.end()) {
-            redundancy = hot_apis.at(incoming_node.ctx_id).first;
-          }
-          auto overwrite = 0.0;
-          if (overwrite_rate.find(incoming_node.ctx_id) != overwrite_rate.end()) {
-            overwrite = overwrite_rate.at(incoming_node.ctx_id).first;
-          }
-          auto v = boost::add_vertex(VertexProperty(incoming_node.ctx_id, type, redundancy, overwrite), g);
-          vertice[incoming_node.ctx_id] = v;
-        }
         auto iv = vertice[incoming_node.ctx_id];
         auto type = get_value_flow_edge_type(edge_index.type);
         boost::add_edge(iv, v, EdgeProperty(type), g);
@@ -356,6 +355,7 @@ void ValueFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool
   dp.property("node_type", boost::get(&VertexProperty::type, g));
   dp.property("overwrite", boost::get(&VertexProperty::overwrite, g));
   dp.property("redundancy", boost::get(&VertexProperty::redundancy, g));
+  dp.property("duplicate", boost::get(&VertexProperty::duplicate, g));
   dp.property("edge_type", boost::get(&EdgeProperty::type, g));
 
   std::ofstream out(output_dir + "value_flow.dot");
