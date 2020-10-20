@@ -68,7 +68,7 @@ class TemporalRedundancy final : public Analysis {
                              redshow_record_data_t &record_data, u64 &kernel_temporal_count);
 
   void show_temporal_trace(u32 cpu_thread, i32 kernel_id, u64 total_red_count, u64 total_count,
-                           TemporalStatistics &temporal_stats, bool is_read, bool is_thread);
+                           TemporalStatistics &temporal_stats, bool is_thread, std::ofstream &out);
 
   /**
    * @brief Update the temporal trace object

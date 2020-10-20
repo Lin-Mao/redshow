@@ -77,6 +77,9 @@ void SpatialRedundancy::flush_thread(u32 cpu_thread, const std::string &output_d
 
   unlock();
 
+  std::ofstream out_read(output_dir + "spatial_read_t" + std::to_string(cpu_thread) + ".csv");
+  std::ofstream out_write(output_dir + "spatial_write_t" + std::to_string(cpu_thread) + ".csv");
+
   u64 thread_count = 0;
   u64 thread_read_spatial_count = 0;
   u64 thread_write_spatial_count = 0;
@@ -134,11 +137,11 @@ void SpatialRedundancy::flush_thread(u32 cpu_thread, const std::string &output_d
     if (mem_views_limit != 0) {
       if (!read_spatial_stats.empty()) {
         show_spatial_trace(cpu_thread, kernel_id, kernel_read_spatial_count, kernel_count,
-                           read_spatial_stats, true, false);
+                           read_spatial_stats, false, out_read);
       }
       if (!write_spatial_stats.empty()) {
         show_spatial_trace(cpu_thread, kernel_id, kernel_write_spatial_count, kernel_count,
-                           write_spatial_stats, false, false);
+                           write_spatial_stats, false, out_write);
       }
     }
   }
@@ -149,11 +152,14 @@ void SpatialRedundancy::flush_thread(u32 cpu_thread, const std::string &output_d
       SpatialStatistics write_spatial_stats;
 
       show_spatial_trace(cpu_thread, 0, thread_read_spatial_count, thread_count, read_spatial_stats,
-                         true, true);
+                         true, out_read);
       show_spatial_trace(cpu_thread, 0, thread_write_spatial_count, thread_count,
-                         write_spatial_stats, false, true);
+                         write_spatial_stats, true, out_write);
     }
   }
+
+  out_read.close();
+  out_write.close();
 
   // Release data
   delete[] record_data.views;
@@ -262,12 +268,10 @@ void SpatialRedundancy::record_spatial_trace(u32 pc_views_limit, u32 mem_views_l
 
 void SpatialRedundancy::show_spatial_trace(u32 cpu_thread, i32 kernel_id, u64 total_red_count,
                                            u64 total_count, SpatialStatistics &spatial_stats,
-                                           bool is_read, bool is_thread) {
+                                           bool is_thread, std::ofstream &out) {
   using std::endl;
   using std::get;
   using std::to_string;
-  std::string r = is_read ? "read" : "write";
-  std::ofstream out("spatial_" + r + "_t" + to_string(cpu_thread) + ".csv", std::ios::app);
   if (is_thread) {
     out << "cpu_thread," << kernel_id << std::endl;
     out << "redundant_access_count,total_access_count,redundancy_rate" << endl;
@@ -303,7 +307,6 @@ void SpatialRedundancy::show_spatial_trace(u32 cpu_thread, i32 kernel_id, u64 to
       }
     }
   }
-  out.close();
 }
 
 void SpatialRedundancy::transform_spatial_statistics(u32 cubin_id, const SymbolVector &symbols,
@@ -312,15 +315,12 @@ void SpatialRedundancy::transform_spatial_statistics(u32 cubin_id, const SymbolV
     for (auto &pc_iter : spatial_stat_iter.second) {
       for (auto &real_pc_pair : pc_iter.second) {
         auto &to_real_pc = real_pc_pair.to_pc;
-        uint32_t function_index = 0;
-        uint64_t cubin_offset = 0;
-        uint64_t pc_offset = 0;
         // to_real_pc
         auto ret = symbols.transform_pc(to_real_pc.pc_offset);
         if (ret.has_value()) {
-          to_real_pc.cubin_id = std::get<0>(ret.value());
-          to_real_pc.function_index = std::get<1>(ret.value());
-          to_real_pc.pc_offset = std::get<2>(ret.value());
+          to_real_pc.cubin_id = ret.value().cubin_id;
+          to_real_pc.function_index = ret.value().function_index;
+          to_real_pc.pc_offset = ret.value().pc_offset;
         }
       }
     }

@@ -10,7 +10,6 @@
 
 #include "common/graph.h"
 #include "common/utils.h"
-#include "symbol.h"
 #include "redshow.h"
 
 namespace redshow {
@@ -109,6 +108,8 @@ struct InstructionDependencyIndex {
 };
 
 typedef Graph<u64, Instruction, InstructionDependencyIndex, InstructionDependency> InstructionGraph;
+
+class SymbolVector;
 
 class InstructionParser {
  public:

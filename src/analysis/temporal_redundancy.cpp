@@ -79,6 +79,9 @@ void TemporalRedundancy::flush_thread(u32 cpu_thread, const std::string &output_
 
   unlock();
 
+  std::ofstream out_read(output_dir + "temporal_read_t" + std::to_string(cpu_thread) + ".csv");
+  std::ofstream out_write(output_dir + "temporal_write_t" + std::to_string(cpu_thread) + ".csv");
+
   u64 thread_count = 0;
   u64 thread_read_temporal_count = 0;
   u64 thread_write_temporal_count = 0;
@@ -135,11 +138,11 @@ void TemporalRedundancy::flush_thread(u32 cpu_thread, const std::string &output_
     if (mem_views_limit != 0) {
       if (!read_temporal_stats.empty()) {
         show_temporal_trace(cpu_thread, kernel_id, kernel_read_temporal_count, kernel_count,
-                            read_temporal_stats, true, false);
+                            read_temporal_stats, false, out_read);
       }
       if (!write_temporal_stats.empty()) {
         show_temporal_trace(cpu_thread, kernel_id, kernel_write_temporal_count, kernel_count,
-                            write_temporal_stats, false, false);
+                            write_temporal_stats, false, out_write);
       }
     }
   }
@@ -150,11 +153,14 @@ void TemporalRedundancy::flush_thread(u32 cpu_thread, const std::string &output_
       TemporalStatistics write_temporal_stats;
 
       show_temporal_trace(cpu_thread, 0, thread_read_temporal_count, thread_count,
-                          read_temporal_stats, true, true);
+                          read_temporal_stats, true, out_read);
       show_temporal_trace(cpu_thread, 0, thread_write_temporal_count, thread_count,
-                          write_temporal_stats, false, true);
+                          write_temporal_stats, true, out_write);
     }
   }
+
+  out_read.close();
+  out_write.close();
 
   // Release data
   delete[] record_data.views;
@@ -276,16 +282,13 @@ void TemporalRedundancy::record_temporal_trace(u32 pc_views_limit, u32 mem_views
   record_data.num_views = num_views;
 }
 
-void TemporalRedundancy::show_temporal_trace(u32 cpu_thread, i32 kernel_id, u64 total_red_count,
-                                             u64 total_count, TemporalStatistics &temporal_stats,
-                                             bool is_read, bool is_thread) {
+void TemporalRedundancy::show_temporal_trace(u32 cpu_thread, i32 kernel_id, u64 total_red_count, u64 total_count,
+  TemporalStatistics &temporal_stats, bool is_thread, std::ofstream &out) {
   using std::endl;
   using std::get;
   using std::make_tuple;
   using std::string;
   using std::to_string;
-  string r = is_read ? "read" : "write";
-  std::ofstream out("temporal_" + r + "_t" + to_string(cpu_thread) + ".csv", std::ios::app);
   if (is_thread) {
     out << "cpu_thread," << cpu_thread << endl;
     out << "redundant_access_count,total_access_count,redundancy_rate" << endl;
@@ -313,7 +316,6 @@ void TemporalRedundancy::show_temporal_trace(u32 cpu_thread, i32 kernel_id, u64 
       }
     }
   }
-  out.close();
 }
 
 void TemporalRedundancy::transform_temporal_statistics(uint32_t cubin_id,
@@ -323,22 +325,19 @@ void TemporalRedundancy::transform_temporal_statistics(uint32_t cubin_id,
     for (auto &real_pc_pair : temp_stat_iter.second) {
       auto &to_real_pc = real_pc_pair.to_pc;
       auto &from_real_pc = real_pc_pair.from_pc;
-      uint32_t function_index = 0;
-      uint64_t cubin_offset = 0;
-      uint64_t pc_offset = 0;
       // to_real_pc
       auto ret = symbols.transform_pc(to_real_pc.pc_offset);
       if (ret.has_value()) {
-        to_real_pc.cubin_id = std::get<0>(ret.value());
-        to_real_pc.function_index = std::get<1>(ret.value());
-        to_real_pc.pc_offset = std::get<2>(ret.value());
+        to_real_pc.cubin_id = ret.value().cubin_id;
+        to_real_pc.function_index = ret.value().function_index;
+        to_real_pc.pc_offset = ret.value().pc_offset;
       }
       // from_real_pc
       ret = symbols.transform_pc(from_real_pc.pc_offset);
       if (ret.has_value()) {
-        from_real_pc.cubin_id = std::get<0>(ret.value());
-        from_real_pc.function_index = std::get<1>(ret.value());
-        from_real_pc.pc_offset = std::get<2>(ret.value());
+        from_real_pc.cubin_id = ret.value().cubin_id;
+        from_real_pc.function_index = ret.value().function_index;
+        from_real_pc.pc_offset = ret.value().pc_offset;
       }
     }
   }

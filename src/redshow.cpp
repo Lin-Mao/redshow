@@ -222,13 +222,11 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
         }
       }
     } else {
-      uint32_t function_index = 0;
-      uint64_t cubin_offset = 0;
-      uint64_t pc_offset = 0;
+      RealPC real_pc;
 
       auto ret = symbols->transform_pc(record->pc);
       if (ret.has_value()) {
-        std::tie(function_index, cubin_offset, pc_offset) = ret.value();
+        real_pc = ret.value();
       } else {
         result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
         return result;
@@ -239,7 +237,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
 
       if (inst_graph->size() != 0) {
         // Accurate mode, when we have instruction information
-        auto &inst = inst_graph->node(cubin_offset);
+        auto &inst = inst_graph->node(real_pc.cubin_offset);
         if (inst.access_kind.get() != NULL) {
           access_kind = *inst.access_kind;
         }
@@ -329,6 +327,8 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
  */
 
 redshow_result_t redshow_output_dir_config(const char *dir) {
+  PRINT("\nredshow->Enter redshow_output_dir_config\ndir: %s\n", dir);
+
   if (dir) {
     output_dir = std::string(dir);
   }

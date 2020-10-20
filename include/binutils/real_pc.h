@@ -6,7 +6,7 @@
 #include "common/utils.h"
 #include "common/vector.h"
 #include "common/map.h"
-#include "instruction.h"
+#include "binutils/instruction.h"
 
 namespace redshow {
 
@@ -14,11 +14,20 @@ struct RealPC {
   u32 cubin_id;
   u32 function_index;
   u64 pc_offset;
+  u64 cubin_offset;
 
   RealPC() = default;
 
+  /**
+   * @brief Construct a new pc
+   *
+   * @param cubin_id id of the cubin
+   * @param function_index function index in a binary
+   * @param pc_offset pc's relative offset to function
+   * @param cubin_offset pc's real offset in a binary
+   */
   RealPC(u32 cubin_id, u32 function_index, u64 pc_offset)
-      : cubin_id(cubin_id), function_index(function_index), pc_offset(pc_offset) {}
+      : cubin_id(cubin_id), function_index(function_index), pc_offset(pc_offset), cubin_offset(0) {}
 
   bool operator<(const RealPC &other) const {
     if (this->cubin_id == other.cubin_id) {
