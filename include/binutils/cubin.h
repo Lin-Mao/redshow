@@ -1,13 +1,14 @@
 #ifndef REDSHOW_BINUTILS_CUBIN_H
 #define REDSHOW_BINUTILS_CUBIN_H
 
+#include <memory>
+#include <string>
+
 #include "symbol.h"
 #include "instruction.h"
 #include "common/map.h"
 #include "common/vector.h"
 #include "common/utils.h"
-
-#include <string>
 
 namespace redshow {
 
@@ -27,7 +28,7 @@ struct Cubin {
 struct CubinCache {
   u32 cubin_id;
   u32 nsymbols;
-  Map<u32, u64 *> symbol_pcs;
+  Map<u32, std::shared_ptr<u64[]>> symbol_pcs;
   std::string path;
 
   CubinCache() = default;
@@ -36,14 +37,6 @@ struct CubinCache {
 
   CubinCache(u32 cubin_id, const std::string &path)
       : cubin_id(cubin_id), path(path), nsymbols(0) {}
-
-  ~CubinCache() {
-    for (auto &iter : symbol_pcs) {
-      if (iter.second) {
-        delete[] iter.second;
-      }
-    }
-  }
 };
 
 }  // namespace redshow

@@ -47,6 +47,8 @@ static LockableMap<uint32_t, CubinCache> cubin_cache_map;
 typedef Map<MemoryRange, std::shared_ptr<Memory>> MemoryMap;
 static LockableMap<uint64_t, MemoryMap> memory_snapshot;
 
+static LockableMap<uint64_t, std::shared_ptr<Memory>> memorys;
+
 static LockableVector<std::shared_ptr<Memcpy>> memcpys;
 static LockableVector<std::shared_ptr<Memset>> memsets;
 
@@ -61,8 +63,8 @@ static redshow_record_data_callback_func record_data_callback = NULL;
 
 static thread_local uint64_t mini_host_op_id = 0;
 
-static uint32_t pc_views_limit = 0;
-static uint32_t mem_views_limit = 0;
+static uint32_t pc_views_limit = PC_VIEWS_LIMIT;
+static uint32_t mem_views_limit = MEM_VIEWS_LIMIT;
 
 static int decimal_degree_f32 = VALID_FLOAT_DIGITS;
 static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
@@ -139,7 +141,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
       } else {
         result = REDSHOW_SUCCESS;
         nsymbols = cubin_cache.nsymbols;
-        symbol_pcs = cubin_cache.symbol_pcs.at(mod_id);
+        symbol_pcs = cubin_cache.symbol_pcs.at(mod_id).get();
         path = cubin_cache.path.c_str();
       }
     }
@@ -496,9 +498,10 @@ redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id
   }
 
   if (result != REDSHOW_ERROR_DUPLICATE_ENTRY) {
-    cubin_cache_map[cubin_id].symbol_pcs[mod_id] = new uint64_t[nsymbols];
+    auto *pcs = new uint64_t[nsymbols];
+    cubin_cache_map[cubin_id].symbol_pcs[mod_id].reset(pcs);
     for (size_t i = 0; i < nsymbols; ++i) {
-      cubin_cache_map[cubin_id].symbol_pcs[mod_id][i] = symbol_pcs[i];
+      pcs[i] = symbol_pcs[i];
     }
   }
   cubin_cache_map.unlock();
@@ -565,6 +568,10 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
   }
   memory_snapshot.unlock();
 
+  memorys.lock();
+  memorys[host_op_id] = memory;
+  memorys.unlock();
+
   if (result == REDSHOW_SUCCESS) {
     for (auto aiter : analysis_enabled) {
       aiter.second->op_callback(memory);
@@ -600,8 +607,13 @@ redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_
   }
   memory_snapshot.unlock();
 
+  memorys.lock();
+  memorys.erase(host_op_id);
+  memorys.unlock();
+
   return result;
 }
+
 
 redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32_t *memory_id,
                                       uint64_t *memory_op_id, uint64_t *shadow_start, uint64_t *len) {
@@ -648,8 +660,15 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
   std::string hash = compute_memory_hash(src_start, len);
   double redundancy = compute_memcpy_redundancy(dst_start, src_start, len);
 
-  auto memcpy = std::make_shared<Memcpy>(memcpy_id, host_op_id, src_memory_op_id, dst_memory_op_id,
-                                         hash, redundancy);
+  double overwrite = 0.0;
+  if (dst_memory_op_id > REDSHOW_MEMORY_HOST) {
+    memorys.lock();
+    overwrite = len / static_cast<double>(memorys[dst_memory_op_id]->len);
+    memorys.unlock();
+  }
+
+  auto memcpy = std::make_shared<Memcpy>(host_op_id, memcpy_id, src_memory_op_id, dst_memory_op_id,
+                                         hash, redundancy, overwrite);
 
   memcpys.lock();
   memcpys.emplace_back(memcpy);
@@ -674,7 +693,14 @@ redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
   std::string hash = compute_memory_hash(shadow_start, len);
   double redundancy = compute_memset_redundancy(shadow_start, value, len);
 
-  auto memset = std::make_shared<Memset>(memset_id, host_op_id, memory_op_id, hash, redundancy);
+  double overwrite = 0.0;
+  if (memory_op_id > REDSHOW_MEMORY_HOST) {
+    memorys.lock();
+    overwrite = len / static_cast<double>(memorys[memory_op_id]->len);
+    memorys.unlock();
+  }
+
+  auto memset = std::make_shared<Memset>(host_op_id, memset_id, memory_op_id, hash, redundancy, overwrite);
 
   memsets.lock();
   memsets.emplace_back(memset);

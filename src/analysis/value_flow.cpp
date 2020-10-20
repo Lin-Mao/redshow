@@ -115,13 +115,16 @@ void ValueFlow::flush(const std::string &output_dir, const LockableMap<u32, Cubi
   Map<i32, std::pair<double, int>> hot_apis;
   analyze_hot_api(ops, hot_apis);
 
+  Map<i32, std::pair<double, int>> overwrite_rate;
+  analyze_overwrite(ops, overwrite_rate);
+
   // analyze_hot_pc
 
-  dump(output_dir, duplicate, hot_apis);
+  dump(output_dir, duplicate, hot_apis, overwrite_rate);
 
   if (DEBUG_VALUE_FLOW) {
     for (auto &op : ops) {
-      std::cout << "op: (" << op->ctx_id << ", " << op->op_id << "," << get_operation_type(op->type)
+      std::cout << "op: (" << op->ctx_id << ", " << op->op_id << ", " << get_operation_type(op->type)
                 << ")" << std::endl;
 
       auto redundancy = 0.0;
@@ -156,7 +159,15 @@ void ValueFlow::flush(const std::string &output_dir, const LockableMap<u32, Cubi
     for (auto &iter : hot_apis) {
       auto &node_id = iter.first;
       auto &api = iter.second;
-      std::cout << "(" << node_id << "," << api.first << "),";
+      std::cout << "(" << node_id << ", " << api.first << "),";
+    }
+    std::cout << std::endl;
+
+    std::cout << "overwrite: ";
+    for (auto &iter : overwrite_rate) {
+      auto &node_id = iter.first;
+      auto &rate = iter.second;
+      std::cout << "(" << node_id << ", " << rate.first << "),";
     }
     std::cout << std::endl;
   }
@@ -258,9 +269,36 @@ void ValueFlow::analyze_hot_api(const Vector<OperationPtr> &ops,
   }
 }
 
+
+void ValueFlow::analyze_overwrite(const Vector<OperationPtr> &ops,
+                                  Map<i32, std::pair<double, int>> &overwrite_rate) {
+  for (auto op : ops) {
+    auto overwrite = 0.0;
+    if (op->type == OPERATION_TYPE_MEMCPY) {
+      auto op_memcpy = std::dynamic_pointer_cast<Memcpy>(op);
+      overwrite = op_memcpy->overwrite;
+    } else if (op->type == OPERATION_TYPE_MEMSET) {
+      auto op_memset = std::dynamic_pointer_cast<Memset>(op);
+      overwrite = op_memset->overwrite;
+    }
+    if (overwrite > 0) {
+      auto &write_count = overwrite_rate[op->ctx_id];
+      write_count.first += overwrite;
+      write_count.second += 1;
+    }
+  }
+
+  // Calculate average
+  for (auto &iter : overwrite_rate) {
+    auto &api = iter.second;
+    api.first = api.first / api.second;
+  }
+}
+
 // TODO(Keren): a template dump pattern
 void ValueFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool>> &duplicate,
-                     const Map<i32, std::pair<double, int>> &hot_apis) {
+                     const Map<i32, std::pair<double, int>> &hot_apis,
+                     const Map<i32, std::pair<double, int>> &overwrite_rate) {
   typedef redshow_graphviz_node VertexProperty;
   typedef redshow_graphviz_edge EdgeProperty;
   typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, VertexProperty,
@@ -278,7 +316,11 @@ void ValueFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool
       if (hot_apis.find(node.ctx_id) != hot_apis.end()) {
         redundancy = hot_apis.at(node.ctx_id).first;
       }
-      auto v = boost::add_vertex(VertexProperty(node.ctx_id, type, redundancy), g);
+      auto overwrite = 0.0;
+      if (overwrite_rate.find(node.ctx_id) != overwrite_rate.end()) {
+        overwrite = overwrite_rate.at(node.ctx_id).first;
+      }
+      auto v = boost::add_vertex(VertexProperty(node.ctx_id, type, redundancy, overwrite), g);
       vertice[node.ctx_id] = v;
     }
     auto v = vertice[node.ctx_id];
@@ -295,7 +337,11 @@ void ValueFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool
           if (hot_apis.find(incoming_node.ctx_id) != hot_apis.end()) {
             redundancy = hot_apis.at(incoming_node.ctx_id).first;
           }
-          auto v = boost::add_vertex(VertexProperty(incoming_node.ctx_id, type, redundancy), g);
+          auto overwrite = 0.0;
+          if (overwrite_rate.find(incoming_node.ctx_id) != overwrite_rate.end()) {
+            overwrite = overwrite_rate.at(incoming_node.ctx_id).first;
+          }
+          auto v = boost::add_vertex(VertexProperty(incoming_node.ctx_id, type, redundancy, overwrite), g);
           vertice[incoming_node.ctx_id] = v;
         }
         auto iv = vertice[incoming_node.ctx_id];
@@ -307,9 +353,10 @@ void ValueFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool
 
   boost::dynamic_properties dp;
   dp.property("node_id", boost::get(&VertexProperty::node_id, g));
+  dp.property("node_type", boost::get(&VertexProperty::type, g));
   dp.property("overwrite", boost::get(&VertexProperty::overwrite, g));
   dp.property("redundancy", boost::get(&VertexProperty::redundancy, g));
-  dp.property("type", boost::get(&EdgeProperty::type, g));
+  dp.property("edge_type", boost::get(&EdgeProperty::type, g));
 
   std::ofstream out(output_dir + "value_flow.dot");
   boost::write_graphviz_dp(out, g, dp);

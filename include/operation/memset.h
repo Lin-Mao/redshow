@@ -12,14 +12,16 @@ struct Memset : public Operation {
   u64 memory_op_id;
   std::string hash;
   double redundancy;
+  double overwrite;
 
   Memset() : Operation(0, 0, OPERATION_TYPE_MEMSET) {}
 
-  Memset(u64 op_id, u32 ctx_id, u64 memory_op_id, const std::string &hash, float redundancy)
+  Memset(u64 op_id, u32 ctx_id, u64 memory_op_id, const std::string &hash, double redundancy, double overwrite)
       : Operation(op_id, ctx_id, OPERATION_TYPE_MEMSET),
         memory_op_id(memory_op_id),
         hash(hash),
-        redundancy(redundancy) {}
+        redundancy(redundancy),
+        overwrite(overwrite) {}
   
   virtual ~Memset() {}
 };

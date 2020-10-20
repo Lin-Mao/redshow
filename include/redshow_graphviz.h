@@ -8,13 +8,14 @@ struct redshow_graphviz_node {
   int32_t node_id;
   std::string context;
   std::string type;
-  float redundancy;
-  float overwrite;
+  double redundancy;
+  double overwrite;
   std::map<std::string, std::string> property;
 
   redshow_graphviz_node() = default;
-  redshow_graphviz_node(int32_t node_id, const std::string &type, float redundancy)
-      : node_id(node_id), type(type), redundancy(redundancy) {}
+
+  redshow_graphviz_node(int32_t node_id, const std::string &type, double redundancy, double overwrite)
+      : node_id(node_id), type(type), redundancy(redundancy), overwrite(overwrite) {}
 };
 
 struct redshow_graphviz_edge {

@@ -53,8 +53,12 @@ class ValueFlow final : public Analysis {
   void analyze_hot_api(const Vector<OperationPtr> &value_flow_ops,
                        Map<i32, std::pair<double, int>> &hot_apis);
 
+  void analyze_overwrite(const Vector<OperationPtr> &value_flow_ops,
+                         Map<i32, std::pair<double, int>> &overwrite_rate);
+
   void dump(const std::string &output_dir, const Map<i32, Map<i32, bool>> &duplicate,
-            const Map<i32, std::pair<double, int>> &hot_apis);
+            const Map<i32, std::pair<double, int>> &hot_apis,
+            const Map<i32, std::pair<double, int>> &overwrite_rate);
 
  private:
   typedef i32 Index;

@@ -41,6 +41,9 @@ const int SHARED_MEMORY_OFFSET = 4;
 const int LOCAL_MEMORY_OFFSET = 4;
 const int GLOBAL_MEMORY_OFFSET = 8;
 
+const int PC_VIEWS_LIMIT = 10;
+const int MEM_VIEWS_LIMIT = 10;
+
 struct ThreadId {
   u32 flat_block_id;
   u32 flat_thread_id;
