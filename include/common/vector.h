@@ -1,6 +1,7 @@
 #ifndef REDSHOW_COMMON_VECTOR_H
 #define REDSHOW_COMMON_VECTOR_H
 
+#include <algorithm>
 #include <mutex>
 #include <vector>
 
