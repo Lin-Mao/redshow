@@ -1,8 +1,8 @@
 #ifndef REDSHOW_GRAPHVIZ_H
 #define REDSHOW_GRAPHVIZ_H
 
-#include <string>
 #include <map>
+#include <string>
 
 struct redshow_graphviz_node {
   int32_t node_id;
@@ -15,8 +15,13 @@ struct redshow_graphviz_node {
 
   redshow_graphviz_node() = default;
 
-  redshow_graphviz_node(int32_t node_id, const std::string &type, const std::string &duplicate, double redundancy, double overwrite)
-      : node_id(node_id), type(type), duplicate(duplicate), redundancy(redundancy), overwrite(overwrite) {}
+  redshow_graphviz_node(int32_t node_id, const std::string &type, const std::string &duplicate,
+                        double redundancy, double overwrite)
+      : node_id(node_id),
+        type(type),
+        duplicate(duplicate),
+        redundancy(redundancy),
+        overwrite(overwrite) {}
 };
 
 struct redshow_graphviz_edge {

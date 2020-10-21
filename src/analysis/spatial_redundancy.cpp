@@ -53,8 +53,8 @@ void SpatialRedundancy::unit_access(i32 kernel_id, const ThreadId &thread_id,
   }
 }
 
-void SpatialRedundancy::update_spatial_trace(u64 pc, u64 value, u64 memory_op_id, AccessKind access_kind,
-  SpatialTrace &spatial_trace) {
+void SpatialRedundancy::update_spatial_trace(u64 pc, u64 value, u64 memory_op_id,
+                                             AccessKind access_kind, SpatialTrace &spatial_trace) {
   spatial_trace[std::make_pair(memory_op_id, access_kind)][pc][value] += 1;
 }
 

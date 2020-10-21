@@ -1,8 +1,8 @@
 #ifndef REDSHOW_COMMON_SET_H
 #define REDSHOW_COMMON_SET_H
 
-#include <set>
 #include <mutex>
+#include <set>
 
 namespace redshow {
 

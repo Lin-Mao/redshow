@@ -76,6 +76,6 @@ u64 value_to_float(u64 value, int decimal_degree_f32);
  */
 u64 value_to_double(u64 value, int decimal_degree_f64);
 
-}
+}  // namespace redshow
 
 #endif  // REDSHOW_UTILS_H

@@ -79,10 +79,10 @@ typedef struct redshow_record_data {
 
 /**
  * @brief Config default output directory
- * 
- * @param dir 
- * @return EXTERNC 
- * 
+ *
+ * @param dir
+ * @return EXTERNC
+ *
  * @thread-safe: No
  */
 EXTERNC redshow_result_t redshow_output_dir_config(const char *dir);
@@ -109,17 +109,17 @@ EXTERNC redshow_result_t redshow_data_type_get(redshow_data_type_t *data_type);
 
 /**
  * @brief Get pc views limit
- * 
- * @param views 
- * @return EXTERNC 
+ *
+ * @param views
+ * @return EXTERNC
  */
 EXTERNC redshow_result_t redshow_pc_views_get(uint32_t *views);
 
 /**
  * @brief Get mem views limit
- * 
- * @param views 
- * @return EXTERNC 
+ *
+ * @param views
+ * @return EXTERNC
  */
 EXTERNC redshow_result_t redshow_mem_views_get(uint32_t *views);
 
@@ -248,11 +248,11 @@ EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t star
  *
  * @param memcpy_id Calling context of the mempry operation
  * @param host_op_id Unique identifier of a memcpy operation
- * @param src_memory_op_id Unique identifier of a src memory object except for MEMORY_ID_HOST as we do
- * not track host memory objects
+ * @param src_memory_op_id Unique identifier of a src memory object except for MEMORY_ID_HOST as we
+ * do not track host memory objects
  * @param src_start Start address of a src memory (shadow) object
- * @param dst_memory_op_id Unique identifier of a dst memory object except for MEMORY_ID_HOST as we do
- * not track host memory objects
+ * @param dst_memory_op_id Unique identifier of a dst memory object except for MEMORY_ID_HOST as we
+ * do not track host memory objects
  * @param dst_start Start address of a dst memory (shadow) object
  * @param len Number of copied bytes
  * @return reshow_result_t
@@ -293,7 +293,7 @@ typedef void (*redshow_log_data_callback_func)(int32_t kernel_id, gpu_patch_buff
  *
  * @param func
  * @return reshow_result_t
- * 
+ *
  * @thread-safe NO
  */
 EXTERNC redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_func func);
@@ -342,7 +342,7 @@ EXTERNC redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, 
  * @brief Mark the begin of the current analysis region
  *
  * @return reshow_result_t
- * 
+ *
  * @thread-safe YES
  */
 EXTERNC redshow_result_t redshow_analysis_begin();
@@ -351,7 +351,7 @@ EXTERNC redshow_result_t redshow_analysis_begin();
  * @brief Mark the end of the current analysis region
  *
  * @return reshow_result_t
- * 
+ *
  * @thread-safe YES
  */
 EXTERNC redshow_result_t redshow_analysis_end();
@@ -370,9 +370,9 @@ EXTERNC redshow_result_t redshow_flush_thread(uint32_t thread_id);
 /**
  * @brief  Flush back all the result. This function is supposed to be called when all the analysis
  * and kernel launches of the whole program is done.
- * 
- * @return reshow_result_t 
- * 
+ *
+ * @return reshow_result_t
+ *
  * @thread-safe NO
  */
 EXTERNC redshow_result_t redshow_flush();

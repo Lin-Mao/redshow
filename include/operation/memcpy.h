@@ -25,17 +25,17 @@ struct Memcpy : public Operation {
         hash(hash),
         redundancy(redundancy),
         overwrite(overwrite) {}
-  
+
   virtual ~Memcpy() {}
 };
 
 /**
  * @brief compute a redundancy for a memcpy operation
- * 
- * @param dst_start 
- * @param src_start 
- * @param len 
- * @return double 
+ *
+ * @param dst_start
+ * @param src_start
+ * @param len
+ * @return double
  */
 double compute_memcpy_redundancy(uint64_t dst_start, uint64_t src_start, uint64_t len);
 

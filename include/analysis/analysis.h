@@ -1,14 +1,14 @@
 #ifndef REDSHOW_ANALYSIS_ANALYSIS_H
 #define REDSHOW_ANALYSIS_ANALYSIS_H
 
-#include <string>
 #include <queue>
+#include <string>
 
-#include "redshow.h"
-#include "common/map.h"
 #include "binutils/cubin.h"
-#include "operation/operation.h"
+#include "common/map.h"
 #include "operation/kernel.h"
+#include "operation/operation.h"
+#include "redshow.h"
 
 namespace redshow {
 
@@ -24,14 +24,10 @@ class Analysis {
  public:
   Analysis(redshow_analysis_type_t type) : _type(type) {}
 
-  virtual void lock() {
-    this->_lock.lock();
-  }
+  virtual void lock() { this->_lock.lock(); }
 
-  virtual void unlock() {
-    this->_lock.unlock();
-  }
-  
+  virtual void unlock() { this->_lock.unlock(); }
+
   // Coarse-grained
   virtual void op_callback(OperationPtr operation) = 0;
 
@@ -50,15 +46,15 @@ class Analysis {
 
   // Flush
   virtual void flush_thread(u32 cpu_thread, const std::string &output_dir,
-                            const LockableMap<u32, Cubin> &cubins, 
+                            const LockableMap<u32, Cubin> &cubins,
                             redshow_record_data_callback_func record_data_callback) = 0;
 
-  virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins, 
+  virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      const Vector<OperationPtr> &operations,
                      redshow_record_data_callback_func record_data_callback) = 0;
 
   virtual ~Analysis() {}
- 
+
  protected:
   Map<u32, Map<i32, std::shared_ptr<Trace>>> _kernel_trace;
 

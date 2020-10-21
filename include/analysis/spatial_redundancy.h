@@ -63,9 +63,8 @@ class SpatialRedundancy final : public Analysis {
                             PCAccessCount &pc_access_count, SpatialStatistics &spatial_stats,
                             redshow_record_data_t &record_data, u64 &kernel_spatial_count);
 
-  void show_spatial_trace(u32 cpu_thread, i32 kernel_id, u64 total_red_count,
-    u64 total_count, SpatialStatistics &spatial_stats,
-    bool is_thread, std::ofstream &out);
+  void show_spatial_trace(u32 cpu_thread, i32 kernel_id, u64 total_red_count, u64 total_count,
+                          SpatialStatistics &spatial_stats, bool is_thread, std::ofstream &out);
 
   /**
    * @brief Update the spatial trace object

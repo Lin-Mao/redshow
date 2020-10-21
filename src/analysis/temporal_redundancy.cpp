@@ -282,8 +282,9 @@ void TemporalRedundancy::record_temporal_trace(u32 pc_views_limit, u32 mem_views
   record_data.num_views = num_views;
 }
 
-void TemporalRedundancy::show_temporal_trace(u32 cpu_thread, i32 kernel_id, u64 total_red_count, u64 total_count,
-  TemporalStatistics &temporal_stats, bool is_thread, std::ofstream &out) {
+void TemporalRedundancy::show_temporal_trace(u32 cpu_thread, i32 kernel_id, u64 total_red_count,
+                                             u64 total_count, TemporalStatistics &temporal_stats,
+                                             bool is_thread, std::ofstream &out) {
   using std::endl;
   using std::get;
   using std::make_tuple;

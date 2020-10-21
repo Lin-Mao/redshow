@@ -1,8 +1,8 @@
 #ifndef REDSHOW_COMMON_VECTOR_H
 #define REDSHOW_COMMON_VECTOR_H
 
-#include <vector>
 #include <mutex>
+#include <vector>
 
 namespace redshow {
 

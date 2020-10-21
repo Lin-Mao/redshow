@@ -3,10 +3,10 @@
 
 #include <queue>
 
+#include "binutils/instruction.h"
+#include "common/map.h"
 #include "common/utils.h"
 #include "common/vector.h"
-#include "common/map.h"
-#include "binutils/instruction.h"
 
 namespace redshow {
 
@@ -80,7 +80,6 @@ struct CompareRealPCPair {
 };
 
 typedef std::priority_queue<RealPCPair, Vector<RealPCPair>, CompareRealPCPair> TopRealPCPairs;
-
 
 }  // namespace redshow
 

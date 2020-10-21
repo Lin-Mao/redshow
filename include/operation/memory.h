@@ -31,7 +31,7 @@ struct Memory : public Operation {
         memory_range(memory_range),
         len(memory_range.end - memory_range.start),
         value(new uint8_t[len]) {}
-  
+
   virtual ~Memory() {}
 };
 

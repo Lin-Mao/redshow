@@ -1,8 +1,8 @@
 #ifndef REDSHOW_ANALYSIS_OPERATION_H
 #define REDSHOW_ANALYSIS_OPERATION_H
 
-#include <string>
 #include <memory>
+#include <string>
 
 #include "common/utils.h"
 
@@ -25,8 +25,7 @@ struct Operation {
 
   Operation() = default;
 
-  Operation(u64 op_id, u32 ctx_id, OperationType type)
-      : op_id(op_id), ctx_id(ctx_id), type(type) {}
+  Operation(u64 op_id, u32 ctx_id, OperationType type) : op_id(op_id), ctx_id(ctx_id), type(type) {}
 
   virtual ~Operation() = 0;
 };

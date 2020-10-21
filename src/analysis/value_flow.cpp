@@ -1,29 +1,26 @@
 #include "analysis/value_flow.h"
 
-#include <map>
-#include <queue>
+#include <boost/graph/graphviz.hpp>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <optional>
+#include <queue>
 #include <set>
 #include <string>
 
-#include <boost/graph/graphviz.hpp>
-
-#include "redshow_graphviz.h"
 #include "common/hash.h"
 #include "common/utils.h"
 #include "operation/memcpy.h"
 #include "operation/memset.h"
+#include "redshow_graphviz.h"
 
 #define DEBUG_VALUE_FLOW 1
 
 namespace redshow {
 
 std::string ValueFlow::get_value_flow_edge_type(EdgeType type) {
-  static std::string value_flow_edge_type[] = {
-    "WRITE", "READ"
-  };
+  static std::string value_flow_edge_type[] = {"WRITE", "READ"};
   return value_flow_edge_type[type];
 }
 
@@ -124,8 +121,8 @@ void ValueFlow::flush(const std::string &output_dir, const LockableMap<u32, Cubi
 
   if (DEBUG_VALUE_FLOW) {
     for (auto &op : ops) {
-      std::cout << "op: (" << op->ctx_id << ", " << op->op_id << ", " << get_operation_type(op->type)
-                << ")" << std::endl;
+      std::cout << "op: (" << op->ctx_id << ", " << op->op_id << ", "
+                << get_operation_type(op->type) << ")" << std::endl;
 
       auto redundancy = 0.0;
       if (op->type == OPERATION_TYPE_MEMCPY) {
@@ -191,8 +188,7 @@ void ValueFlow::update_op_node(OperationPtr op) {
 
 void ValueFlow::analyze_duplicate(const Vector<OperationPtr> &ops,
                                   Map<i32, Map<i32, bool>> &duplicate) {
-  void analyze_duplicate(const Vector<OperationPtr> &ops,
-                         Map<i32, Map<i32, bool>> &duplicate);
+  void analyze_duplicate(const Vector<OperationPtr> &ops, Map<i32, Map<i32, bool>> &duplicate);
 
   Map<i32, std::set<std::string>> node_hashes;
   for (auto op : ops) {
@@ -269,7 +265,6 @@ void ValueFlow::analyze_hot_api(const Vector<OperationPtr> &ops,
   }
 }
 
-
 void ValueFlow::analyze_overwrite(const Vector<OperationPtr> &ops,
                                   Map<i32, std::pair<double, int>> &overwrite_rate) {
   for (auto op : ops) {
@@ -302,13 +297,13 @@ void ValueFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool
   typedef redshow_graphviz_node VertexProperty;
   typedef redshow_graphviz_edge EdgeProperty;
   typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, VertexProperty,
-                                EdgeProperty> Graph;
+                                EdgeProperty>
+      Graph;
   typedef boost::graph_traits<Graph>::vertex_descriptor vertex_descriptor;
   typedef boost::graph_traits<Graph>::edge_descriptor edge_descriptor;
   Graph g;
   Map<i32, vertex_descriptor> vertice;
-  for (auto node_iter = _graph.nodes_begin(); node_iter != _graph.nodes_end();
-       ++node_iter) {
+  for (auto node_iter = _graph.nodes_begin(); node_iter != _graph.nodes_end(); ++node_iter) {
     auto &node = node_iter->second;
     if (vertice.find(node.ctx_id) == vertice.end()) {
       auto type = get_operation_type(node.type);
@@ -326,14 +321,13 @@ void ValueFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool
           auto total = iter.second ? "TOTAL" : "PARTIAL";
           dup += std::to_string(iter.first) + "," + total + ";";
         }
-      } 
+      }
       auto v = boost::add_vertex(VertexProperty(node.ctx_id, type, dup, redundancy, overwrite), g);
       vertice[node.ctx_id] = v;
     }
   }
 
-  for (auto node_iter = _graph.nodes_begin(); node_iter != _graph.nodes_end();
-       ++node_iter) {
+  for (auto node_iter = _graph.nodes_begin(); node_iter != _graph.nodes_end(); ++node_iter) {
     auto &node = node_iter->second;
     auto v = vertice[node.ctx_id];
 

@@ -4,11 +4,11 @@
 #include <memory>
 #include <string>
 
-#include "symbol.h"
-#include "instruction.h"
 #include "common/map.h"
-#include "common/vector.h"
 #include "common/utils.h"
+#include "common/vector.h"
+#include "instruction.h"
+#include "symbol.h"
 
 namespace redshow {
 
@@ -35,8 +35,7 @@ struct CubinCache {
 
   CubinCache(u32 cubin_id) : cubin_id(cubin_id), nsymbols(0) {}
 
-  CubinCache(u32 cubin_id, const std::string &path)
-      : cubin_id(cubin_id), path(path), nsymbols(0) {}
+  CubinCache(u32 cubin_id, const std::string &path) : cubin_id(cubin_id), path(path), nsymbols(0) {}
 };
 
 }  // namespace redshow
