@@ -1,6 +1,8 @@
-#include "utils.h"
+#include "common/utils.h"
 
 #include <cstring>
+
+namespace redshow {
 
 u64 value_to_double(u64 a, int decimal_degree_f64) {
   u64 c = a;
@@ -18,4 +20,6 @@ u64 value_to_float(u64 a, int decimal_degree_f32) {
   u64 b = 0;
   memcpy(&b, &c, sizeof(c));
   return b;
+}
+
 }

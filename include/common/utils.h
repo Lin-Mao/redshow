@@ -1,11 +1,12 @@
 #ifndef REDSHOW_UTILS_H
 #define REDSHOW_UTILS_H
 
-#include <string>
-#include <tuple>
-
 #define MIN2(x, y) (x > y ? y : x)
 #define MAX2(x, y) (x > y ? x : y)
+
+#include <cstdint>
+
+namespace redshow {
 
 typedef int8_t i8;
 typedef int16_t i16;
@@ -40,6 +41,9 @@ const int SHARED_MEMORY_OFFSET = 4;
 const int LOCAL_MEMORY_OFFSET = 4;
 const int GLOBAL_MEMORY_OFFSET = 8;
 
+const int PC_VIEWS_LIMIT = 10;
+const int MEM_VIEWS_LIMIT = 10;
+
 struct ThreadId {
   u32 flat_block_id;
   u32 flat_thread_id;
@@ -71,5 +75,7 @@ u64 value_to_float(u64 value, int decimal_degree_f32);
  * @return u64
  */
 u64 value_to_double(u64 value, int decimal_degree_f64);
+
+}  // namespace redshow
 
 #endif  // REDSHOW_UTILS_H

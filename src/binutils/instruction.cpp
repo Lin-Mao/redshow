@@ -1,4 +1,4 @@
-#include "instruction.h"
+#include "binutils/instruction.h"
 
 #include <algorithm>
 #include <boost/lexical_cast.hpp>
@@ -10,8 +10,9 @@
 #include <queue>
 #include <vector>
 
+#include "binutils/symbol.h"
+#include "common/utils.h"
 #include "redshow.h"
-#include "utils.h"
 
 #ifdef DEBUG_INSTRUCTION
 #define PRINT(...) fprintf(stderr, __VA_ARGS__)
@@ -19,11 +20,9 @@
 #define PRINT(...)
 #endif
 
-#define MIN2(x, y) (x > y ? y : x)
-
 namespace redshow {
 
-static void default_access_kind(Instruction &inst) {
+void InstructionParser::default_access_kind(Instruction &inst) {
   if (inst.access_kind->vec_size == 0) {
     // Determine the vec size of data,
     if (inst.op.find(".128") != std::string::npos) {
@@ -54,8 +53,8 @@ static void default_access_kind(Instruction &inst) {
   }
 }
 
-static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_graph,
-                                   std::set<unsigned int> &visited, bool load) {
+AccessKind InstructionParser::init_access_kind(Instruction &inst, InstructionGraph &inst_graph,
+                                               std::set<unsigned int> &visited, bool load) {
   if (visited.find(inst.pc) != visited.end()) {
     return AccessKind();
   }
@@ -77,15 +76,15 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
     access_kind.vec_size = 32;
   }
 
-  if ((load && inst_graph.outgoing_nodes_size(inst.pc) == 0) ||
-      (!load && inst_graph.incoming_nodes_size(inst.pc) == 0)) {
+  if ((load && inst_graph.outgoing_edge_size(inst.pc) == 0) ||
+      (!load && inst_graph.incoming_edge_size(inst.pc) == 0)) {
     return AccessKind();
   }
 
-  auto &neighbors = load ? inst_graph.outgoing_nodes(inst.pc) : inst_graph.incoming_nodes(inst.pc);
+  auto &edges = load ? inst_graph.outgoing_edges(inst.pc) : inst_graph.incoming_edges(inst.pc);
 
-  for (auto iter = neighbors.begin(); iter != neighbors.end(); ++iter) {
-    auto pc = *iter;
+  for (auto iter = edges.begin(); iter != edges.end(); ++iter) {
+    auto pc = iter->to;
     auto &neighbor_inst = inst_graph.node(pc);
     AccessKind neighbor_access_kind;
 
@@ -197,8 +196,8 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
   return access_kind;
 }
 
-bool parse_instructions(const std::string &file_path, std::vector<Symbol> &symbols,
-                        InstructionGraph &inst_graph) {
+bool InstructionParser::parse(const std::string &file_path, SymbolVector &symbols,
+                              InstructionGraph &inst_graph) {
   boost::property_tree::ptree root;
   boost::property_tree::read_json(file_path, root);
 
@@ -262,7 +261,8 @@ bool parse_instructions(const std::string &file_path, std::vector<Symbol> &symbo
     for (; i < inst.srcs.size(); ++i) {
       int src = inst.srcs[i];
       for (auto src_pc : inst.assign_pcs[src]) {
-        inst_graph.add_edge(src_pc, inst.pc);
+        auto edge_index = InstructionDependencyIndex(src_pc, inst.pc);
+        inst_graph.add_edge(std::move(edge_index), false);
       }
     }
   }
@@ -286,10 +286,10 @@ bool parse_instructions(const std::string &file_path, std::vector<Symbol> &symbo
 
     // Associate access type with instruction
     if (inst.op.find(".STORE") != std::string::npos &&
-        inst_graph.incoming_nodes_size(inst.pc) != 0) {
+        inst_graph.incoming_edge_size(inst.pc) != 0) {
       *inst.access_kind = init_access_kind(inst, inst_graph, visited, false);
     } else if (inst.op.find(".LOAD") != std::string::npos &&
-               inst_graph.outgoing_nodes_size(inst.pc) != 0) {
+               inst_graph.outgoing_edge_size(inst.pc) != 0) {
       *inst.access_kind = init_access_kind(inst, inst_graph, visited, true);
     }
 
