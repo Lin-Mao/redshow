@@ -25,7 +25,7 @@ struct Operation {
 
   Operation() = default;
 
-  Operation(u64 op_id, u32 ctx_id, OperationType type) : op_id(op_id), ctx_id(ctx_id), type(type) {}
+  Operation(u64 op_id, i32 ctx_id, OperationType type) : op_id(op_id), ctx_id(ctx_id), type(type) {}
 
   virtual ~Operation() = 0;
 };

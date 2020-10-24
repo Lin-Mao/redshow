@@ -28,7 +28,29 @@ void ValueFlow::op_callback(OperationPtr op) {
   // Add a calling context node
   lock();
 
-  update_op_node(op);
+  if (!_graph.has_node(op->ctx_id)) {
+    // Allocate calling context node
+    _graph.add_node(std::move(op->ctx_id), op->ctx_id, op->type);
+  }
+
+  if (op->type == OPERATION_TYPE_MEMORY) {
+    update_op_node(op->op_id, op->ctx_id);
+  } else if (op->type == OPERATION_TYPE_MEMCPY) {
+    auto op_memcpy = std::dynamic_pointer_cast<Memcpy>(op);
+    if (op_memcpy->dst_memory_op_id != REDSHOW_MEMORY_HOST) {
+      std::cout << "memcpy " << op_memcpy->dst_memory_op_id << ", " << op_memcpy->ctx_id << std::endl;
+      update_op_node(op_memcpy->dst_memory_op_id, op_memcpy->ctx_id);
+
+      if (op_memcpy->src_memory_op_id != REDSHOW_MEMORY_HOST) {
+        auto src_ctx_id = _op_node.at(op_memcpy->src_memory_op_id);
+        auto dst_ctx_id = _op_node.at(op_memcpy->dst_memory_op_id);
+        link_ctx_node(src_ctx_id, dst_ctx_id, VALUE_FLOW_EDGE_READ);
+      }
+    }
+  } else if (op->type == OPERATION_TYPE_MEMSET) {
+    auto op_memset = std::dynamic_pointer_cast<Memset>(op);
+    update_op_node(op_memset->memory_op_id, op_memset->ctx_id);
+  }
 
   unlock();
 }
@@ -61,16 +83,14 @@ void ValueFlow::analysis_end(u32 cpu_thread, i32 kernel_id) {
     if (memory_op_id != REDSHOW_MEMORY_SHARED && memory_op_id != REDSHOW_MEMORY_LOCAL) {
       auto node_id = _op_node.at(memory_op_id);
       // Link a pure read edge between two calling contexts
-      EdgeIndex edge_index = EdgeIndex(node_id, kernel_id, VALUE_FLOW_EDGE_READ);
-      _graph.add_edge(std::move(edge_index), VALUE_FLOW_EDGE_READ);
+      link_ctx_node(node_id, kernel_id, VALUE_FLOW_EDGE_READ);
     }
   }
 
   for (auto memory_op_id : _trace->write_memory_op_ids) {
     if (memory_op_id != REDSHOW_MEMORY_SHARED && memory_op_id != REDSHOW_MEMORY_LOCAL) {
       // Point the operation to the calling context
-      OperationPtr op = std::make_shared<Kernel>(memory_op_id, kernel_id);
-      update_op_node(op);
+      update_op_node(memory_op_id, kernel_id);
     }
   }
 
@@ -170,20 +190,19 @@ void ValueFlow::flush(const std::string &output_dir, const LockableMap<u32, Cubi
   }
 }
 
-void ValueFlow::update_op_node(OperationPtr op) {
-  if (!_graph.has_node(op->ctx_id)) {
-    // Allocate calling context node
-    _graph.add_node(std::move(op->ctx_id), op->ctx_id, op->type);
-  }
+void ValueFlow::link_ctx_node(i32 src_ctx_id, i32 dst_ctx_id, EdgeType type) {
+  auto edge_index = EdgeIndex(src_ctx_id, dst_ctx_id, type);
+  _graph.add_edge(std::move(edge_index), type);
+}
 
+void ValueFlow::update_op_node(u64 op_id, i32 ctx_id) {
   // Point the operation to the calling context
-  if (_op_node.find(op->op_id) != _op_node.end()) {
-    auto prev_ctx_id = _op_node.at(op->op_id);
-    auto edge_index = EdgeIndex(prev_ctx_id, op->ctx_id, VALUE_FLOW_EDGE_ORDER);
-    _graph.add_edge(std::move(edge_index), VALUE_FLOW_EDGE_ORDER);
+  if (_op_node.find(op_id) != _op_node.end()) {
+    auto prev_ctx_id = _op_node.at(op_id);
+    link_ctx_node(prev_ctx_id, ctx_id, VALUE_FLOW_EDGE_ORDER);
   }
 
-  _op_node[op->op_id] = op->ctx_id;
+  _op_node[op_id] = ctx_id;
 }
 
 void ValueFlow::analyze_duplicate(const Vector<OperationPtr> &ops,
@@ -335,7 +354,7 @@ void ValueFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool
       auto &incoming_edges = _graph.incoming_edges(node.ctx_id);
 
       for (auto &edge_index : incoming_edges) {
-        auto &incoming_node = _graph.node(edge_index.to);
+        auto &incoming_node = _graph.node(edge_index.from);
 
         auto iv = vertice[incoming_node.ctx_id];
         auto type = get_value_flow_edge_type(edge_index.type);

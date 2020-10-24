@@ -46,21 +46,6 @@ class ValueFlow final : public Analysis {
   ~ValueFlow() {}
 
  private:
-  void update_op_node(OperationPtr op);
-
-  void analyze_duplicate(const Vector<OperationPtr> &ops, Map<i32, Map<i32, bool>> &duplicate);
-
-  void analyze_hot_api(const Vector<OperationPtr> &value_flow_ops,
-                       Map<i32, std::pair<double, int>> &hot_apis);
-
-  void analyze_overwrite(const Vector<OperationPtr> &value_flow_ops,
-                         Map<i32, std::pair<double, int>> &overwrite_rate);
-
-  void dump(const std::string &output_dir, const Map<i32, Map<i32, bool>> &duplicate,
-            const Map<i32, std::pair<double, int>> &hot_apis,
-            const Map<i32, std::pair<double, int>> &overwrite_rate);
-
- private:
   typedef i32 Index;
 
   struct Node {
@@ -114,6 +99,23 @@ class ValueFlow final : public Analysis {
 
     virtual ~ValueFlowTrace() {}
   };
+
+ private:
+  void link_ctx_node(i32 src_ctx_id, i32 dst_ctx_id, EdgeType type);
+
+  void update_op_node(u64 op_id, i32 ctx_id);
+
+  void analyze_duplicate(const Vector<OperationPtr> &ops, Map<i32, Map<i32, bool>> &duplicate);
+
+  void analyze_hot_api(const Vector<OperationPtr> &value_flow_ops,
+                       Map<i32, std::pair<double, int>> &hot_apis);
+
+  void analyze_overwrite(const Vector<OperationPtr> &value_flow_ops,
+                         Map<i32, std::pair<double, int>> &overwrite_rate);
+
+  void dump(const std::string &output_dir, const Map<i32, Map<i32, bool>> &duplicate,
+            const Map<i32, std::pair<double, int>> &hot_apis,
+            const Map<i32, std::pair<double, int>> &overwrite_rate);
 
  private:
   static inline thread_local std::shared_ptr<ValueFlowTrace> _trace;
