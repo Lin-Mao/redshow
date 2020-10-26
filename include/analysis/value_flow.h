@@ -11,6 +11,10 @@
 #include "common/set.h"
 #include "common/utils.h"
 #include "operation/operation.h"
+#include "operation/memcpy.h"
+#include "operation/memory.h"
+#include "operation/memset.h"
+#include "operation/kernel.h"
 #include "redshow.h"
 
 namespace redshow {
@@ -40,25 +44,9 @@ class ValueFlow final : public Analysis {
                             redshow_record_data_callback_func record_data_callback);
 
   virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
-                     const Vector<OperationPtr> &operations,
                      redshow_record_data_callback_func record_data_callback);
 
   ~ValueFlow() {}
-
- private:
-  void update_op_node(OperationPtr op);
-
-  void analyze_duplicate(const Vector<OperationPtr> &ops, Map<i32, Map<i32, bool>> &duplicate);
-
-  void analyze_hot_api(const Vector<OperationPtr> &value_flow_ops,
-                       Map<i32, std::pair<double, int>> &hot_apis);
-
-  void analyze_overwrite(const Vector<OperationPtr> &value_flow_ops,
-                         Map<i32, std::pair<double, int>> &overwrite_rate);
-
-  void dump(const std::string &output_dir, const Map<i32, Map<i32, bool>> &duplicate,
-            const Map<i32, std::pair<double, int>> &hot_apis,
-            const Map<i32, std::pair<double, int>> &overwrite_rate);
 
  private:
   typedef i32 Index;
@@ -98,6 +86,9 @@ class ValueFlow final : public Analysis {
 
   struct Edge {
     EdgeType type;
+    uint32_t count;
+    double redundancy;
+    double overwrite;
 
     Edge() = default;
 
@@ -116,10 +107,30 @@ class ValueFlow final : public Analysis {
   };
 
  private:
+  void memory_op_callback(std::shared_ptr<Memory> op);
+
+  void memset_op_callback(std::shared_ptr<Memset> op);
+
+  void memcpy_op_callback(std::shared_ptr<Memcpy> op);
+
+  void link_op_node(u64 op_id, i32 ctx_id);
+
+  void link_ctx_node(i32 src_ctx_id, i32 dst_ctx_id, EdgeType type);
+
+  void update_op_metrics(u64 op_id, i32 ctx_id, double redundancy, double overwrite);
+
+  void update_op_node(u64 op_id, i32 ctx_id);
+
+  void analyze_duplicate(Map<i32, Map<i32, bool>> &duplicate);
+
+  void dump(const std::string &output_dir, const Map<i32, Map<i32, bool>> &duplicate);
+
+ private:
   static inline thread_local std::shared_ptr<ValueFlowTrace> _trace;
 
   ValueFlowGraph _graph;
   Map<u64, i32> _op_node;
+  Map<i32, Set<std::string>> _node_hash;
 };
 
 }  // namespace redshow

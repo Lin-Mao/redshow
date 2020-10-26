@@ -261,7 +261,8 @@ EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t star
  */
 EXTERNC redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
                                                  uint64_t src_memory_op_id, uint64_t src_start,
-                                                 uint64_t dst_memory_op_id, uint64_t dst_start,
+                                                 uint64_t src_len, uint64_t dst_memory_op_id,
+                                                 uint64_t dst_start, uint64_t dst_len,
                                                  uint64_t len);
 
 /**
@@ -279,7 +280,7 @@ EXTERNC redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t hos
  */
 EXTERNC redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
                                                  uint64_t memory_op_id, uint64_t shadow_start,
-                                                 uint32_t value, uint64_t len);
+                                                 uint64_t shadow_len, uint32_t value, uint64_t len);
 
 /**
  * @brief Callback function prototype

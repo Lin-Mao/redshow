@@ -50,7 +50,6 @@ class Analysis {
                             redshow_record_data_callback_func record_data_callback) = 0;
 
   virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
-                     const Vector<OperationPtr> &operations,
                      redshow_record_data_callback_func record_data_callback) = 0;
 
   virtual ~Analysis() {}
