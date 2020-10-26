@@ -166,7 +166,6 @@ void SpatialRedundancy::flush_thread(u32 cpu_thread, const std::string &output_d
 }
 
 void SpatialRedundancy::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
-                              const Vector<OperationPtr> &operations,
                               redshow_record_data_callback_func record_data_callback) {}
 
 void SpatialRedundancy::record_spatial_trace(u32 pc_views_limit, u32 mem_views_limit,

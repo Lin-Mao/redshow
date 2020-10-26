@@ -49,9 +49,6 @@ static LockableMap<uint64_t, MemoryMap> memory_snapshot;
 
 static LockableMap<uint64_t, std::shared_ptr<Memory>> memorys;
 
-static LockableVector<std::shared_ptr<Memcpy>> memcpys;
-static LockableVector<std::shared_ptr<Memset>> memsets;
-
 // Init analysis instance
 static Map<redshow_analysis_type_t, std::shared_ptr<Analysis>> analysis_enabled;
 
@@ -650,32 +647,20 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
 
 redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
                                          uint64_t src_memory_op_id, uint64_t src_start,
-                                         uint64_t dst_memory_op_id, uint64_t dst_start,
-                                         uint64_t len) {
+                                         uint64_t src_len, uint64_t dst_memory_op_id,
+                                         uint64_t dst_start, uint64_t dst_len, uint64_t len) {
   PRINT(
       "\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %d\nhost_op_id: "
       "%llu\nsrc_memory_op_id: "
-      "%llu\nsrc_start: %p\ndst_memory_op_id: %llu\ndst_start: %p\nlen: %llu\n",
-      memcpy_id, host_op_id, src_memory_op_id, src_start, dst_memory_op_id, dst_start, len);
+      "%llu\nsrc_start: %p\nsrc_len: %llu\ndst_memory_op_id: %llu\ndst_start: %p\ndst_len: "
+      "%llu\nlen: %llu\n",
+      memcpy_id, host_op_id, src_memory_op_id, src_start, src_len, dst_memory_op_id, dst_start,
+      dst_len, len);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  std::string hash = compute_memory_hash(src_start, len);
-  double redundancy = compute_memcpy_redundancy(dst_start, src_start, len);
-
-  double overwrite = 0.0;
-  if (dst_memory_op_id > REDSHOW_MEMORY_HOST) {
-    memorys.lock();
-    overwrite = len / static_cast<double>(memorys[dst_memory_op_id]->len);
-    memorys.unlock();
-  }
-
-  auto memcpy = std::make_shared<Memcpy>(host_op_id, memcpy_id, src_memory_op_id, dst_memory_op_id,
-                                         hash, redundancy, overwrite);
-
-  memcpys.lock();
-  memcpys.emplace_back(memcpy);
-  memcpys.unlock();
+  auto memcpy = std::make_shared<Memcpy>(host_op_id, memcpy_id, src_memory_op_id, src_start, src_len,
+                                         dst_memory_op_id, dst_start, dst_len, len);
 
   for (auto aiter : analysis_enabled) {
     aiter.second->op_callback(memcpy);
@@ -686,30 +671,16 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
 
 redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
                                          uint64_t memory_op_id, uint64_t shadow_start,
-                                         uint32_t value, uint64_t len) {
+                                         uint64_t shadow_len, uint32_t value, uint64_t len) {
   PRINT(
       "\nredshow->Enter redshow_memset_register\nmemset_id: %d\nhost_op_id: %llu\nmemory_op_id: "
-      "%llu\nshadow_start: %p\nvalue: %u\nlen: %llu\n",
-      memset_id, host_op_id, memory_op_id, shadow_start, value, len);
+      "%llu\nshadow_start: %p\nshadow_len: %llu\nvalue: %u\nlen: %llu\n",
+      memset_id, host_op_id, memory_op_id, shadow_start, shadow_len, value, len);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  std::string hash = compute_memory_hash(shadow_start, len);
-  double redundancy = compute_memset_redundancy(shadow_start, value, len);
-
-  double overwrite = 0.0;
-  if (memory_op_id > REDSHOW_MEMORY_HOST) {
-    memorys.lock();
-    overwrite = len / static_cast<double>(memorys[memory_op_id]->len);
-    memorys.unlock();
-  }
-
-  auto memset =
-      std::make_shared<Memset>(host_op_id, memset_id, memory_op_id, hash, redundancy, overwrite);
-
-  memsets.lock();
-  memsets.emplace_back(memset);
-  memsets.unlock();
+  auto memset = std::make_shared<Memset>(host_op_id, memset_id, memory_op_id, shadow_start,
+                                         shadow_len, value, len);
 
   for (auto aiter : analysis_enabled) {
     aiter.second->op_callback(memset);
@@ -820,13 +791,8 @@ redshow_result_t redshow_flush_thread(uint32_t cpu_thread) {
 redshow_result_t redshow_flush() {
   PRINT("\nredshow->Enter redshow_flush\n");
 
-  Vector<OperationPtr> operations;
-
-  operations.insert(operations.end(), memsets.begin(), memsets.end());
-  operations.insert(operations.end(), memcpys.begin(), memcpys.end());
-
   for (auto aiter : analysis_enabled) {
-    aiter.second->flush(output_dir, cubin_map, operations, record_data_callback);
+    aiter.second->flush(output_dir, cubin_map, record_data_callback);
   }
 
   return REDSHOW_SUCCESS;

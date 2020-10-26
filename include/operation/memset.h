@@ -10,19 +10,21 @@ namespace redshow {
 
 struct Memset : public Operation {
   u64 memory_op_id;
-  std::string hash;
-  double redundancy;
-  double overwrite;
+  u64 shadow_start;
+  u64 shadow_len;
+  u64 value;
+  u64 len;
 
   Memset() : Operation(0, 0, OPERATION_TYPE_MEMSET) {}
 
-  Memset(u64 op_id, i32 ctx_id, u64 memory_op_id, const std::string &hash, double redundancy,
-         double overwrite)
+  Memset(u64 op_id, i32 ctx_id, u64 memory_op_id, u64 shadow_start, u64 shadow_len, u64 value,
+         u64 len)
       : Operation(op_id, ctx_id, OPERATION_TYPE_MEMSET),
         memory_op_id(memory_op_id),
-        hash(hash),
-        redundancy(redundancy),
-        overwrite(overwrite) {}
+        shadow_start(shadow_start),
+        shadow_len(shadow_len),
+        value(value),
+        len(len) {}
 
   virtual ~Memset() {}
 };

@@ -167,7 +167,6 @@ void TemporalRedundancy::flush_thread(u32 cpu_thread, const std::string &output_
 }
 
 void TemporalRedundancy::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
-                               const Vector<OperationPtr> &operations,
                                redshow_record_data_callback_func record_data_callback) {}
 
 void TemporalRedundancy::update_temporal_trace(u64 pc, ThreadId thread_id, u64 addr, u64 value,
