@@ -21,7 +21,7 @@ namespace redshow {
 
 class ValueFlow final : public Analysis {
  public:
-  ValueFlow() : Analysis(REDSHOW_ANALYSIS_VALUE_FLOW) {}
+  ValueFlow() : Analysis(REDSHOW_ANALYSIS_VALUE_FLOW) { init(); }
 
   // Coarse-grained
   virtual void op_callback(OperationPtr operation);
@@ -92,7 +92,10 @@ class ValueFlow final : public Analysis {
 
     Edge() = default;
 
-    Edge(EdgeType type) : type(type) {}
+    Edge(EdgeType type, double redundancy, double overwrite) :
+      type(type), redundancy(redundancy), overwrite(overwrite), count(0) {}
+
+    Edge(EdgeType type) : Edge(type, 0.0, 0.0) {}
   };
 
   typedef Graph<Index, Node, EdgeIndex, Edge> ValueFlowGraph;
@@ -107,6 +110,8 @@ class ValueFlow final : public Analysis {
   };
 
  private:
+  void init();
+
   void memory_op_callback(std::shared_ptr<Memory> op);
 
   void memset_op_callback(std::shared_ptr<Memset> op);
@@ -131,6 +136,11 @@ class ValueFlow final : public Analysis {
   ValueFlowGraph _graph;
   Map<u64, i32> _op_node;
   Map<i32, Set<std::string>> _node_hash;
+
+  static inline const i32 SHARED_MEM_CTX_ID   = (1 << 30);
+  static inline const i32 CONSTANT_MEM_CTX_ID = (1 << 30) + 1;
+  static inline const i32 UVM_MEM_CTX_ID      = (1 << 30) + 2;
+  static inline const i32 HOST_MEM_CTX_ID     = (1 << 30) + 3;
 };
 
 }  // namespace redshow

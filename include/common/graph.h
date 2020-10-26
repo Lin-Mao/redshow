@@ -61,6 +61,18 @@ class Graph {
     }
   }
 
+  template <typename... Args>
+  void add_edge(const EdgeIndex &edge_index, Args &&... edge) noexcept {
+    typename EdgeMap::iterator iter;
+    bool inserted;
+    std::tie(iter, inserted) =
+        _edges.try_emplace(std::forward<EdgeIndex>(edge_index), std::forward<Args>(edge)...);
+    if (inserted) {
+      _incoming_edges[edge_index.to].emplace(edge_index);
+      _outgoing_edges[edge_index.from].emplace(edge_index);
+    }
+  }
+
   void remove_edge(const EdgeIndex &edge_index) {
     _incoming_edges[edge_index.to].erase(edge_index);
     _outgoing_edges[edge_index.from].erase(edge_index);
@@ -73,6 +85,11 @@ class Graph {
   template <typename... Args>
   void add_node(Index &&index, Args &&... args) noexcept {
     _nodes.try_emplace(std::forward<Index>(index), std::forward<Args>(args)...);
+  }
+
+  template <typename... Args>
+  void add_node(const Index &index, Args &&... args) noexcept {
+    _nodes.try_emplace(index, std::forward<Args>(args)...);
   }
 
   void remove_node(const Index &index) { _nodes.erase(index); }

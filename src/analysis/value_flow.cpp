@@ -4,7 +4,6 @@
 #include <fstream>
 #include <iostream>
 #include <map>
-#include <optional>
 #include <queue>
 #include <set>
 #include <string>
@@ -24,6 +23,19 @@ std::string ValueFlow::get_value_flow_edge_type(EdgeType type) {
   return value_flow_edge_type[type];
 }
 
+void ValueFlow::init() {
+  // A special context id for untrackable memorys
+  _op_node[REDSHOW_MEMORY_SHARED] = SHARED_MEM_CTX_ID;
+  _op_node[REDSHOW_MEMORY_CONSTANT] = CONSTANT_MEM_CTX_ID;
+  _op_node[REDSHOW_MEMORY_UVM] = UVM_MEM_CTX_ID;
+  _op_node[REDSHOW_MEMORY_HOST] = HOST_MEM_CTX_ID;
+  
+  _graph.add_node(SHARED_MEM_CTX_ID, SHARED_MEM_CTX_ID, OPERATION_TYPE_MEMORY);
+  _graph.add_node(CONSTANT_MEM_CTX_ID, CONSTANT_MEM_CTX_ID, OPERATION_TYPE_MEMORY);
+  _graph.add_node(UVM_MEM_CTX_ID, UVM_MEM_CTX_ID, OPERATION_TYPE_MEMORY);
+  _graph.add_node(HOST_MEM_CTX_ID, HOST_MEM_CTX_ID, OPERATION_TYPE_MEMORY);
+}
+
 void ValueFlow::memory_op_callback(std::shared_ptr<Memory> op) {
   update_op_node(op->op_id, op->ctx_id);
 }
@@ -32,7 +44,7 @@ void ValueFlow::memset_op_callback(std::shared_ptr<Memset> op) {
   double redundancy = compute_memset_redundancy(op->shadow_start, op->value, op->len);
 
   double overwrite = 0.0;
-  overwrite = op->len / op->shadow_len;
+  overwrite = op->len / static_cast<double>(op->shadow_len);
 
   link_op_node(op->memory_op_id, op->ctx_id);
   update_op_metrics(op->memory_op_id, op->ctx_id, redundancy, overwrite);
@@ -50,21 +62,19 @@ void ValueFlow::memset_op_callback(std::shared_ptr<Memset> op) {
 void ValueFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
   double redundancy = compute_memset_redundancy(op->dst_start, op->src_start, op->len);
 
-  double overwrite = 0.0;
-  overwrite = op->len / op->dst_len;
-
-  if (op->dst_memory_op_id != REDSHOW_MEMORY_HOST) {
-    link_op_node(op->dst_memory_op_id, op->ctx_id);
-    update_op_metrics(op->dst_memory_op_id, op->ctx_id, redundancy, overwrite);
+  double overwrite = 1.0;
+  if (op->dst_len != 0) {
+    // On device memory
+    overwrite = op->len / static_cast<double>(op->dst_len);
   }
 
-  if (op->src_memory_op_id != REDSHOW_MEMORY_HOST) {
-    auto src_ctx_id = _op_node.at(op->src_memory_op_id);
-    auto dst_ctx_id = _op_node.at(op->dst_memory_op_id);
-    link_ctx_node(src_ctx_id, dst_ctx_id, VALUE_FLOW_EDGE_READ);
-  }
-
+  link_op_node(op->dst_memory_op_id, op->ctx_id);
+  update_op_metrics(op->dst_memory_op_id, op->ctx_id, redundancy, overwrite);
   update_op_node(op->dst_memory_op_id, op->ctx_id);
+
+  auto src_ctx_id = _op_node.at(op->src_memory_op_id);
+  auto dst_ctx_id = _op_node.at(op->dst_memory_op_id);
+  link_ctx_node(src_ctx_id, dst_ctx_id, VALUE_FLOW_EDGE_READ);
 
   std::string hash = compute_memory_hash(op->dst_start, op->dst_len);
   _node_hash[op->ctx_id].emplace(hash);
@@ -221,13 +231,16 @@ void ValueFlow::analyze_duplicate(Map<i32, Map<i32, bool>> &duplicate) {
   Map<std::string, Map<i32, bool>> hash_nodes;
   for (auto &node_iter : _node_hash) {
     auto node_id = node_iter.first;
-    std::optional<std::string> hash;
     if (node_iter.second.size() > 1) {
-        // Partial duplicate
-      hash_nodes[hash.value()][node_id] = false;
+      // Partial duplicate
+      for (auto &hash : node_iter.second) {
+        hash_nodes[hash][node_id] = false;
+      }
     } else {
       // Total duplicate
-      hash_nodes[hash.value()][node_id] = true;
+      for (auto &hash : node_iter.second) {
+        hash_nodes[hash][node_id] = true;
+      }
     }
   }
 
@@ -284,7 +297,7 @@ void ValueFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool
         auto &incoming_node = _graph.node(edge_index.from);
         auto &edge = _graph.edge(edge_index);
         auto redundancy_avg = edge.redundancy / edge.count;
-        auto overwrite_avg = edge.overwrite / edge.overwrite;
+        auto overwrite_avg = edge.overwrite / edge.count;
 
         auto iv = vertice[incoming_node.ctx_id];
         auto type = get_value_flow_edge_type(edge_index.type);
