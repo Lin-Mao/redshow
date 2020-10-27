@@ -281,7 +281,7 @@ void ValuePattern::dense_value_pattern(ItemsValueCount &array_items,
   for (auto iter : unique_value_count) {
     unique_value_count_vec.emplace_back(iter.first, iter.second);
   }
-  sort(unique_value_count_vec.begin(), unique_value_count_vec.end(),
+  std::sort(unique_value_count_vec.begin(), unique_value_count_vec.end(),
        [](auto &l, auto &r) { return l.second > r.second; });
 
   for (int i = 0; i < std::min((size_t)TOP_NUM_VALUE, unique_value_count_vec.size()); i++) {
