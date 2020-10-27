@@ -39,16 +39,16 @@ void SpatialRedundancy::block_exit(const ThreadId &thread_id) {
 }
 
 void SpatialRedundancy::unit_access(i32 kernel_id, const ThreadId &thread_id,
-                                    const AccessKind &access_kind, u64 memory_op_id, u64 pc,
-                                    u64 value, u64 addr, u32 stride, u32 index, bool read) {
-  addr += index * stride;
+                                    const AccessKind &access_kind, const Memory &memory, u64 pc,
+                                    u64 value, u64 addr, u32 index, bool read) {
+  addr += index * access_kind.unit_size / 8;
   if (read) {
     auto &spatial_trace = _trace->read_spatial_trace;
-    update_spatial_trace(pc, value, memory_op_id, access_kind, spatial_trace);
+    update_spatial_trace(pc, value, memory.op_id, access_kind, spatial_trace);
     _trace->read_pc_count[pc]++;
   } else {
     auto &spatial_trace = _trace->write_spatial_trace;
-    update_spatial_trace(pc, value, memory_op_id, access_kind, spatial_trace);
+    update_spatial_trace(pc, value, memory.op_id, access_kind, spatial_trace);
     _trace->write_pc_count[pc]++;
   }
 }

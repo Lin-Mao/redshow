@@ -43,7 +43,7 @@ class TemporalRedundancy final : public Analysis {
   virtual void block_exit(const ThreadId &thread_id);
 
   virtual void unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
-                           u64 memory_op_id, u64 pc, u64 value, u64 addr, u32 stride, u32 index,
+                           const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
                            bool read);
 
   // Flush

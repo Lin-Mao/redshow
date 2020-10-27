@@ -12,9 +12,10 @@
 #include <string>
 #include <vector>
 
+#include "analysis/data_flow.h"
 #include "analysis/spatial_redundancy.h"
 #include "analysis/temporal_redundancy.h"
-#include "analysis/value_flow.h"
+#include "analysis/value_pattern.h"
 #include "binutils/cubin.h"
 #include "binutils/instruction.h"
 #include "binutils/real_pc.h"
@@ -195,6 +196,9 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
   size_t size = trace_data->head_index;
   gpu_patch_record_t *records = reinterpret_cast<gpu_patch_record_t *>(trace_data->records);
 
+  //  debug
+  redshow_approx_level_config(REDSHOW_APPROX_MIN);
+
   for (size_t i = 0; i < size; ++i) {
     // Iterate over each record
     gpu_patch_record_t *record = records + i;
@@ -264,8 +268,12 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
         MemoryRange memory_range(record->address[j], record->address[j]);
         auto iter = memory_map->prev(memory_range);
         uint64_t memory_op_id = 0;
+        uint64_t memory_size = 0;
+        uint64_t memory_addr = 0;
         if (iter != memory_map->end()) {
           memory_op_id = iter->second->op_id;
+          memory_size = iter->second->len;
+          memory_addr = iter->second->memory_range.start;
         }
 
         uint32_t stride = GLOBAL_MEMORY_OFFSET;
@@ -289,6 +297,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
           continue;
         }
 
+        Memory memory = Memory(memory_op_id, memory_addr, memory_size);
         auto num_units = access_kind.vec_size / access_kind.unit_size;
         AccessKind unit_access_kind = access_kind;
         // We iterate through all the units such that every unit's vec_size = unit_size
@@ -304,8 +313,8 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
               unit_access_kind.value_to_basic_type(value, decimal_degree_f32, decimal_degree_f64);
 
           for (auto aiter : analysis_enabled) {
-            aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory_op_id,
-                                      record->pc, value, record->address[j], stride, m, read);
+            aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory, record->pc,
+                                      value, record->address[j], m, read);
           }
         }
       }
@@ -396,6 +405,17 @@ redshow_result_t redshow_approx_level_config(redshow_approx_level_t level) {
   return result;
 }
 
+redshow_result_t redshow_approx_get(int *degree_f32, int *degree_f64) {
+  PRINT("\nredshow->Enter redshow_approx_get\n");
+
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  *degree_f32 = decimal_degree_f32;
+  *degree_f64 = decimal_degree_f64;
+
+  return result;
+}
+
 redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) {
   PRINT("\nredshow->Enter redshow_analysis_enable\nanalysis_type: %u\n", analysis_type);
 
@@ -410,8 +430,11 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
       analysis_enabled.emplace(REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY,
                                std::make_shared<TemporalRedundancy>());
       break;
-    case REDSHOW_ANALYSIS_VALUE_FLOW:
-      analysis_enabled.emplace(REDSHOW_ANALYSIS_VALUE_FLOW, std::make_shared<ValueFlow>());
+    case REDSHOW_ANALYSIS_DATA_FLOW:
+      analysis_enabled.emplace(REDSHOW_ANALYSIS_DATA_FLOW, std::make_shared<DataFlow>());
+      break;
+    case REDSHOW_ANALYSIS_VALUE_PATTERN:
+      analysis_enabled.emplace(REDSHOW_ANALYSIS_VALUE_PATTERN, std::make_shared<ValuePattern>());
       break;
     default:
       result = REDSHOW_ERROR_NO_SUCH_ANALYSIS;
@@ -659,8 +682,8 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  auto memcpy = std::make_shared<Memcpy>(host_op_id, memcpy_id, src_memory_op_id, src_start, src_len,
-                                         dst_memory_op_id, dst_start, dst_len, len);
+  auto memcpy = std::make_shared<Memcpy>(host_op_id, memcpy_id, src_memory_op_id, src_start,
+                                         src_len, dst_memory_op_id, dst_start, dst_len, len);
 
   for (auto aiter : analysis_enabled) {
     aiter.second->op_callback(memcpy);
@@ -749,7 +772,7 @@ redshow_result_t redshow_analysis_end() {
 
   redshow_result_t result;
 
-  if (mini_host_op_id != 0 && !analysis_enabled.has(REDSHOW_ANALYSIS_VALUE_FLOW)) {
+  if (mini_host_op_id != 0 && !analysis_enabled.has(REDSHOW_ANALYSIS_DATA_FLOW)) {
     // Remove all the memory snapshots before mini_host_op_id
     Vector<uint64_t> ids;
 

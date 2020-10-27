@@ -7,6 +7,7 @@
 #include "binutils/cubin.h"
 #include "common/map.h"
 #include "operation/kernel.h"
+#include "operation/memory.h"
 #include "operation/operation.h"
 #include "redshow.h"
 
@@ -40,8 +41,21 @@ class Analysis {
 
   virtual void block_exit(const ThreadId &thread_id) = 0;
 
+  /**
+   * @brief A callback for every unit 
+   * 
+   * @param kernel_id kernel context id
+   * @param thread_id GPU thread id
+   * @param access_kind unit size, vec size, and access type
+   * @param memory memory object
+   * @param pc instruction pc
+   * @param value unit value
+   * @param addr start access address
+   * @param index unit index
+   * @param read read/write
+   */
   virtual void unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
-                           u64 memory_op_id, u64 pc, u64 value, u64 addr, u32 stride, u32 index,
+                           const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
                            bool read) = 0;
 
   // Flush

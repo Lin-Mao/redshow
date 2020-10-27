@@ -1,7 +1,3 @@
-//
-// Created by find on 19-7-1.
-//
-
 #include "analysis/temporal_redundancy.h"
 
 #include <cstring>
@@ -44,9 +40,9 @@ void TemporalRedundancy::block_exit(const ThreadId &thread_id) {
 }
 
 void TemporalRedundancy::unit_access(i32 kernel_id, const ThreadId &thread_id,
-                                     const AccessKind &access_kind, u64 memory_op_id, u64 pc,
-                                     u64 value, u64 addr, u32 stride, u32 index, bool read) {
-  addr += index * stride;
+                                     const AccessKind &access_kind, const Memory &memory, u64 pc,
+                                     u64 value, u64 addr, u32 index, bool read) {
+  addr += index * access_kind.unit_size;
   if (read) {
     auto &pc_pairs = _trace->read_pc_pairs;
     auto &temporal_trace = _trace->read_temporal_trace;

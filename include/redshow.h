@@ -13,7 +13,8 @@ typedef enum redshow_analysis_type {
   REDSHOW_ANALYSIS_UNKNOWN = 0,
   REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY = 1,
   REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY = 2,
-  REDSHOW_ANALYSIS_VALUE_FLOW = 3
+  REDSHOW_ANALYSIS_VALUE_PATTERN = 3,
+  REDSHOW_ANALYSIS_DATA_FLOW = 4
 } redshow_analysis_type_t;
 
 typedef enum redshow_access_type {
@@ -132,6 +133,15 @@ EXTERNC redshow_result_t redshow_mem_views_get(uint32_t *views);
  * @thread-safe: No
  */
 EXTERNC redshow_result_t redshow_approx_level_config(redshow_approx_level_t level);
+
+/**
+ * @brief 
+ * 
+ * @param degree_f32 
+ * @param degree_f64 
+ * @return EXTERNC 
+ */
+EXTERNC redshow_result_t redshow_approx_get(int *degree_f32, int *degree_f64);
 
 /**
  * @brief This function is used to setup specific analysis types.
