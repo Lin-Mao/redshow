@@ -16,6 +16,10 @@
 
 namespace redshow {
 
+void ValuePattern::op_callback(OperationPtr operation) {
+  // Do nothing
+}
+
 // Fine-grained
 void ValuePattern::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id) {
   lock();
@@ -396,7 +400,7 @@ void ValuePattern::show_value_pattern(ArrayPatternInfo &array_pattern_info, std:
       << value_count_vec.size() << endl;
   out << "total access " << array_pattern_info.total_access_count << "\tunqiue value access count "
       << array_pattern_info.unique_item_access_count << endl;
-  out << "array " << memory.op_id << " : memory size " << memory_size << " value type "
+  out << "array " << memory.ctx_id << " : memory size " << memory_size << " value type "
       << access_kind.to_string() << endl;
   int i = 0;
   for (auto value : value_count_vec) {
@@ -406,8 +410,7 @@ void ValuePattern::show_value_pattern(ArrayPatternInfo &array_pattern_info, std:
       break;
     }
   }
-  out << "array " << memory.op_id << " : memory size " << memory_size << " value type "
-      << access_kind.to_string() << "\npattern type\n";
+  out << "\npattern type\n";
   if (vpts.size() == 0) vpts.emplace_back(VP_NO_PATTERN);
   for (auto a_vpt : vpts) {
     out << " * " << pattern_names[a_vpt] << "\t";

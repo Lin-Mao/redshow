@@ -268,10 +268,12 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
         MemoryRange memory_range(record->address[j], record->address[j]);
         auto iter = memory_map->prev(memory_range);
         uint64_t memory_op_id = 0;
+        int32_t memory_id = 0;
         uint64_t memory_size = 0;
         uint64_t memory_addr = 0;
         if (iter != memory_map->end()) {
           memory_op_id = iter->second->op_id;
+          memory_id = iter->second->ctx_id;
           memory_size = iter->second->len;
           memory_addr = iter->second->memory_range.start;
         }
@@ -297,7 +299,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
           continue;
         }
 
-        Memory memory = Memory(memory_op_id, memory_addr, memory_size);
+        Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
         auto num_units = access_kind.vec_size / access_kind.unit_size;
         AccessKind unit_access_kind = access_kind;
         // We iterate through all the units such that every unit's vec_size = unit_size

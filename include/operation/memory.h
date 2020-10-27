@@ -26,8 +26,8 @@ struct Memory : public Operation {
 
   Memory() : Operation(0, 0, OPERATION_TYPE_MEMORY) {}
 
-  Memory(u64 op_id, u64 start, size_t len)
-      : Operation(op_id, 0, OPERATION_TYPE_MEMORY), memory_range(start, start + len) {}
+  Memory(u64 op_id, i32 ctx_id, u64 start, size_t len)
+      : Operation(op_id, ctx_id, OPERATION_TYPE_MEMORY), memory_range(start, start + len), len(len) {}
 
   Memory(u64 op_id, i32 ctx_id, MemoryRange &memory_range)
       : Operation(op_id, ctx_id, OPERATION_TYPE_MEMORY),

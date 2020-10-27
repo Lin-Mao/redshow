@@ -49,6 +49,8 @@ class ValuePattern final : public Analysis {
   virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback);
 
+  ~ValuePattern() {}
+
  private:
   // <Address, <Value, Count>>
   typedef Map<u64, u64> ValueCount;
