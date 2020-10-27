@@ -1,17 +1,18 @@
-#include "instruction.h"
-#include "redshow.h"
+#include "binutils/instruction.h"
 
 #include <algorithm>
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <queue>
-
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
 #include <boost/lexical_cast.hpp>
-
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 #include <cstdlib>
+#include <fstream>
+#include <iostream>
+#include <queue>
+#include <vector>
+
+#include "binutils/symbol.h"
+#include "common/utils.h"
+#include "redshow.h"
 
 #ifdef DEBUG_INSTRUCTION
 #define PRINT(...) fprintf(stderr, __VA_ARGS__)
@@ -19,10 +20,9 @@
 #define PRINT(...)
 #endif
 
-#define MIN2(x, y) (x > y ? y : x)
+namespace redshow {
 
-
-static void default_access_kind(Instruction &inst) {
+void InstructionParser::default_access_kind(Instruction &inst) {
   if (inst.access_kind->vec_size == 0) {
     // Determine the vec size of data,
     if (inst.op.find(".128") != std::string::npos) {
@@ -53,9 +53,8 @@ static void default_access_kind(Instruction &inst) {
   }
 }
 
-
-static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_graph,
-                                   std::set<unsigned int> &visited, bool load) {
+AccessKind InstructionParser::init_access_kind(Instruction &inst, InstructionGraph &inst_graph,
+                                               std::set<unsigned int> &visited, bool load) {
   if (visited.find(inst.pc) != visited.end()) {
     return AccessKind();
   }
@@ -77,15 +76,15 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
     access_kind.vec_size = 32;
   }
 
-  if ((load && inst_graph.outgoing_nodes_size(inst.pc) == 0) ||
-      (!load && inst_graph.incoming_nodes_size(inst.pc) == 0)) {
+  if ((load && inst_graph.outgoing_edge_size(inst.pc) == 0) ||
+      (!load && inst_graph.incoming_edge_size(inst.pc) == 0)) {
     return AccessKind();
   }
 
-  auto &neighbors = load ? inst_graph.outgoing_nodes(inst.pc) : inst_graph.incoming_nodes(inst.pc);
+  auto &edges = load ? inst_graph.outgoing_edges(inst.pc) : inst_graph.incoming_edges(inst.pc);
 
-  for (auto iter = neighbors.begin(); iter != neighbors.end(); ++iter) {
-    auto pc = *iter;
+  for (auto iter = edges.begin(); iter != edges.end(); ++iter) {
+    auto pc = iter->to;
     auto &neighbor_inst = inst_graph.node(pc);
     AccessKind neighbor_access_kind;
 
@@ -129,14 +128,17 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
         // Decided by memory hierarchy
         if (neighbor_inst.op.find(".SHARED") != std::string::npos ||
             neighbor_inst.op.find(".LOCAL") != std::string::npos) {
-          if (std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[0]) != inst.dsts.end()) {
+          if (std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[0]) !=
+              inst.dsts.end()) {
             // Used as a
             access_kind.data_type = REDSHOW_DATA_INT;
             access_kind.unit_size = 32;
           }
         } else {
-          if (std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[0]) != inst.dsts.end() ||
-              std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[1]) != inst.dsts.end()) {
+          if (std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[0]) !=
+                  inst.dsts.end() ||
+              std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[1]) !=
+                  inst.dsts.end()) {
             access_kind.data_type = REDSHOW_DATA_INT;
             access_kind.unit_size = 64;
           }
@@ -194,9 +196,8 @@ static AccessKind init_access_kind(Instruction &inst, InstructionGraph &inst_gra
   return access_kind;
 }
 
-
-bool parse_instructions(const std::string &file_path,
-                        std::vector<Symbol> &symbols, InstructionGraph &inst_graph) {
+bool InstructionParser::parse(const std::string &file_path, SymbolVector &symbols,
+                              InstructionGraph &inst_graph) {
   boost::property_tree::ptree root;
   boost::property_tree::read_json(file_path, root);
 
@@ -229,8 +230,7 @@ bool parse_instructions(const std::string &file_path,
           srcs.push_back(src);
           auto &ptree_assign_pcs = ptree_src.second.get_child("assign_pcs");
           for (auto &ptree_assign_pc : ptree_assign_pcs) {
-            int assign_pc = boost::lexical_cast<int>(ptree_assign_pc.second.data())
-                            + cubin_offset;
+            int assign_pc = boost::lexical_cast<int>(ptree_assign_pc.second.data()) + cubin_offset;
             assign_pcs[src].push_back(assign_pc);
           }
         }
@@ -248,7 +248,8 @@ bool parse_instructions(const std::string &file_path,
     size_t i = 0;
     if (inst.op.find("STORE") != std::string::npos) {
       // If store operation has more than one src, skip the first or two src
-      if (inst.op.find(".SHARED") != std::string::npos || inst.op.find(".LOCAL") != std::string::npos) {
+      if (inst.op.find(".SHARED") != std::string::npos ||
+          inst.op.find(".LOCAL") != std::string::npos) {
         i = 1;
       } else {
         i = 2;
@@ -260,12 +261,8 @@ bool parse_instructions(const std::string &file_path,
     for (; i < inst.srcs.size(); ++i) {
       int src = inst.srcs[i];
       for (auto src_pc : inst.assign_pcs[src]) {
-        inst_graph.add_edge(src_pc, inst.pc);
-
-#ifdef DEBUG_INSTRUCTION
-        std::cout << "Add edge: 0x" << std::hex << src_pc << ", 0x" <<
-          inst.pc << std::dec << std::endl;
-#endif
+        auto edge_index = InstructionDependencyIndex(src_pc, inst.pc);
+        inst_graph.add_edge(std::move(edge_index), false);
       }
     }
   }
@@ -289,10 +286,10 @@ bool parse_instructions(const std::string &file_path,
 
     // Associate access type with instruction
     if (inst.op.find(".STORE") != std::string::npos &&
-        inst_graph.incoming_nodes_size(inst.pc) != 0) {
+        inst_graph.incoming_edge_size(inst.pc) != 0) {
       *inst.access_kind = init_access_kind(inst, inst_graph, visited, false);
     } else if (inst.op.find(".LOAD") != std::string::npos &&
-               inst_graph.outgoing_nodes_size(inst.pc) != 0) {
+               inst_graph.outgoing_edge_size(inst.pc) != 0) {
       *inst.access_kind = init_access_kind(inst, inst_graph, visited, true);
     }
 
@@ -304,7 +301,8 @@ bool parse_instructions(const std::string &file_path,
   for (auto iter = inst_graph.nodes_begin(); iter != inst_graph.nodes_end(); ++iter) {
     auto &inst = iter->second;
     if (inst.op.find(".SHARED") != std::string::npos) {
-      std::cout << std::hex << inst.pc << " " << inst.access_kind->to_string() << std::dec << std::endl;
+      std::cout << std::hex << inst.pc << " " << inst.access_kind->to_string() << std::dec
+                << std::endl;
     }
   }
 #endif
@@ -312,3 +310,92 @@ bool parse_instructions(const std::string &file_path,
   return true;
 }
 
+u64 AccessKind::value_to_basic_type(u64 a, int decimal_degree_f32, int decimal_degree_f64) {
+  switch (data_type) {
+    case REDSHOW_DATA_UNKNOWN:
+      break;
+    case REDSHOW_DATA_INT:
+      switch (unit_size) {
+        case 8:
+          return a & 0xffu;
+        case 16:
+          return a & 0xffffu;
+        case 32:
+          return a & 0xffffffffu;
+        case 64:
+          return a;
+      }
+      break;
+    case REDSHOW_DATA_FLOAT:
+      switch (unit_size) {
+        case 32:
+          return value_to_float(a, decimal_degree_f32);
+        case 64:
+          return value_to_double(a, decimal_degree_f64);
+      }
+      break;
+    default:
+      break;
+  }
+  return a;
+}
+
+std::string AccessKind::value_to_string(u64 a, bool is_signed) {
+  std::stringstream ss;
+  if (data_type == REDSHOW_DATA_INT) {
+    if (unit_size == 8) {
+      if (is_signed) {
+        i8 b;
+        memcpy(&b, &a, sizeof(b));
+        ss << (int)b;
+      } else {
+        u8 b;
+        memcpy(&b, &a, sizeof(b));
+        ss << b;
+      }
+    } else if (unit_size == 16) {
+      if (is_signed) {
+        i16 b;
+        memcpy(&b, &a, sizeof(b));
+        ss << b;
+      } else {
+        u16 b;
+        memcpy(&b, &a, sizeof(b));
+        ss << b;
+      }
+    } else if (unit_size == 32) {
+      if (is_signed) {
+        i32 b;
+        memcpy(&b, &a, sizeof(b));
+        ss << b;
+      } else {
+        u32 b;
+        memcpy(&b, &a, sizeof(b));
+        ss << b;
+      }
+    } else if (unit_size == 64) {
+      if (is_signed) {
+        i64 b;
+        memcpy(&b, &a, sizeof(b));
+        ss << b;
+      } else {
+        ss << a;
+      }
+    }
+  } else if (data_type == REDSHOW_DATA_FLOAT) {
+    // At this time, it must be float
+    if (unit_size == 32) {
+      float b;
+      memcpy(&b, &a, sizeof(b));
+      ss << b;
+    } else if (unit_size == 64) {
+      double b;
+      memcpy(&b, &a, sizeof(b));
+      ss << b;
+    }
+  }
+
+  return ss.str();
+}
+
+}  // namespace redshow

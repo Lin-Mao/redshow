@@ -1,4 +1,5 @@
 PROJECT := redshow
+PROJECT_GRAPHVIZ := redshow_graphviz
 CONFIGS := Makefile.config
 
 include $(CONFIGS)
@@ -9,6 +10,7 @@ CC := g++
 
 LIB_DIR := lib/
 INC_DIR := include/
+BOOST_INC_DIR := $(BOOST_DIR)/include
 BUILD_DIR := build/
 CUR_DIR = $(shell pwd)/
 
@@ -17,11 +19,11 @@ LIB := $(LIB_DIR)lib$(PROJECT).so
 ifdef DEBUG
 OFLAGS += -g -DDEBUG
 else
-OFLAGS += -O2
+OFLAGS += -O3
 endif
 
-CFLAGS := -fPIC -std=c++11 $(OFLAGS)
-LDFLAGS := -fPIC -shared -static-libstdc++
+CFLAGS := -fPIC -std=c++17 $(OFLAGS)
+LDFLAGS := -fPIC -shared -static-libstdc++ -L$(BOOST_DIR)/lib -lboost_graph -lboost_regex
 SRCS := $(shell find src -maxdepth 3 -name "*.cpp")
 OBJECTS := $(addprefix $(BUILD_DIR), $(patsubst %.cpp, %.o, $(SRCS)))
 OBJECTS_DIR := $(sort $(addprefix $(BUILD_DIR), $(dir $(SRCS))))
@@ -47,13 +49,13 @@ $(LIB_DIR):
 	mkdir -p $@
 
 $(BINS): % : %.cpp $(OBJECTS)
-	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(GPU_PATCH_DIR)/include -o $@ $^
+	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(BOOST_DIR)/include -I$(GPU_PATCH_DIR)/include -o $@ $^
 
 $(LIB): $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $^ 
 
 $(OBJECTS): $(BUILD_DIR)%.o : %.cpp
-	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(GPU_PATCH_DIR)/include -o $@ -c $<
+	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(BOOST_DIR)/include -I$(GPU_PATCH_DIR)/include -o $@ -c $<
 
 clean:
 	-rm -rf $(BUILD_DIR) $(LIB_DIR) $(BINS)
@@ -65,6 +67,7 @@ install:
 	mkdir -p $(PREFIX)/$(INC_DIR)
 	cp -rf $(LIB_DIR) $(PREFIX)
 	cp -rf $(INC_DIR)$(PROJECT).h $(PREFIX)/$(INC_DIR)
+	cp -rf $(INC_DIR)$(PROJECT_GRAPHVIZ).h $(PREFIX)/$(INC_DIR)
 endif
 
 #utils
