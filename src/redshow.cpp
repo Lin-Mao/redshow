@@ -370,7 +370,7 @@ redshow_result_t redshow_data_type_get(redshow_data_type_t *data_type) {
 }
 
 redshow_result_t redshow_approx_level_config(redshow_approx_level_t level) {
-  PRINT("\nredshow->Enter redshow_approx_level_config\nlevel: %u\n", level);
+  //PRINT("\nredshow->Enter redshow_approx_level_config\nlevel: %u\n", level);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 

@@ -26,6 +26,7 @@ std::string DataFlow::get_data_flow_edge_type(EdgeType type) {
 void DataFlow::init() {
   // A special context id for untrackable memorys
   _op_node[REDSHOW_MEMORY_SHARED] = SHARED_MEM_CTX_ID;
+  _op_node[REDSHOW_MEMORY_LOCAL] = LOCAL_MEM_CTX_ID;
   _op_node[REDSHOW_MEMORY_CONSTANT] = CONSTANT_MEM_CTX_ID;
   _op_node[REDSHOW_MEMORY_UVM] = UVM_MEM_CTX_ID;
   _op_node[REDSHOW_MEMORY_HOST] = HOST_MEM_CTX_ID;
@@ -60,7 +61,7 @@ void DataFlow::memset_op_callback(std::shared_ptr<Memset> op) {
 }
 
 void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
-  double redundancy = compute_memset_redundancy(op->dst_start, op->src_start, op->len);
+  double redundancy = compute_memcpy_redundancy(op->dst_start, op->src_start, op->len);
 
   double overwrite = 1.0;
   if (op->dst_len != 0) {
@@ -125,18 +126,15 @@ void DataFlow::analysis_end(u32 cpu_thread, i32 kernel_id) {
   }
 
   for (auto memory_op_id : _trace->read_memory_op_ids) {
-    if (memory_op_id != REDSHOW_MEMORY_SHARED && memory_op_id != REDSHOW_MEMORY_LOCAL) {
-      auto node_id = _op_node.at(memory_op_id);
-      // Link a pure read edge between two calling contexts
-      link_ctx_node(node_id, kernel_id, DATA_FLOW_EDGE_READ);
-    }
+    auto node_id = _op_node.at(memory_op_id);
+    // Link a pure read edge between two calling contexts
+    link_ctx_node(node_id, kernel_id, DATA_FLOW_EDGE_READ);
   }
 
   for (auto memory_op_id : _trace->write_memory_op_ids) {
-    if (memory_op_id != REDSHOW_MEMORY_SHARED && memory_op_id != REDSHOW_MEMORY_LOCAL) {
-      // Point the operation to the calling context
-      update_op_node(memory_op_id, kernel_id);
-    }
+    // Point the operation to the calling context
+    link_op_node(memory_op_id, kernel_id);
+    update_op_node(memory_op_id, kernel_id);
   }
 
   unlock();
@@ -210,8 +208,10 @@ void DataFlow::link_op_node(u64 op_id, i32 ctx_id) {
 }
 
 void DataFlow::update_op_node(u64 op_id, i32 ctx_id) {
-  // Point the operation to the calling context
-  _op_node[op_id] = ctx_id;
+  if (op_id > REDSHOW_MEMORY_HOST) {
+    // Point the operation to the calling context
+    _op_node[op_id] = ctx_id;
+  }
 }
 
 void DataFlow::update_op_metrics(u64 op_id, i32 ctx_id, double redundancy, double overwrite) {
@@ -250,9 +250,11 @@ void DataFlow::analyze_duplicate(Map<i32, Map<i32, bool>> &duplicate) {
     for (auto &hash : iter.second) {
       for (auto &node_iter : hash_nodes[hash]) {
         auto dup_node_id = node_iter.first;
-        auto total = node_iter.second;
-        duplicate[node_id][dup_node_id] = total;
-        duplicate[dup_node_id][node_id] = total;
+        if (dup_node_id != node_id) {
+          auto total = node_iter.second;
+          duplicate[node_id][dup_node_id] = total;
+          duplicate[dup_node_id][node_id] = total;
+        }
       }
     }
   }
@@ -272,8 +274,21 @@ void DataFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool>
   for (auto node_iter = _graph.nodes_begin(); node_iter != _graph.nodes_end(); ++node_iter) {
     auto &node = node_iter->second;
     if (vertice.find(node.ctx_id) == vertice.end()) {
-      auto type = get_operation_type(node.type);
-      auto redundancy = 0.0;
+      std::string type;
+      if (node.ctx_id == SHARED_MEM_CTX_ID) {
+        type = "SHARED";
+      } else if (node.ctx_id == CONSTANT_MEM_CTX_ID) {
+        type = "CONSTANT";
+      } else if (node.ctx_id == UVM_MEM_CTX_ID) {
+        type = "UVM";
+      } else if (node.ctx_id == HOST_MEM_CTX_ID) {
+        type = "HOST";
+      } else if (node.ctx_id == LOCAL_MEM_CTX_ID) {
+        type = "LOCAL";
+      } else {
+        type = get_operation_type(node.type);
+      }
+
       std::string dup;
       if (duplicate.has(node.ctx_id)) {
         for (auto &iter : duplicate.at(node.ctx_id)) {
