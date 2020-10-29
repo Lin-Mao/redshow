@@ -116,7 +116,7 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
   auto dst_ctx_id = _op_node.at(op->dst_memory_op_id);
   link_ctx_node(src_ctx_id, dst_ctx_id, DATA_FLOW_EDGE_READ);
 
-  std::string hash = compute_memory_hash(op->dst_start, op->dst_len);
+  std::string hash = compute_memory_hash(op->dst_start, op->len);
   _node_hash[op->ctx_id].emplace(hash);
 }
 
