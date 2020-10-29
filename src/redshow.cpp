@@ -285,9 +285,11 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
           // unknown way
           if (record->flags & GPU_PATCH_LOCAL) {
             memory_op_id = REDSHOW_MEMORY_SHARED;
+            memory_id = SHARED_MEMORY_CTX_ID;
             stride = LOCAL_MEMORY_OFFSET;
           } else if (record->flags & GPU_PATCH_SHARED) {
             memory_op_id = REDSHOW_MEMORY_LOCAL;
+            memory_id = LOCAL_MEMORY_CTX_ID;
             stride = SHARED_MEMORY_OFFSET;
           } else {
             // Unknown allocation

@@ -25,51 +25,57 @@ std::string DataFlow::get_data_flow_edge_type(EdgeType type) {
 
 void DataFlow::init() {
   // A special context id for untrackable memorys
-  _op_node[REDSHOW_MEMORY_SHARED] = SHARED_MEM_CTX_ID;
-  _op_node[REDSHOW_MEMORY_LOCAL] = LOCAL_MEM_CTX_ID;
-  _op_node[REDSHOW_MEMORY_CONSTANT] = CONSTANT_MEM_CTX_ID;
-  _op_node[REDSHOW_MEMORY_UVM] = UVM_MEM_CTX_ID;
-  _op_node[REDSHOW_MEMORY_HOST] = HOST_MEM_CTX_ID;
+  _op_node[REDSHOW_MEMORY_SHARED] = SHARED_MEMORY_CTX_ID;
+  _op_node[REDSHOW_MEMORY_LOCAL] = LOCAL_MEMORY_CTX_ID;
+  _op_node[REDSHOW_MEMORY_CONSTANT] = CONSTANT_MEMORY_CTX_ID;
+  _op_node[REDSHOW_MEMORY_UVM] = UVM_MEMORY_CTX_ID;
+  _op_node[REDSHOW_MEMORY_HOST] = HOST_MEMORY_CTX_ID;
 
-  _graph.add_node(SHARED_MEM_CTX_ID, SHARED_MEM_CTX_ID, OPERATION_TYPE_MEMORY);
-  _graph.add_node(CONSTANT_MEM_CTX_ID, CONSTANT_MEM_CTX_ID, OPERATION_TYPE_MEMORY);
-  _graph.add_node(UVM_MEM_CTX_ID, UVM_MEM_CTX_ID, OPERATION_TYPE_MEMORY);
-  _graph.add_node(HOST_MEM_CTX_ID, HOST_MEM_CTX_ID, OPERATION_TYPE_MEMORY);
-  _graph.add_node(LOCAL_MEM_CTX_ID, LOCAL_MEM_CTX_ID, OPERATION_TYPE_MEMORY);
+  _graph.add_node(SHARED_MEMORY_CTX_ID, SHARED_MEMORY_CTX_ID, OPERATION_TYPE_MEMORY);
+  _graph.add_node(CONSTANT_MEMORY_CTX_ID, CONSTANT_MEMORY_CTX_ID, OPERATION_TYPE_MEMORY);
+  _graph.add_node(UVM_MEMORY_CTX_ID, UVM_MEMORY_CTX_ID, OPERATION_TYPE_MEMORY);
+  _graph.add_node(HOST_MEMORY_CTX_ID, HOST_MEMORY_CTX_ID, OPERATION_TYPE_MEMORY);
+  _graph.add_node(LOCAL_MEMORY_CTX_ID, LOCAL_MEMORY_CTX_ID, OPERATION_TYPE_MEMORY);
 }
 
 void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
   // data flow analysis must be synchrounous
   for (auto &mem_iter : _trace->read_memory) {
-    auto memory = _memories.at(mem_iter.first);
-    auto node_id = _op_node.at(memory->op_id);
-    // Link a pure read edge between two calling contexts
-    link_ctx_node(node_id, op->ctx_id, DATA_FLOW_EDGE_READ);
+    if (_memories.has(mem_iter.first)) {
+      // Avoid local and share memories
+      auto memory = _memories.at(mem_iter.first);
+      auto node_id = _op_node.at(memory->op_id);
+      // Link a pure read edge between two calling contexts
+      link_ctx_node(node_id, op->ctx_id, DATA_FLOW_EDGE_READ);
+    }
   }
 
   for (auto &mem_iter : _trace->write_memory) {
-    auto memory = _memories.at(mem_iter.first);
-    auto len = 0;
-    for (auto &unit_iter : mem_iter.second) {
-      len += unit_iter.second;
+    if (_memories.has(mem_iter.first)) {
+      // Avoid local and share memories
+      auto memory = _memories.at(mem_iter.first);
+      auto len = 0;
+      for (auto &unit_iter : mem_iter.second) {
+        len += unit_iter.second;
+      }
+      u64 host = reinterpret_cast<u64>(memory->value.get());
+      u64 host_cache = reinterpret_cast<u64>(memory->value_cache.get());
+      u64 device = memory->memory_range.start;
+      dtoh(host_cache, device, memory->len);
+      u64 redundancy = compute_memcpy_redundancy(host_cache, host, memory->len);
+      u64 overwrite = len;
+
+      // Point the operation to the calling context
+      link_op_node(memory->op_id, op->ctx_id);
+      update_op_metrics(memory->op_id, op->ctx_id, redundancy, overwrite, memory->len);
+      update_op_node(memory->op_id, op->ctx_id);
+
+      std::string hash = compute_memory_hash(reinterpret_cast<u64>(host_cache), memory->len);
+      _node_hash[op->ctx_id].emplace(hash);
+
+      // XXX(Keren): This is tricky, should let the tool do update
+      memcpy(reinterpret_cast<void *>(host), reinterpret_cast<void *>(host_cache), memory->len);
     }
-    u64 host = reinterpret_cast<u64>(memory->value.get());
-    u64 host_cache = reinterpret_cast<u64>(memory->value_cache.get());
-    u64 device = memory->memory_range.start;
-    dtoh(host_cache, device, memory->len);
-    u64 redundancy = compute_memcpy_redundancy(host_cache, host, memory->len);
-    u64 overwrite = len;
-
-    // Point the operation to the calling context
-    link_op_node(memory->op_id, op->ctx_id);
-    update_op_metrics(memory->op_id, op->ctx_id, redundancy, overwrite, memory->len);
-    update_op_node(memory->op_id, op->ctx_id);
-
-    std::string hash = compute_memory_hash(reinterpret_cast<u64>(host_cache), memory->len);
-    _node_hash[op->ctx_id].emplace(hash);
-
-    // XXX(Keren): This is tricky, should let the tool do update
-    memcpy(reinterpret_cast<void *>(host), reinterpret_cast<void *>(host_cache), memory->len);
   }
 
   _trace->read_memory.clear();
@@ -286,15 +292,15 @@ void DataFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool>
     auto &node = node_iter->second;
     if (vertice.find(node.ctx_id) == vertice.end()) {
       std::string type;
-      if (node.ctx_id == SHARED_MEM_CTX_ID) {
+      if (node.ctx_id == SHARED_MEMORY_CTX_ID) {
         type = "SHARED";
-      } else if (node.ctx_id == CONSTANT_MEM_CTX_ID) {
+      } else if (node.ctx_id == CONSTANT_MEMORY_CTX_ID) {
         type = "CONSTANT";
-      } else if (node.ctx_id == UVM_MEM_CTX_ID) {
+      } else if (node.ctx_id == UVM_MEMORY_CTX_ID) {
         type = "UVM";
-      } else if (node.ctx_id == HOST_MEM_CTX_ID) {
+      } else if (node.ctx_id == HOST_MEMORY_CTX_ID) {
         type = "HOST";
-      } else if (node.ctx_id == LOCAL_MEM_CTX_ID) {
+      } else if (node.ctx_id == LOCAL_MEMORY_CTX_ID) {
         type = "LOCAL";
       } else {
         type = get_operation_type(node.type);

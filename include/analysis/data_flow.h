@@ -139,12 +139,6 @@ class DataFlow final : public Analysis {
   Map<u64, i32> _op_node;
   Map<i32, Set<std::string>> _node_hash;
   Map<u64, std::shared_ptr<Memory>> _memories;
-
-  static inline const i32 SHARED_MEM_CTX_ID   = (1 << 30);
-  static inline const i32 CONSTANT_MEM_CTX_ID = (1 << 30) + 1;
-  static inline const i32 UVM_MEM_CTX_ID      = (1 << 30) + 2;
-  static inline const i32 HOST_MEM_CTX_ID     = (1 << 30) + 3;
-  static inline const i32 LOCAL_MEM_CTX_ID    = (1 << 30) + 4;
 };
 
 }  // namespace redshow
