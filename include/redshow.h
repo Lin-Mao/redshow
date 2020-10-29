@@ -135,11 +135,11 @@ EXTERNC redshow_result_t redshow_mem_views_get(uint32_t *views);
 EXTERNC redshow_result_t redshow_approx_level_config(redshow_approx_level_t level);
 
 /**
- * @brief 
- * 
- * @param degree_f32 
- * @param degree_f64 
- * @return EXTERNC 
+ * @brief
+ *
+ * @param degree_f32
+ * @param degree_f64
+ * @return EXTERNC
  */
 EXTERNC redshow_result_t redshow_approx_get(int *degree_f32, int *degree_f64);
 
@@ -335,7 +335,7 @@ EXTERNC redshow_result_t redshow_record_data_callback_register(
  * First use binary search to find an enclosed region of function addresses
  * instruction_offset = instruction_pc - function_address
  *
- * @param thread_id Which thread launches the kernel
+ * @param cpu_thread Which thread launches the kernel
  * @param cubin_id Lookup correponding cubin
  * @param mod_id Unique identifier for modules that use the cubin
  * @param kernel_id Unique identifier for a calling context
@@ -345,9 +345,45 @@ EXTERNC redshow_result_t redshow_record_data_callback_register(
  *
  * @thread-safe YES
  */
-EXTERNC redshow_result_t redshow_analyze(uint32_t thread_id, uint32_t cubin_id, uint32_t mod_id,
+EXTERNC redshow_result_t redshow_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_t mod_id,
                                          int32_t kernel_id, uint64_t host_op_id,
                                          gpu_patch_buffer_t *trace_data);
+
+/**
+ * @brief Callback function prototype
+ *
+ */
+typedef void (*redshow_tool_dtoh_func)(uint64_t host_start, uint64_t device_start, uint64_t len);
+
+/**
+ * @brief Register dtoh function
+ * 
+ * @param func 
+ * @return EXTERNC 
+ */
+EXTERNC redshow_result_t redshow_tool_dtoh_register(redshow_tool_dtoh_func func);
+
+/**
+ * @brief when a kernel starts
+ * 
+ * @param cpu_thread 
+ * @param kernel_id 
+ * @param host_op_id 
+ * @return EXTERNC 
+ */
+EXTERNC redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id,
+                                              uint64_t host_op_id);
+
+/**
+ * @brief when a kernel ends
+ * 
+ * @param cpu_thread 
+ * @param kernel_id 
+ * @param host_op_id 
+ * @return EXTERNC 
+ */
+EXTERNC redshow_result_t redshow_kernel_end(uint32_t cpu_thread, int32_t kernel_id,
+                                            uint64_t host_op_id);
 
 /**
  * @brief Mark the begin of the current analysis region
@@ -371,12 +407,12 @@ EXTERNC redshow_result_t redshow_analysis_end();
  * @brief Flush back all the result. This function is supposed to be called when all the analysis
  * and kernel launches of each thread is done.
  *
- * @param thread_id
+ * @param cpu_thread
  * @return reshow_result_t
  *
  * @thread-safe YES
  */
-EXTERNC redshow_result_t redshow_flush_thread(uint32_t thread_id);
+EXTERNC redshow_result_t redshow_flush_thread(uint32_t cpu_thread);
 
 /**
  * @brief  Flush back all the result. This function is supposed to be called when all the analysis

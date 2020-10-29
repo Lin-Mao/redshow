@@ -22,7 +22,8 @@ struct MemoryRange {
 struct Memory : public Operation {
   MemoryRange memory_range;
   size_t len;
-  std::shared_ptr<uint8_t[]> value;
+  std::shared_ptr<u8[]> value;
+  std::shared_ptr<u8[]> value_cache;
 
   Memory() : Operation(0, 0, OPERATION_TYPE_MEMORY) {}
 
@@ -33,7 +34,8 @@ struct Memory : public Operation {
       : Operation(op_id, ctx_id, OPERATION_TYPE_MEMORY),
         memory_range(memory_range),
         len(memory_range.end - memory_range.start),
-        value(new uint8_t[len]) {}
+        value(new u8[len]),
+        value_cache(new u8[len]) {}
 
   bool operator<(const Memory &other) const { return this->memory_range < other.memory_range; }
 
@@ -47,7 +49,7 @@ struct Memory : public Operation {
  * @param len
  * @return std::string
  */
-std::string compute_memory_hash(uint64_t start, uint64_t len);
+std::string compute_memory_hash(u64 start, u64 len);
 
 }  // namespace redshow
 

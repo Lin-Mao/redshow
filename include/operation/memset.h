@@ -37,7 +37,7 @@ struct Memset : public Operation {
  * @param len
  * @return double
  */
-double compute_memset_redundancy(uint64_t start, uint32_t value, uint64_t len);
+u64 compute_memset_redundancy(u64 start, u32 value, u64 len);
 
 }  // namespace redshow
 

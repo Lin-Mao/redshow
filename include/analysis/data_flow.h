@@ -86,23 +86,23 @@ class DataFlow final : public Analysis {
 
   struct Edge {
     EdgeType type;
-    uint32_t count;
-    double redundancy;
-    double overwrite;
+    u64 redundancy;
+    u64 overwrite;  // write count
+    u64 count;  // total byte count
 
     Edge() = default;
 
-    Edge(EdgeType type, double redundancy, double overwrite) :
+    Edge(EdgeType type, u64 redundancy, u64 overwrite) :
       type(type), redundancy(redundancy), overwrite(overwrite), count(0) {}
 
-    Edge(EdgeType type) : Edge(type, 0.0, 0.0) {}
+    Edge(EdgeType type) : Edge(type, 0, 0) {}
   };
 
   typedef Graph<Index, Node, EdgeIndex, Edge> DataFlowGraph;
 
   struct DataFlowTrace final : public Trace {
-    Set<u64> read_memory_op_ids;
-    Set<u64> write_memory_op_ids;
+    Map<u64, Map<u64, u32>> read_memory;
+    Map<u64, Map<u64, u32>> write_memory;
 
     DataFlowTrace() = default;
 
@@ -111,6 +111,8 @@ class DataFlow final : public Analysis {
 
  private:
   void init();
+
+  void kernel_op_callback(std::shared_ptr<Kernel> op);
 
   void memory_op_callback(std::shared_ptr<Memory> op);
 
@@ -122,7 +124,7 @@ class DataFlow final : public Analysis {
 
   void link_ctx_node(i32 src_ctx_id, i32 dst_ctx_id, EdgeType type);
 
-  void update_op_metrics(u64 op_id, i32 ctx_id, double redundancy, double overwrite);
+  void update_op_metrics(u64 op_id, i32 ctx_id, u64 redundancy, u64 overwrite, u64 count);
 
   void update_op_node(u64 op_id, i32 ctx_id);
 
@@ -136,6 +138,7 @@ class DataFlow final : public Analysis {
   DataFlowGraph _graph;
   Map<u64, i32> _op_node;
   Map<i32, Set<std::string>> _node_hash;
+  Map<u64, std::shared_ptr<Memory>> _memories;
 
   static inline const i32 SHARED_MEM_CTX_ID   = (1 << 30);
   static inline const i32 CONSTANT_MEM_CTX_ID = (1 << 30) + 1;

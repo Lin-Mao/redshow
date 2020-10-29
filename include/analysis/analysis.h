@@ -29,6 +29,16 @@ class Analysis {
 
   virtual void unlock() { this->_lock.unlock(); }
 
+  virtual void dtoh_register(redshow_tool_dtoh_func dtoh) {
+    this->_dtoh = dtoh;
+  }
+
+  virtual void dtoh(u64 host, u64 device, u64 len) {
+    if (this->_dtoh) {
+      this->_dtoh(host, device, len);
+    }
+  }
+
   // Coarse-grained
   virtual void op_callback(OperationPtr operation) = 0;
 
@@ -71,6 +81,7 @@ class Analysis {
  protected:
   Map<u32, Map<i32, std::shared_ptr<Trace>>> _kernel_trace;
 
+  redshow_tool_dtoh_func _dtoh;
   redshow_analysis_type_t _type;
   std::mutex _lock;
 };

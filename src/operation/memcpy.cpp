@@ -7,7 +7,7 @@
 
 namespace redshow {
 
-double compute_memcpy_redundancy(u64 dst_start, u64 src_start, u64 len) {
+u64 compute_memcpy_redundancy(u64 dst_start, u64 src_start, u64 len) {
   // compare every byte
   double same = 0;
 
@@ -15,12 +15,12 @@ double compute_memcpy_redundancy(u64 dst_start, u64 src_start, u64 len) {
   auto *src_ptr = reinterpret_cast<unsigned char *>(src_start);
 
   for (size_t i = 0; i < len; ++i) {
-    if (*dst_ptr == *src_ptr) {
-      same += 1.0;
+    if (dst_ptr[i] == src_ptr[i]) {
+      same += 1;
     }
   }
 
-  return same / len;
+  return same;
 }
 
 }  // namespace redshow

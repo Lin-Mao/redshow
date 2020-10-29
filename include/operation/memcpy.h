@@ -41,7 +41,7 @@ struct Memcpy : public Operation {
  * @param len
  * @return double
  */
-double compute_memcpy_redundancy(uint64_t dst_start, uint64_t src_start, uint64_t len);
+u64 compute_memcpy_redundancy(u64 dst_start, u64 src_start, u64 len);
 
 }  // namespace redshow
 

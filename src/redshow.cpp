@@ -363,8 +363,6 @@ redshow_result_t redshow_data_type_config(redshow_data_type_t data_type) {
 };
 
 redshow_result_t redshow_data_type_get(redshow_data_type_t *data_type) {
-  PRINT("\nredshow->Enter redshow_data_type_get\n");
-
   *data_type = default_data_type;
   return REDSHOW_SUCCESS;
 }
@@ -408,8 +406,6 @@ redshow_result_t redshow_approx_level_config(redshow_approx_level_t level) {
 }
 
 redshow_result_t redshow_approx_get(int *degree_f32, int *degree_f64) {
-  PRINT("\nredshow->Enter redshow_approx_get\n");
-
   redshow_result_t result = REDSHOW_SUCCESS;
 
   *degree_f32 = decimal_degree_f32;
@@ -725,9 +721,30 @@ redshow_result_t redshow_record_data_callback_register(redshow_record_data_callb
   mem_views_limit = mem_views;
 }
 
+redshow_result_t redshow_tool_dtoh_register(redshow_tool_dtoh_func func) {
+  for (auto &aiter : analysis_enabled) {
+    aiter.second->dtoh_register(func);
+  }
+}
+
 redshow_result_t redshow_pc_views_get(uint32_t *views) { *views = pc_views_limit; }
 
 redshow_result_t redshow_mem_views_get(uint32_t *views) { *views = mem_views_limit; }
+
+redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id) {
+}
+
+redshow_result_t redshow_kernel_end(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id) {
+  // propose changes
+  // read_memory_op_ids, write_memory_op_ids
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  auto kernel = std::make_shared<Kernel>(host_op_id, kernel_id, cpu_thread);
+
+  for (auto aiter : analysis_enabled) {
+    aiter.second->op_callback(kernel);
+  }
+}
 
 redshow_result_t redshow_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_t mod_id,
                                  int32_t kernel_id, uint64_t host_op_id,
