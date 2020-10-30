@@ -115,7 +115,7 @@ void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
       }
     }
   }
-  out<<"array pattern summary"<<std::endl;
+  out<<"==============\narray pattern summary\n================"<<std::endl;
   for (auto &memory_iter : value_dist_sum) {
     auto &memory = memory_iter.first;
     for (auto &array_iter : memory_iter.second) {
@@ -437,14 +437,6 @@ void ValuePattern::show_value_pattern(ArrayPatternInfo &array_pattern_info, std:
       << array_pattern_info.unique_item_access_count << endl;
   out << "array " << memory.ctx_id << " : memory size " << memory_size << " value type "
       << access_kind.to_string() << endl;
-  int i = 0;
-  for (auto value : value_count_vec) {
-    out << access_kind.value_to_string(value.first, true);
-    out << "\t" << value.second << endl;
-    if (i++ > 100) {
-      break;
-    }
-  }
   out << "\npattern type\n";
   if (vpts.size() == 0) vpts.emplace_back(VP_NO_PATTERN);
   for (auto a_vpt : vpts) {
