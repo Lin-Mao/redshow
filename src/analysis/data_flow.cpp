@@ -116,7 +116,7 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
   auto dst_ctx_id = _op_node.at(op->dst_memory_op_id);
   link_ctx_node(src_ctx_id, dst_ctx_id, DATA_FLOW_EDGE_READ);
 
-  std::string hash = compute_memory_hash(op->dst_start, op->len);
+  std::string hash = compute_memory_hash(op->src_start, op->len);
   _node_hash[op->ctx_id].emplace(hash);
 }
 
@@ -268,7 +268,7 @@ void DataFlow::analyze_duplicate(Map<i32, Map<i32, bool>> &duplicate) {
       for (auto &node_iter : hash_nodes[hash]) {
         auto dup_node_id = node_iter.first;
         if (dup_node_id != node_id) {
-          auto total = node_iter.second;
+          auto total = node_iter.second && iter.second.size() == 1;
           duplicate[node_id][dup_node_id] = total;
           duplicate[dup_node_id][node_id] = total;
         }
