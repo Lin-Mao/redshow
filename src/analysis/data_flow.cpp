@@ -171,7 +171,7 @@ void DataFlow::block_exit(const ThreadId &thread_id) {
 void DataFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
                            bool read) {
-  auto offset = (addr - memory.memory_range.start) / (access_kind.unit_size >> 3);
+  auto offset = addr - memory.memory_range.start;
   if (read) {
     auto unit_size = _trace->read_memory[memory.op_id][offset];
     _trace->read_memory[memory.op_id][offset] = MAX2(unit_size, access_kind.unit_size >> 3);
