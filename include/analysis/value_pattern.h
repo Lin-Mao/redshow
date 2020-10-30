@@ -52,7 +52,7 @@ class ValuePattern final : public Analysis {
   ~ValuePattern() {}
 
  private:
-  // <Address, <Value, Count>>
+  // <Offset, <Value, Count>>
   typedef Map<u64, u64> ValueCount;
   typedef Map<u64, ValueCount> ItemsValueCount;
   typedef Map<Memory, Map<AccessKind, ItemsValueCount>> ValueDist;
@@ -82,7 +82,6 @@ class ValuePattern final : public Analysis {
     Vector<std::pair<u64, u64>> unqiue_value_count_vec;
     u64 total_access_count;
     Vector<ValuePatternType> vpts;
-
     ArrayPatternInfo() = default;
 
     ArrayPatternInfo(const AccessKind &access_kind, const Memory &memory)

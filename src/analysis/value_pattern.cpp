@@ -16,9 +16,9 @@
 
 namespace redshow {
 
-void ValuePattern::op_callback(OperationPtr operation) {
-  // Do nothing
-}
+  void ValuePattern::op_callback(OperationPtr operation) {
+    // Do nothing
+  }
 
 // Fine-grained
 void ValuePattern::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id) {
@@ -76,11 +76,13 @@ void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
   auto &thread_kernel_trace = this->_kernel_trace.at(cpu_thread);
 
   unlock();
-
+// for all kernels
+  ValueDist value_dist_sum;
   std::ofstream out(output_dir + "value_pattern_t" + std::to_string(cpu_thread) + ".csv");
 
   for (auto &trace_iter : thread_kernel_trace) {
     auto kernel_id = trace_iter.first;
+    out<< "kernel id" << kernel_id<<std::endl;
     auto trace = std::dynamic_pointer_cast<ValuePatternTrace>(trace_iter.second);
     auto &value_dist = trace->value_dist;
     for (auto &memory_iter : value_dist) {
@@ -88,6 +90,15 @@ void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
       for (auto &array_iter : memory_iter.second) {
         auto &access_kind = array_iter.first;
         auto &array_items = array_iter.second;
+        for (auto &item_iter: array_items){
+          auto &offset = item_iter.first;
+          auto &value_count = item_iter.second;
+          for (auto &item_value_count_iter: value_count){
+            auto &item_value = item_value_count_iter.first;
+            auto &item_value_count = item_value_count_iter.second;
+            value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
+          }
+        }
         ArrayPatternInfo array_pattern_info(access_kind, memory);
         dense_value_pattern(array_items, array_pattern_info);
         show_value_pattern(array_pattern_info, out);
@@ -104,6 +115,30 @@ void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
       }
     }
   }
+  out<<"array pattern summary"<<std::endl;
+  for (auto &memory_iter : value_dist_sum) {
+    auto &memory = memory_iter.first;
+    for (auto &array_iter : memory_iter.second) {
+      auto &access_kind = array_iter.first;
+      auto &array_items = array_iter.second;
+      ArrayPatternInfo array_pattern_info(access_kind, memory);
+      dense_value_pattern(array_items, array_pattern_info);
+      show_value_pattern(array_pattern_info, out);
+      // Now we set approxiamte level is mid.
+      ArrayPatternInfo array_pattern_info_approx(access_kind, memory);
+      bool valid_approx =
+          approximate_value_pattern(array_items, array_pattern_info, array_pattern_info_approx);
+
+      if (valid_approx) {
+        out << "====  approximate ====" << std::endl;
+        show_value_pattern(array_pattern_info_approx, out);
+        out << "==== end approximate ====" << std::endl;
+      }
+    }
+  }
+
+
+
 }
 
 void ValuePattern::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
