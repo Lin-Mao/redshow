@@ -53,7 +53,7 @@ static LockableMap<uint64_t, std::shared_ptr<Memory>> memorys;
 // Init analysis instance
 static Map<redshow_analysis_type_t, std::shared_ptr<Analysis>> analysis_enabled;
 
-static std::string output_dir;
+static Map<redshow_analysis_type_t, std::string> output_dir;
 
 static redshow_log_data_callback_func log_data_callback = NULL;
 
@@ -336,11 +336,11 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
  * Interface methods
  */
 
-redshow_result_t redshow_output_dir_config(const char *dir) {
-  PRINT("\nredshow->Enter redshow_output_dir_config\ndir: %s\n", dir);
+redshow_result_t redshow_output_dir_config(redshow_analysis_type_t analysis, const char *dir) {
+  PRINT("\nredshow->Enter redshow_output_dir_config\nanalysis: %u\ndir: %s\n", analysis, dir);
 
   if (dir) {
-    output_dir = std::string(dir);
+    output_dir[analysis] = std::string(dir);
   }
 }
 
@@ -826,7 +826,7 @@ redshow_result_t redshow_flush_thread(uint32_t cpu_thread) {
   PRINT("\nredshow->Enter redshow_flush cpu_thread %u\n", cpu_thread);
 
   for (auto aiter : analysis_enabled) {
-    aiter.second->flush_thread(cpu_thread, output_dir, cubin_map, record_data_callback);
+    aiter.second->flush_thread(cpu_thread, output_dir[aiter.first], cubin_map, record_data_callback);
   }
 
   return REDSHOW_SUCCESS;
@@ -836,7 +836,7 @@ redshow_result_t redshow_flush() {
   PRINT("\nredshow->Enter redshow_flush\n");
 
   for (auto aiter : analysis_enabled) {
-    aiter.second->flush(output_dir, cubin_map, record_data_callback);
+    aiter.second->flush(output_dir[aiter.first], cubin_map, record_data_callback);
   }
 
   return REDSHOW_SUCCESS;

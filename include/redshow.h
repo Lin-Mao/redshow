@@ -86,7 +86,7 @@ typedef struct redshow_record_data {
  *
  * @thread-safe: No
  */
-EXTERNC redshow_result_t redshow_output_dir_config(const char *dir);
+EXTERNC redshow_result_t redshow_output_dir_config(redshow_analysis_type_t analysis, const char *dir);
 
 /**
  * @brief Config default data type
