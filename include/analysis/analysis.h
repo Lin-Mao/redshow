@@ -23,7 +23,7 @@ struct Trace {
 
 class Analysis {
  public:
-  Analysis(redshow_analysis_type_t type) : _type(type) {}
+  Analysis(redshow_analysis_type_t type) : _type(type), _dtoh(NULL) {}
 
   virtual void lock() { this->_lock.lock(); }
 
