@@ -48,8 +48,6 @@ static LockableMap<uint32_t, CubinCache> cubin_cache_map;
 typedef Map<MemoryRange, std::shared_ptr<Memory>> MemoryMap;
 static LockableMap<uint64_t, MemoryMap> memory_snapshot;
 
-static LockableMap<uint64_t, std::shared_ptr<Memory>> memorys;
-
 // Init analysis instance
 static Map<redshow_analysis_type_t, std::shared_ptr<Analysis>> analysis_enabled;
 
@@ -373,8 +371,6 @@ redshow_result_t redshow_data_type_get(redshow_data_type_t *data_type) {
 }
 
 redshow_result_t redshow_approx_level_config(redshow_approx_level_t level) {
-  //PRINT("\nredshow->Enter redshow_approx_level_config\nlevel: %u\n", level);
-
   redshow_result_t result = REDSHOW_SUCCESS;
 
   switch (level) {
@@ -591,10 +587,6 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
   }
   memory_snapshot.unlock();
 
-  memorys.lock();
-  memorys[host_op_id] = memory;
-  memorys.unlock();
-
   if (result == REDSHOW_SUCCESS) {
     for (auto aiter : analysis_enabled) {
       aiter.second->op_callback(memory);
@@ -604,9 +596,9 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
   return result;
 }
 
-redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_t host_op_id) {
-  PRINT("\nredshow->Enter redshow_memory_unregister\nstart: %p\nend: %p\nhost_op_id: %llu\n", start,
-        end, host_op_id);
+redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t start, uint64_t end) {
+  PRINT("\nredshow->Enter redshow_memory_unregister\nhost_op_id: %llu\nstart: %p\nend: %p\n",
+    host_op_id, start, end);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -630,10 +622,6 @@ redshow_result_t redshow_memory_unregister(uint64_t start, uint64_t end, uint64_
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
   }
   memory_snapshot.unlock();
-
-  memorys.lock();
-  memorys.erase(host_op_id);
-  memorys.unlock();
 
   return result;
 }
