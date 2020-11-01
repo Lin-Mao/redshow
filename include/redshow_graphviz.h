@@ -19,13 +19,14 @@ struct redshow_graphviz_node {
 
 struct redshow_graphviz_edge {
   std::string type;
+  int32_t memory_node_id;
   double redundancy;
   double overwrite;
 
   redshow_graphviz_edge() = default;
   redshow_graphviz_edge(const std::string &type) : type(type), redundancy(0.0), overwrite(0.0) {}
-  redshow_graphviz_edge(const std::string &type, double redundancy, double overwrite)
-      : type(type), redundancy(redundancy), overwrite(overwrite) {}
+  redshow_graphviz_edge(const std::string &type, int32_t memory_node_id, double redundancy, double overwrite)
+      : type(type), memory_node_id(memory_node_id), redundancy(redundancy), overwrite(overwrite) {}
 };
 
 #endif  // REDSHOW_GRAPHVIZ_H
