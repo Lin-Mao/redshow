@@ -38,10 +38,10 @@ void DataFlow::init() {
   _graph.add_node(LOCAL_MEMORY_CTX_ID, LOCAL_MEMORY_CTX_ID, OPERATION_TYPE_MEMORY);
 
   _memories[REDSHOW_MEMORY_SHARED] = std::make_shared<Memory>(REDSHOW_MEMORY_SHARED, SHARED_MEMORY_CTX_ID);
-  _memories[REDSHOW_MEMORY_LOCAL] = std::make_shared<Memory>(REDSHOW_MEMORY_LOCAL, SHARED_MEMORY_CTX_ID);
-  _memories[REDSHOW_MEMORY_CONSTANT] = std::make_shared<Memory>(REDSHOW_MEMORY_CONSTANT, SHARED_MEMORY_CTX_ID);
-  _memories[REDSHOW_MEMORY_UVM] = std::make_shared<Memory>(REDSHOW_MEMORY_UVM, SHARED_MEMORY_CTX_ID);
-  _memories[REDSHOW_MEMORY_HOST] = std::make_shared<Memory>(REDSHOW_MEMORY_HOST, SHARED_MEMORY_CTX_ID);
+  _memories[REDSHOW_MEMORY_LOCAL] = std::make_shared<Memory>(REDSHOW_MEMORY_LOCAL, LOCAL_MEMORY_CTX_ID);
+  _memories[REDSHOW_MEMORY_CONSTANT] = std::make_shared<Memory>(REDSHOW_MEMORY_CONSTANT, CONSTANT_MEMORY_CTX_ID);
+  _memories[REDSHOW_MEMORY_UVM] = std::make_shared<Memory>(REDSHOW_MEMORY_UVM, UVM_MEMORY_CTX_ID);
+  _memories[REDSHOW_MEMORY_HOST] = std::make_shared<Memory>(REDSHOW_MEMORY_HOST, HOST_MEMORY_CTX_ID);
 }
 
 void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
