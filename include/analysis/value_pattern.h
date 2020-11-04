@@ -83,13 +83,14 @@ class ValuePattern final : public Analysis {
     u64 total_access_count;
     Vector<ValuePatternType> vpts;
     ArrayPatternInfo() = default;
-
+    uint8_t read_flag;
     ArrayPatternInfo(const AccessKind &access_kind, const Memory &memory)
         : access_kind(access_kind), memory(memory) {}
   };
 
   struct ValuePatternTrace final : public Trace {
-    ValueDist value_dist;
+    ValueDist w_value_dist;
+    ValueDist r_value_dist;
 
     ValuePatternTrace() = default;
 
@@ -102,13 +103,13 @@ class ValuePattern final : public Analysis {
   bool approximate_value_pattern(ItemsValueCount &array_items, ArrayPatternInfo &array_pattern_info,
                                  ArrayPatternInfo &array_pattern_info_approx);
 
-  void show_value_pattern(ArrayPatternInfo &array_pattern_info, std::ofstream &out);
+  void show_value_pattern(ArrayPatternInfo &array_pattern_info, std::ofstream &out, uint8_t read_flag);
 
   void detect_type_overuse(std::pair<int, int> &redundat_zero_bits, AccessKind &accessKind,
                            std::pair<int, int> &narrow_down_to_unit_size);
 
   bool float_no_decimal(u64 a, AccessKind &accessKind);
-
+  void check_pattern_for_value_dist(ValueDist & value_dist, std::ofstream &out, uint8_t read_flag);
   std::pair<int, int> get_redundant_zeros_bits(u64 a, AccessKind &accessKind);
 
  private:

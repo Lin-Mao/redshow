@@ -51,7 +51,8 @@ void ValuePattern::unit_access(i32 kernel_id, const ThreadId &thread_id,
                                const AccessKind &access_kind, const Memory &memory, u64 pc,
                                u64 value, u64 addr, u32 index, bool read) {
   //  @todo If memory usage is too high, we can limit the save of various values of one item.
-  auto &value_dist = _trace->value_dist;
+  auto &r_value_dist = _trace->r_value_dist;
+  auto &w_value_dist = _trace->w_value_dist;
   auto decimal_degree_f32 = 0;
   auto decimal_degree_f64 = 0;
   redshow_approx_get(&decimal_degree_f32, &decimal_degree_f64);
@@ -65,7 +66,10 @@ void ValuePattern::unit_access(i32 kernel_id, const ThreadId &thread_id,
   }
 
   auto offset = (addr - memory.memory_range.start) / (access_kind.unit_size / 8);
-  value_dist[memory][access_kind][offset][value] += 1;
+  if(read)
+    r_value_dist[memory][access_kind][offset][value] += 1;
+  else
+    w_value_dist[memory][access_kind][offset][value] += 1;
 }
 
 void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
@@ -78,14 +82,21 @@ void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
   unlock();
 // for all kernels
   ValueDist value_dist_sum;
+  ValueDist r_value_dist_sum;
+  ValueDist w_value_dist_sum;
+
   std::ofstream out(output_dir + "value_pattern_t" + std::to_string(cpu_thread) + ".csv");
 
   for (auto &trace_iter : thread_kernel_trace) {
     auto kernel_id = trace_iter.first;
-    out<< "kernel id" << kernel_id<<std::endl;
+    out<< "kernel id\t" << kernel_id<<std::endl;
     auto trace = std::dynamic_pointer_cast<ValuePatternTrace>(trace_iter.second);
-    auto &value_dist = trace->value_dist;
-    for (auto &memory_iter : value_dist) {
+    auto &r_value_dist = trace->r_value_dist;
+    auto &w_value_dist = trace->w_value_dist;
+    check_pattern_for_value_dist(r_value_dist, out, GPU_PATCH_READ);
+    check_pattern_for_value_dist(w_value_dist, out, GPU_PATCH_WRITE);
+    ValueDist k_value_dist_sum;
+    for (auto &memory_iter : r_value_dist) {
       auto &memory = memory_iter.first;
       for (auto &array_iter : memory_iter.second) {
         auto &access_kind = array_iter.first;
@@ -96,49 +107,62 @@ void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
           for (auto &item_value_count_iter: value_count){
             auto &item_value = item_value_count_iter.first;
             auto &item_value_count = item_value_count_iter.second;
+            r_value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
             value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
+            k_value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
           }
-        }
-        ArrayPatternInfo array_pattern_info(access_kind, memory);
-        dense_value_pattern(array_items, array_pattern_info);
-        show_value_pattern(array_pattern_info, out);
-        // Now we set approxiamte level is mid.
-        ArrayPatternInfo array_pattern_info_approx(access_kind, memory);
-        bool valid_approx =
-            approximate_value_pattern(array_items, array_pattern_info, array_pattern_info_approx);
-
-        if (valid_approx) {
-          out << "====  approximate ====" << std::endl;
-          show_value_pattern(array_pattern_info_approx, out);
-          out << "==== end approximate ====" << std::endl;
         }
       }
     }
+
+    for (auto &memory_iter : w_value_dist) {
+      auto &memory = memory_iter.first;
+      for (auto &array_iter : memory_iter.second) {
+        auto &access_kind = array_iter.first;
+        auto &array_items = array_iter.second;
+        for (auto &item_iter: array_items){
+          auto &offset = item_iter.first;
+          auto &value_count = item_iter.second;
+          for (auto &item_value_count_iter: value_count){
+            auto &item_value = item_value_count_iter.first;
+            auto &item_value_count = item_value_count_iter.second;
+            w_value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
+            value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
+            k_value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
+          }
+        }
+      }
+    }
+    check_pattern_for_value_dist(k_value_dist_sum, out, 0);
+
   }
-  out<<"==============\narray pattern summary\n================"<<std::endl;
-  for (auto &memory_iter : value_dist_sum) {
+  out<<"================\narray pattern summary\n================"<<std::endl;
+  check_pattern_for_value_dist(r_value_dist_sum, out, GPU_PATCH_READ);
+  check_pattern_for_value_dist(w_value_dist_sum, out, GPU_PATCH_WRITE);
+  check_pattern_for_value_dist(value_dist_sum, out, 0);
+}
+
+void ValuePattern:: check_pattern_for_value_dist(ValueDist & value_dist, std::ofstream &out, uint8_t read_flag){
+  for (auto &memory_iter : value_dist) {
     auto &memory = memory_iter.first;
     for (auto &array_iter : memory_iter.second) {
       auto &access_kind = array_iter.first;
       auto &array_items = array_iter.second;
       ArrayPatternInfo array_pattern_info(access_kind, memory);
       dense_value_pattern(array_items, array_pattern_info);
-      show_value_pattern(array_pattern_info, out);
       // Now we set approxiamte level is mid.
       ArrayPatternInfo array_pattern_info_approx(access_kind, memory);
       bool valid_approx =
           approximate_value_pattern(array_items, array_pattern_info, array_pattern_info_approx);
 
+      show_value_pattern(array_pattern_info, out, read_flag);
       if (valid_approx) {
         out << "====  approximate ====" << std::endl;
-        show_value_pattern(array_pattern_info_approx, out);
+        show_value_pattern(array_pattern_info_approx, out, read_flag);
         out << "==== end approximate ====" << std::endl;
       }
     }
   }
-
-
-
 }
 
 void ValuePattern::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
@@ -260,11 +284,13 @@ void ValuePattern::dense_value_pattern(ItemsValueCount &array_items,
   auto &vpts = array_pattern_info.vpts;
   auto &narrow_down_to_unit_size = array_pattern_info.narrow_down_to_unit_size;
   auto &unique_value_count_vec = array_pattern_info.unqiue_value_count_vec;
+// special memory array
+  if (memory_size == 0){
+    vpts.emplace_back(VP_NO_PATTERN);
+    return;
+  }
   u64 total_access_count = 0;
   u64 total_unique_item_access_count = 0;
-  // @todo one array may be considered as multiple types. What if one type is single_value_pattern
-  // but another type is not?
-  // @todo what if the array item is single-value at read and write with two different values?
   float THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE = 0.1;
   float THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 = 0.5;
   int TOP_NUM_VALUE = 10;
@@ -274,7 +300,7 @@ void ValuePattern::dense_value_pattern(ItemsValueCount &array_items,
   std::pair<int, int> redundant_zero_bits = make_pair(access_kind.unit_size, access_kind.unit_size);
   // Type ArrayItems is part of ValueDist: {offset: {value: count}}
   for (u64 i = 0; i < memory_size; i++) {
-    auto temp_item_value_count = array_items[i];
+    auto &temp_item_value_count = array_items[i];
     if (access_kind.data_type == REDSHOW_DATA_INT) {
       for (auto temp_value : temp_item_value_count) {
         auto temp_redundat_zero_bits = get_redundant_zeros_bits(temp_value.first, access_kind);
@@ -416,7 +442,7 @@ bool ValuePattern::approximate_value_pattern(ItemsValueCount &array_items,
   return valid_approx;
 }
 
-void ValuePattern::show_value_pattern(ArrayPatternInfo &array_pattern_info, std::ofstream &out) {
+void ValuePattern::show_value_pattern(ArrayPatternInfo &array_pattern_info, std::ofstream &out, uint8_t read_flag) {
   using std::endl;
   auto &memory = array_pattern_info.memory;
   int unique_item_count = array_pattern_info.unique_item_count;
@@ -431,13 +457,14 @@ void ValuePattern::show_value_pattern(ArrayPatternInfo &array_pattern_info, std:
       "Redundant zeros", "Single value",      "Dense value",
       "Type overuse",    "Approximate value", "Silent store",
       "Silent load",     "No pattern",        "Inappropriate float type"};
+  std::string rw_names[] = {"R&W", "Read", "Write"};
   out << "unique item count " << unique_item_count << " unqiue_value_count_vec.size "
       << value_count_vec.size() << endl;
   out << "total access " << array_pattern_info.total_access_count << "\tunqiue value access count "
       << array_pattern_info.unique_item_access_count << endl;
   out << "array " << memory.ctx_id << " : memory size " << memory_size << " value type "
-      << access_kind.to_string() << endl;
-  out << "\npattern type\n";
+      << access_kind.to_string() << " " <<rw_names[read_flag]<< endl;
+  out << "pattern type\n";
   if (vpts.size() == 0) vpts.emplace_back(VP_NO_PATTERN);
   for (auto a_vpt : vpts) {
     out << " * " << pattern_names[a_vpt] << "\t";
@@ -468,11 +495,16 @@ void ValuePattern::show_value_pattern(ArrayPatternInfo &array_pattern_info, std:
     }
     out << endl;
   }
-  out << "value\tcount" << endl;
-  for (auto item : top_value_count_vec) {
-    out << access_kind.value_to_string(item.first, true) << "\t" << item.second << endl;
+  if(top_value_count_vec.size() != 0){
+    out << "TOP unqiue value\tcount" << endl;
+    for (auto item : top_value_count_vec) {
+      out << access_kind.value_to_string(item.first, true) << "\t" << item.second << endl;
+    }
   }
   out << endl;
 }
+
+
+
 
 }  // namespace redshow
