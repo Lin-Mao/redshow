@@ -36,24 +36,27 @@ void DataFlow::init() {
   _graph.add_node(UVM_MEMORY_CTX_ID, UVM_MEMORY_CTX_ID, OPERATION_TYPE_MEMORY);
   _graph.add_node(HOST_MEMORY_CTX_ID, HOST_MEMORY_CTX_ID, OPERATION_TYPE_MEMORY);
   _graph.add_node(LOCAL_MEMORY_CTX_ID, LOCAL_MEMORY_CTX_ID, OPERATION_TYPE_MEMORY);
+
+  _memories[REDSHOW_MEMORY_SHARED] = std::make_shared<Memory>(REDSHOW_MEMORY_SHARED, SHARED_MEMORY_CTX_ID);
+  _memories[REDSHOW_MEMORY_LOCAL] = std::make_shared<Memory>(REDSHOW_MEMORY_LOCAL, LOCAL_MEMORY_CTX_ID);
+  _memories[REDSHOW_MEMORY_CONSTANT] = std::make_shared<Memory>(REDSHOW_MEMORY_CONSTANT, CONSTANT_MEMORY_CTX_ID);
+  _memories[REDSHOW_MEMORY_UVM] = std::make_shared<Memory>(REDSHOW_MEMORY_UVM, UVM_MEMORY_CTX_ID);
+  _memories[REDSHOW_MEMORY_HOST] = std::make_shared<Memory>(REDSHOW_MEMORY_HOST, HOST_MEMORY_CTX_ID);
 }
 
 void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
   // data flow analysis must be synchrounous
   for (auto &mem_iter : _trace->read_memory) {
-    if (_memories.has(mem_iter.first)) {
-      // Avoid local and share memories
-      auto memory = _memories.at(mem_iter.first);
-      auto node_id = _op_node.at(memory->op_id);
-      // Link a pure read edge between two calling contexts
-      link_ctx_node(node_id, op->ctx_id, DATA_FLOW_EDGE_READ);
-    }
+    // Avoid local and share memories
+    auto memory = _memories.at(mem_iter.first);
+    auto node_id = _op_node.at(memory->op_id);
+    // Link a pure read edge between two calling contexts
+    link_ctx_node(node_id, op->ctx_id, memory->ctx_id, DATA_FLOW_EDGE_READ);
   }
 
   for (auto &mem_iter : _trace->write_memory) {
-    if (_memories.has(mem_iter.first)) {
-      // Avoid local and share memories
-      auto memory = _memories.at(mem_iter.first);
+    auto memory = _memories.at(mem_iter.first);
+    if (memory->op_id > REDSHOW_MEMORY_HOST) {
       auto len = 0;
       for (auto &unit_iter : mem_iter.second) {
         len += unit_iter.second;
@@ -66,8 +69,8 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
       u64 overwrite = len;
 
       // Point the operation to the calling context
-      link_op_node(memory->op_id, op->ctx_id);
-      update_op_metrics(memory->op_id, op->ctx_id, redundancy, overwrite, memory->len);
+      link_op_node(memory->op_id, op->ctx_id, memory->ctx_id);
+      update_op_metrics(memory->op_id, op->ctx_id, memory->ctx_id, redundancy, overwrite, memory->len);
       update_op_node(memory->op_id, op->ctx_id);
 
       std::string hash = compute_memory_hash(reinterpret_cast<u64>(host_cache), memory->len);
@@ -92,11 +95,11 @@ void DataFlow::memset_op_callback(std::shared_ptr<Memset> op) {
   u64 redundancy = compute_memset_redundancy(op->shadow_start, op->value, op->shadow_len);
   u64 overwrite = op->len;
 
-  link_op_node(op->memory_op_id, op->ctx_id);
-  update_op_metrics(op->memory_op_id, op->ctx_id, redundancy, overwrite, op->shadow_len);
+  auto memory = _memories.at(op->memory_op_id);
+  link_op_node(op->memory_op_id, op->ctx_id, memory->ctx_id);
+  update_op_metrics(op->memory_op_id, op->ctx_id, memory->ctx_id, redundancy, overwrite, op->shadow_len);
   update_op_node(op->memory_op_id, op->ctx_id);
 
-  auto memory = _memories.at(op->memory_op_id);
   u64 host = reinterpret_cast<u64>(memory->value_cache.get());
   dtoh(host, memory->memory_range.start, memory->len);
   std::string hash = compute_memory_hash(host, op->shadow_len);
@@ -108,13 +111,15 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
   u64 overwrite = op->len;
   u64 dst_len = op->dst_len == 0 ? op->len : op->dst_len;
 
-  link_op_node(op->dst_memory_op_id, op->ctx_id);
-  update_op_metrics(op->dst_memory_op_id, op->ctx_id, redundancy, overwrite, dst_len);
+  auto src_memory = _memories.at(op->src_memory_op_id);
+  auto dst_memory = _memories.at(op->dst_memory_op_id);
+  link_op_node(op->dst_memory_op_id, op->ctx_id, dst_memory->ctx_id);
+  update_op_metrics(op->dst_memory_op_id, op->ctx_id, dst_memory->ctx_id, redundancy, overwrite, dst_len);
   update_op_node(op->dst_memory_op_id, op->ctx_id);
 
   auto src_ctx_id = _op_node.at(op->src_memory_op_id);
   auto dst_ctx_id = _op_node.at(op->dst_memory_op_id);
-  link_ctx_node(src_ctx_id, dst_ctx_id, DATA_FLOW_EDGE_READ);
+  link_ctx_node(src_ctx_id, dst_ctx_id, src_memory->ctx_id, DATA_FLOW_EDGE_READ);
 
   std::string hash = compute_memory_hash(op->src_start, op->len);
   _node_hash[op->ctx_id].emplace(hash);
@@ -211,15 +216,15 @@ void DataFlow::flush(const std::string &output_dir, const LockableMap<u32, Cubin
 #endif
 }
 
-void DataFlow::link_ctx_node(i32 src_ctx_id, i32 dst_ctx_id, EdgeType type) {
-  auto edge_index = EdgeIndex(src_ctx_id, dst_ctx_id, type);
+void DataFlow::link_ctx_node(i32 src_ctx_id, i32 dst_ctx_id, i32 mem_ctx_id, EdgeType type) {
+  auto edge_index = EdgeIndex(src_ctx_id, dst_ctx_id, mem_ctx_id, type);
   _graph.add_edge(std::move(edge_index), type);
 }
 
-void DataFlow::link_op_node(u64 op_id, i32 ctx_id) {
+void DataFlow::link_op_node(u64 op_id, i32 ctx_id, i32 mem_ctx_id) {
   if (_op_node.find(op_id) != _op_node.end()) {
     auto prev_ctx_id = _op_node.at(op_id);
-    link_ctx_node(prev_ctx_id, ctx_id, DATA_FLOW_EDGE_ORDER);
+    link_ctx_node(prev_ctx_id, ctx_id, mem_ctx_id, DATA_FLOW_EDGE_ORDER);
   }
 }
 
@@ -230,11 +235,11 @@ void DataFlow::update_op_node(u64 op_id, i32 ctx_id) {
   }
 }
 
-void DataFlow::update_op_metrics(u64 op_id, i32 ctx_id, u64 redundancy, u64 overwrite, u64 count) {
+void DataFlow::update_op_metrics(u64 op_id, i32 ctx_id, i32 mem_ctx_id, u64 redundancy, u64 overwrite, u64 count) {
   // Update current edge's property
   if (_op_node.find(op_id) != _op_node.end()) {
     auto prev_ctx_id = _op_node.at(op_id);
-    auto edge_index = EdgeIndex(prev_ctx_id, ctx_id, DATA_FLOW_EDGE_ORDER);
+    auto edge_index = EdgeIndex(prev_ctx_id, ctx_id, mem_ctx_id, DATA_FLOW_EDGE_ORDER);
     if (_graph.has_edge(edge_index)) {
       auto &edge = _graph.edge(edge_index);
       edge.redundancy += redundancy;
@@ -334,7 +339,7 @@ void DataFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool>
 
         auto iv = vertice[incoming_node.ctx_id];
         auto type = get_data_flow_edge_type(edge_index.type);
-        boost::add_edge(iv, v, EdgeProperty(type, redundancy_avg, overwrite_avg), g);
+        boost::add_edge(iv, v, EdgeProperty(type, edge_index.mem_ctx_id, redundancy_avg, overwrite_avg), g);
       }
     }
   }
@@ -344,6 +349,7 @@ void DataFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool>
   dp.property("node_type", boost::get(&VertexProperty::type, g));
   dp.property("duplicate", boost::get(&VertexProperty::duplicate, g));
   dp.property("edge_type", boost::get(&EdgeProperty::type, g));
+  dp.property("memory_node_id", boost::get(&EdgeProperty::memory_node_id, g));
   dp.property("overwrite", boost::get(&EdgeProperty::overwrite, g));
   dp.property("redundancy", boost::get(&EdgeProperty::redundancy, g));
 

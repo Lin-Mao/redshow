@@ -282,12 +282,12 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
           // Memory object not found, it means the memory is local, shared, or allocated in an
           // unknown way
           if (record->flags & GPU_PATCH_LOCAL) {
-            memory_op_id = REDSHOW_MEMORY_SHARED;
-            memory_id = SHARED_MEMORY_CTX_ID;
-            stride = LOCAL_MEMORY_OFFSET;
-          } else if (record->flags & GPU_PATCH_SHARED) {
             memory_op_id = REDSHOW_MEMORY_LOCAL;
             memory_id = LOCAL_MEMORY_CTX_ID;
+            stride = LOCAL_MEMORY_OFFSET;
+          } else if (record->flags & GPU_PATCH_SHARED) {
+            memory_op_id = REDSHOW_MEMORY_SHARED;
+            memory_id = SHARED_MEMORY_CTX_ID;
             stride = SHARED_MEMORY_OFFSET;
           } else {
             // Unknown allocation
@@ -305,7 +305,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
         // We iterate through all the units such that every unit's vec_size = unit_size
         unit_access_kind.vec_size = unit_access_kind.unit_size;
 
-        bool read = (record->flags & GPU_PATCH_READ) ? true : false;
+        bool read = (record->flags & GPU_PATCH_WRITE) ? false : true;
 
         for (size_t m = 0; m < num_units; m++) {
           uint64_t value = 0;

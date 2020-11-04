@@ -67,11 +67,12 @@ class DataFlow final : public Analysis {
   struct EdgeIndex {
     Index from;
     Index to;
+    i32 mem_ctx_id;
     EdgeType type;
 
     EdgeIndex() = default;
 
-    EdgeIndex(Index &from, Index &to, EdgeType type) : from(from), to(to), type(type) {}
+    EdgeIndex(Index &from, Index &to, i32 mem_ctx_id, EdgeType type) : from(from), to(to), mem_ctx_id(mem_ctx_id), type(type) {}
 
     bool operator<(const EdgeIndex &other) const {
       if (this->from == other.from) {
@@ -120,11 +121,11 @@ class DataFlow final : public Analysis {
 
   void memcpy_op_callback(std::shared_ptr<Memcpy> op);
 
-  void link_op_node(u64 op_id, i32 ctx_id);
+  void link_op_node(u64 op_id, i32 ctx_id, i32 mem_ctx_id);
 
-  void link_ctx_node(i32 src_ctx_id, i32 dst_ctx_id, EdgeType type);
+  void link_ctx_node(i32 src_ctx_id, i32 dst_ctx_id, i32 mem_ctx_id, EdgeType type);
 
-  void update_op_metrics(u64 op_id, i32 ctx_id, u64 redundancy, u64 overwrite, u64 count);
+  void update_op_metrics(u64 op_id, i32 ctx_id, i32 mem_ctx_id, u64 redundancy, u64 overwrite, u64 count);
 
   void update_op_node(u64 op_id, i32 ctx_id);
 
