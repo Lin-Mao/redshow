@@ -158,7 +158,7 @@ void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
   check_pattern_for_value_dist(value_dist_sum, out, 0);
 }
 
-void ValuePattern:: check_pattern_for_value_dist(ValueDist & value_dist, std::ofstream &out, uint8_t read_flag){
+void ValuePattern::check_pattern_for_value_dist(ValueDist & value_dist, std::ofstream &out, uint8_t read_flag){
   for (auto &memory_iter : value_dist) {
     auto &memory = memory_iter.first;
     for (auto &array_iter : memory_iter.second) {
@@ -314,6 +314,7 @@ void ValuePattern::dense_value_pattern(ItemsValueCount &array_items,
 
   ValueCount unique_value_count;
   bool inappropriate_float_type = true;
+  // XXX: <signed, unsigned>
   std::pair<int, int> redundant_zero_bits = make_pair(access_kind.unit_size, access_kind.unit_size);
   // Type ArrayItems is part of ValueDist: {offset: {value: count}}
   for (u64 i = 0; i < array_size; i++) {
@@ -327,6 +328,7 @@ void ValuePattern::dense_value_pattern(ItemsValueCount &array_items,
       }
     } else if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
       for (auto temp_value : temp_item_value_count) {
+        // TODO(Yueming): can be skipped directly using inappropriate_float_type
         if (inappropriate_float_type && !float_no_decimal(temp_value.first, access_kind))
           inappropriate_float_type = false;
       }
@@ -345,9 +347,11 @@ void ValuePattern::dense_value_pattern(ItemsValueCount &array_items,
   array_pattern_info.unique_item_count = unique_item_count;
   array_pattern_info.unique_item_access_count = total_unique_item_access_count;
   if (access_kind.data_type == REDSHOW_DATA_FLOAT && inappropriate_float_type) {
+    // TODO(Yueming): If we can use float for double
     vpts.emplace_back(VP_INAPPROPRIATE_FLOAT);
   }
   if (access_kind.data_type == REDSHOW_DATA_INT) {
+    // TODO(Yueming): Can be optimized by using a dict
     detect_type_overuse(redundant_zero_bits, access_kind, narrow_down_to_unit_size);
     if (access_kind.unit_size != narrow_down_to_unit_size.first ||
         access_kind.unit_size != narrow_down_to_unit_size.second) {
@@ -399,6 +403,7 @@ void ValuePattern::dense_value_pattern(ItemsValueCount &array_items,
   } else {
     if (unique_item_count >= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 * array_size) {
       if (unique_value_count_vec.size() <= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE * array_size) {
+      // TODO(Yueming): relaxed condition
         vpt = VP_DENSE_VALUE;
       }
     }
@@ -431,6 +436,7 @@ bool ValuePattern::approximate_value_pattern(ItemsValueCount &array_items,
     auto one_item_value_count = array_items[i];
     for (auto one_value_count : one_item_value_count) {
       if (access_kind.unit_size == 32) {
+        // TODO(Yueming): why another conversion?
         u64 new_value = value_to_float(one_value_count.first, decimal_degree_f32);
         array_items_approx[i][new_value] += one_value_count.second;
       } else if (access_kind.unit_size == 64) {
