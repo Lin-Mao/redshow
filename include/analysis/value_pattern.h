@@ -67,6 +67,7 @@ class ValuePattern final : public Analysis {
     VP_SILENT_LOAD = 6,
     VP_NO_PATTERN = 7,
     VP_INAPPROPRIATE_FLOAT = 8,
+    VP_STRUCTURED_PATTERN = 9,
   };
 
   struct ArrayPatternInfo {
@@ -81,6 +82,8 @@ class ValuePattern final : public Analysis {
     u64 unique_item_access_count;
     Vector<std::pair<u64, u64>> unqiue_value_count_vec;
     u64 total_access_count;
+//    for structured pattern
+    double k, b;
     Vector<ValuePatternType> vpts;
     ArrayPatternInfo() = default;
     uint8_t read_flag;
@@ -107,7 +110,7 @@ class ValuePattern final : public Analysis {
 
   void detect_type_overuse(std::pair<int, int> &redundat_zero_bits, AccessKind &accessKind,
                            std::pair<int, int> &narrow_down_to_unit_size);
-
+  bool detect_structrued_pattern(ItemsValueCount &array_items, ArrayPatternInfo &array_pattern_info);
   bool float_no_decimal(u64 a, AccessKind &accessKind);
   void check_pattern_for_value_dist(ValueDist & value_dist, std::ofstream &out, uint8_t read_flag);
   std::pair<int, int> get_redundant_zeros_bits(u64 a, AccessKind &accessKind);
