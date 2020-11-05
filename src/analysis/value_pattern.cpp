@@ -53,10 +53,9 @@ namespace redshow {
     //  @todo If memory usage is too high, we can limit the save of various values of one item.
     auto &r_value_dist = _trace->r_value_dist;
     auto &w_value_dist = _trace->w_value_dist;
-    auto decimal_degree_f32 = 0;
-    auto decimal_degree_f64 = 0;
-    redshow_approx_get(&decimal_degree_f32, &decimal_degree_f64);
-
+    int decimal_degree_f32;
+    int decimal_degree_f64;
+    vp_approx_level_config(REDSHOW_APPROX_MIN, decimal_degree_f32, decimal_degree_f64);
     if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
       if (access_kind.unit_size == 32) {
         value = value_to_float(value, decimal_degree_f32);
@@ -311,8 +310,10 @@ namespace redshow {
         }
       } else if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
         for (auto temp_value : temp_item_value_count) {
-          if (inappropriate_float_type && !float_no_decimal(temp_value.first, access_kind))
+          if (inappropriate_float_type && !float_no_decimal(temp_value.first, access_kind)) {
             inappropriate_float_type = false;
+            break;
+          }
         }
       }
       if (temp_item_value_count.size() == 1) {
@@ -404,14 +405,11 @@ namespace redshow {
                                                ArrayPatternInfo &array_pattern_info_approx) {
     auto &access_kind = array_pattern_info.access_kind;
     auto &memory = array_pattern_info.memory;
-
     if (access_kind.data_type != REDSHOW_DATA_FLOAT) {
       return false;
     }
-
     int decimal_degree_f32, decimal_degree_f64;
-    redshow_approx_get(&decimal_degree_f32, &decimal_degree_f64);
-
+    vp_approx_level_config(REDSHOW_APPROX_HIGH, decimal_degree_f32, decimal_degree_f64);
     ItemsValueCount array_items_approx;
     for (int i = 0; i < memory.len; ++i) {
       auto one_item_value_count = array_items[i];
@@ -527,17 +525,17 @@ namespace redshow {
           auto &temp_item_value_count = array_items[i];
           sum_y_i += temp_item_value_count.begin()->first;
         }
-        avg_y = (double)sum_y_i / (number_of_items - 2);
+        avg_y = (double) sum_y_i / (number_of_items - 2);
       } else if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
         float a;
         double b;
         for (u64 i = 1; i < number_of_items - 1; i++) {
           auto &temp_item_value_count = array_items[i];
-          if(access_kind.unit_size == 32){
+          if (access_kind.unit_size == 32) {
             u32 c = temp_item_value_count.begin()->first & 0xffffffffu;
             memcpy(&a, &c, sizeof(c));
             sum_y_f += a;
-          }else if (access_kind.unit_size == 64){
+          } else if (access_kind.unit_size == 64) {
             u64 c = temp_item_value_count.begin()->first & 0xffffffffu;
             memcpy(&b, &c, sizeof(c));
             sum_y_f += b;
@@ -556,6 +554,40 @@ namespace redshow {
       return true;
     }
     return false;
+  }
+
+  void
+  ValuePattern::vp_approx_level_config(redshow_approx_level_t level, int &decimal_degree_f32, int &decimal_degree_f64) {
+    switch (level) {
+      case REDSHOW_APPROX_NONE:
+        decimal_degree_f32 = VALID_FLOAT_DIGITS;
+        decimal_degree_f64 = VALID_DOUBLE_DIGITS;
+        break;
+      case REDSHOW_APPROX_MIN:
+        decimal_degree_f32 = MIN_FLOAT_DIGITS;
+        decimal_degree_f64 = MIN_DOUBLE_DIGITS;
+        break;
+      case REDSHOW_APPROX_LOW:
+        decimal_degree_f32 = LOW_FLOAT_DIGITS;
+        decimal_degree_f64 = LOW_DOUBLE_DIGITS;
+        break;
+      case REDSHOW_APPROX_MID:
+        decimal_degree_f32 = MID_FLOAT_DIGITS;
+        decimal_degree_f64 = MID_DOUBLE_DIGITS;
+        break;
+      case REDSHOW_APPROX_HIGH:
+        decimal_degree_f32 = HIGH_FLOAT_DIGITS;
+        decimal_degree_f64 = HIGH_DOUBLE_DIGITS;
+        break;
+      case REDSHOW_APPROX_MAX:
+        decimal_degree_f32 = MAX_FLOAT_DIGITS;
+        decimal_degree_f64 = MAX_DOUBLE_DIGITS;
+        break;
+      default:
+        decimal_degree_f32 = MIN_FLOAT_DIGITS;
+        decimal_degree_f64 = MIN_DOUBLE_DIGITS;
+        break;
+    }
   }
 
 

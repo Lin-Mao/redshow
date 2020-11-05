@@ -114,6 +114,7 @@ class ValuePattern final : public Analysis {
   bool float_no_decimal(u64 a, AccessKind &accessKind);
   void check_pattern_for_value_dist(ValueDist & value_dist, std::ofstream &out, uint8_t read_flag);
   std::pair<int, int> get_redundant_zeros_bits(u64 a, AccessKind &accessKind);
+  void vp_approx_level_config(redshow_approx_level_t level, int &decimal_degree_f32, int &decimal_degree_f64);
 
  private:
   static inline thread_local std::shared_ptr<ValuePatternTrace> _trace;
