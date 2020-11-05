@@ -454,11 +454,6 @@ namespace redshow {
     auto vpts = array_pattern_info.vpts;
     auto narrow_down_to_unit_size = array_pattern_info.narrow_down_to_unit_size;
     auto top_value_count_vec = array_pattern_info.top_value_count_vec;
-    // @todo There are hiden index information.
-    std::string pattern_names[] = {
-        "Redundant zeros", "Single value", "Dense value",
-        "Type overuse", "Approximate value", "Silent store",
-        "Silent load", "No pattern", "Inappropriate float type", "Structured"};
     std::string rw_names[] = {"R&W", "Read", "Write"};
     out << "unique item count " << unique_item_count << " unqiue_value_count_vec.size "
         << value_count_vec.size() << endl;
