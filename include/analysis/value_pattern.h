@@ -54,7 +54,7 @@ class ValuePattern final : public Analysis {
  private:
   // <Offset, <Value, Count>>
   typedef Map<u64, u64> ValueCount;
-  typedef Map<u64, ValueCount> ItemsValueCount;
+  typedef Vector<ValueCount> ItemsValueCount;
   typedef Map<Memory, Map<AccessKind, ItemsValueCount>> ValueDist;
 
   enum ValuePatternType {

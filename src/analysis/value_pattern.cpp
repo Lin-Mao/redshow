@@ -50,6 +50,10 @@ void ValuePattern::block_exit(const ThreadId &thread_id) {
 void ValuePattern::unit_access(i32 kernel_id, const ThreadId &thread_id,
                                const AccessKind &access_kind, const Memory &memory, u64 pc,
                                u64 value, u64 addr, u32 index, bool read) {
+  if (memory.op_id <= REDSHOW_MEMORY_HOST) {
+    return;
+  }
+
   //  @todo If memory usage is too high, we can limit the save of various values of one item.
   auto &r_value_dist = _trace->r_value_dist;
   auto &w_value_dist = _trace->w_value_dist;
@@ -65,11 +69,15 @@ void ValuePattern::unit_access(i32 kernel_id, const ThreadId &thread_id,
     }
   }
 
-  auto offset = (addr - memory.memory_range.start) / (access_kind.unit_size / 8);
-  if(read)
+  auto size = (memory.memory_range.end - memory.memory_range.start) / (access_kind.unit_size >> 3);
+  auto offset = (addr - memory.memory_range.start) / (access_kind.unit_size >> 3);
+  if(read) {
+    r_value_dist[memory][access_kind].resize(size);
     r_value_dist[memory][access_kind][offset][value] += 1;
-  else
+  } else {
+    w_value_dist[memory][access_kind].resize(size);
     w_value_dist[memory][access_kind][offset][value] += 1;
+  }
 }
 
 void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
@@ -101,9 +109,13 @@ void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
       for (auto &array_iter : memory_iter.second) {
         auto &access_kind = array_iter.first;
         auto &array_items = array_iter.second;
-        for (auto &item_iter: array_items){
-          auto &offset = item_iter.first;
-          auto &value_count = item_iter.second;
+
+        r_value_dist_sum[memory][access_kind].resize(array_items.size());
+        value_dist_sum[memory][access_kind].resize(array_items.size());
+        k_value_dist_sum[memory][access_kind].resize(array_items.size());
+
+        for (auto offset = 0; offset < array_items.size(); ++offset) {
+          auto &value_count = array_items[offset];
           for (auto &item_value_count_iter: value_count){
             auto &item_value = item_value_count_iter.first;
             auto &item_value_count = item_value_count_iter.second;
@@ -120,9 +132,13 @@ void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
       for (auto &array_iter : memory_iter.second) {
         auto &access_kind = array_iter.first;
         auto &array_items = array_iter.second;
-        for (auto &item_iter: array_items){
-          auto &offset = item_iter.first;
-          auto &value_count = item_iter.second;
+
+        w_value_dist_sum[memory][access_kind].resize(array_items.size());
+        value_dist_sum[memory][access_kind].resize(array_items.size());
+        k_value_dist_sum[memory][access_kind].resize(array_items.size());
+
+        for (auto offset = 0; offset < array_items.size(); ++offset){
+          auto &value_count = array_items[offset];
           for (auto &item_value_count_iter: value_count){
             auto &item_value = item_value_count_iter.first;
             auto &item_value_count = item_value_count_iter.second;
@@ -278,6 +294,7 @@ void ValuePattern::dense_value_pattern(ItemsValueCount &array_items,
   using std::pair;
   auto &access_kind = array_pattern_info.access_kind;
   u64 memory_size = array_pattern_info.memory.len;
+  u64 array_size = array_pattern_info.memory.len / (access_kind.unit_size >> 3);
   //  the following variables will be updated.
   auto &top_value_count_vec = array_pattern_info.top_value_count_vec;
   int unique_item_count = 0;
@@ -299,7 +316,7 @@ void ValuePattern::dense_value_pattern(ItemsValueCount &array_items,
   bool inappropriate_float_type = true;
   std::pair<int, int> redundant_zero_bits = make_pair(access_kind.unit_size, access_kind.unit_size);
   // Type ArrayItems is part of ValueDist: {offset: {value: count}}
-  for (u64 i = 0; i < memory_size; i++) {
+  for (u64 i = 0; i < array_size; i++) {
     auto &temp_item_value_count = array_items[i];
     if (access_kind.data_type == REDSHOW_DATA_INT) {
       for (auto temp_value : temp_item_value_count) {
@@ -380,8 +397,8 @@ void ValuePattern::dense_value_pattern(ItemsValueCount &array_items,
       }
     }
   } else {
-    if (unique_item_count >= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 * memory_size) {
-      if (unique_value_count_vec.size() <= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE * memory_size) {
+    if (unique_item_count >= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 * array_size) {
+      if (unique_value_count_vec.size() <= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE * array_size) {
         vpt = VP_DENSE_VALUE;
       }
     }
@@ -408,8 +425,9 @@ bool ValuePattern::approximate_value_pattern(ItemsValueCount &array_items,
   int decimal_degree_f32, decimal_degree_f64;
   redshow_approx_get(&decimal_degree_f32, &decimal_degree_f64);
 
-  ItemsValueCount array_items_approx;
-  for (int i = 0; i < memory.len; ++i) {
+  auto array_size = memory.len / (access_kind.unit_size >> 3);
+  ItemsValueCount array_items_approx(array_size);
+  for (auto i = 0; i < array_size; ++i) {
     auto one_item_value_count = array_items[i];
     for (auto one_value_count : one_item_value_count) {
       if (access_kind.unit_size == 32) {

@@ -58,8 +58,9 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
     auto memory = _memories.at(mem_iter.first);
     if (memory->op_id > REDSHOW_MEMORY_HOST) {
       auto len = 0;
-      for (auto &unit_iter : mem_iter.second) {
-        len += unit_iter.second;
+      #pragma unroll 8
+      for (size_t i = 0; i < mem_iter.second.size(); ++i) {
+        len++;
       }
       u64 host = reinterpret_cast<u64>(memory->value.get());
       u64 host_cache = reinterpret_cast<u64>(memory->value_cache.get());
@@ -176,13 +177,25 @@ void DataFlow::block_exit(const ThreadId &thread_id) {
 void DataFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
                            bool read) {
+  if (memory.op_id <= REDSHOW_MEMORY_HOST) {
+    return;
+  }
+
+  auto array_size = memory.memory_range.end - memory.memory_range.start;
+  auto byte_size = access_kind.unit_size >> 3;
   auto offset = addr - memory.memory_range.start;
   if (read) {
-    auto unit_size = _trace->read_memory[memory.op_id][offset];
-    _trace->read_memory[memory.op_id][offset] = MAX2(unit_size, access_kind.unit_size >> 3);
+    _trace->read_memory[memory.op_id].resize(array_size);
+    #pragma unroll 4
+    for (size_t i = 0; i < byte_size; ++i) {
+      _trace->read_memory[memory.op_id][offset + i] = true;
+    }
   } else {
-    auto unit_size = _trace->write_memory[memory.op_id][offset];
-    _trace->write_memory[memory.op_id][offset] = MAX2(unit_size, access_kind.unit_size >> 3);
+    _trace->write_memory[memory.op_id].resize(array_size);
+    #pragma unroll 4
+    for (size_t i = 0; i < byte_size; ++i) {
+      _trace->write_memory[memory.op_id][offset + i] = true;
+    }
   }
 }
 
