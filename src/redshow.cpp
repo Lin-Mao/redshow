@@ -65,7 +65,7 @@ static uint32_t mem_views_limit = MEM_VIEWS_LIMIT;
 static int decimal_degree_f32 = VALID_FLOAT_DIGITS;
 static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
 
-static redshow_data_type_t default_data_type = REDSHOW_DATA_FLOAT;
+static redshow_data_type_t default_data_type = REDSHOW_DATA_UNKNOWN;
 
 static redshow_result_t analyze_cubin(const char *path, SymbolVector &symbols,
                                       InstructionGraph &inst_graph) {
