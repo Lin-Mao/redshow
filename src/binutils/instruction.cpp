@@ -201,6 +201,11 @@ bool InstructionParser::parse(const std::string &file_path, SymbolVector &symbol
   boost::property_tree::ptree root;
   boost::property_tree::read_json(file_path, root);
 
+#ifdef DEBUG_INSTRUCTION
+  // inst_pc-><symbol_index, inst_pc_offset>
+  std::map<int, std::pair<int, int>> pc_offsets;
+#endif
+
   // Read instructions
   for (auto &ptree_function : root) {
     int function_index = ptree_function.second.get<int>("index", 0);
@@ -237,6 +242,10 @@ bool InstructionParser::parse(const std::string &file_path, SymbolVector &symbol
 
         Instruction inst(op, pc, pred, dsts, srcs, assign_pcs);
         inst_graph.add_node(pc, inst);
+
+#ifdef DEBUG_INSTRUCTION
+        pc_offsets[pc] = std::make_pair(function_index, pc - cubin_offset);
+#endif
       }
     }
   }
@@ -300,9 +309,9 @@ bool InstructionParser::parse(const std::string &file_path, SymbolVector &symbol
   // Analyze memory instruction's access kind
   for (auto iter = inst_graph.nodes_begin(); iter != inst_graph.nodes_end(); ++iter) {
     auto &inst = iter->second;
-    if (inst.op.find(".SHARED") != std::string::npos) {
-      std::cout << std::hex << inst.pc << " " << inst.access_kind->to_string() << std::dec
-                << std::endl;
+    if (inst.op.find("MEMORY") != std::string::npos) {
+      std::cout << "Func Index: " << pc_offsets[inst.pc].first << ", PC: " << std::hex <<
+        pc_offsets[inst.pc].second << ", TYPE: " << inst.access_kind->to_string() << std::dec << std::endl;
     }
   }
 #endif
