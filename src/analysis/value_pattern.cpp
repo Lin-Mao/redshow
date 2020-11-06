@@ -50,6 +50,9 @@ namespace redshow {
   void ValuePattern::unit_access(i32 kernel_id, const ThreadId &thread_id,
                                  const AccessKind &access_kind, const Memory &memory, u64 pc,
                                  u64 value, u64 addr, u32 index, bool read) {
+    if (memory.op_id <= REDSHOW_MEMORY_HOST) {
+      return;
+    }
     //  @todo If memory usage is too high, we can limit the save of various values of one item.
     auto &r_value_dist = _trace->r_value_dist;
     auto &w_value_dist = _trace->w_value_dist;
@@ -64,11 +67,15 @@ namespace redshow {
       }
     }
 
-    auto offset = (addr - memory.memory_range.start) / (access_kind.unit_size / 8);
-    if (read)
+    auto size = (memory.memory_range.end - memory.memory_range.start) / (access_kind.unit_size >> 3);
+    auto offset = (addr - memory.memory_range.start) / (access_kind.unit_size >> 3);
+    if(read) {
+      r_value_dist[memory][access_kind].resize(size);
       r_value_dist[memory][access_kind][offset][value] += 1;
-    else
+    } else {
+      w_value_dist[memory][access_kind].resize(size);
       w_value_dist[memory][access_kind][offset][value] += 1;
+    }
   }
 
   void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
@@ -100,9 +107,11 @@ namespace redshow {
         for (auto &array_iter : memory_iter.second) {
           auto &access_kind = array_iter.first;
           auto &array_items = array_iter.second;
-          for (auto &item_iter: array_items) {
-            auto &offset = item_iter.first;
-            auto &value_count = item_iter.second;
+          r_value_dist_sum[memory][access_kind].resize(array_items.size());
+          value_dist_sum[memory][access_kind].resize(array_items.size());
+          k_value_dist_sum[memory][access_kind].resize(array_items.size());
+          for (auto offset = 0; offset < array_items.size(); ++offset) {
+            auto &value_count = array_items[offset];
             for (auto &item_value_count_iter: value_count) {
               auto &item_value = item_value_count_iter.first;
               auto &item_value_count = item_value_count_iter.second;
@@ -119,9 +128,11 @@ namespace redshow {
         for (auto &array_iter : memory_iter.second) {
           auto &access_kind = array_iter.first;
           auto &array_items = array_iter.second;
-          for (auto &item_iter: array_items) {
-            auto &offset = item_iter.first;
-            auto &value_count = item_iter.second;
+          w_value_dist_sum[memory][access_kind].resize(array_items.size());
+          value_dist_sum[memory][access_kind].resize(array_items.size());
+          k_value_dist_sum[memory][access_kind].resize(array_items.size());
+          for (auto offset = 0; offset < array_items.size(); ++offset){
+            auto &value_count = array_items[offset];
             for (auto &item_value_count_iter: value_count) {
               auto &item_value = item_value_count_iter.first;
               auto &item_value_count = item_value_count_iter.second;
@@ -277,7 +288,7 @@ namespace redshow {
     using std::pair;
     auto &access_kind = array_pattern_info.access_kind;
     u64 memory_size = array_pattern_info.memory.len;
-    u64 number_of_items = memory_size / access_kind.unit_size;
+    auto number_of_items = array_pattern_info.memory.len / (access_kind.unit_size >> 3);
     //  the following variables will be updated.
     auto &top_value_count_vec = array_pattern_info.top_value_count_vec;
     int unique_item_count = 0;
@@ -297,6 +308,7 @@ namespace redshow {
 
     ValueCount unique_value_count;
     bool inappropriate_float_type = true;
+    // XXX: <signed, unsigned>
     std::pair<int, int> redundant_zero_bits = make_pair(access_kind.unit_size, access_kind.unit_size);
     // Type ArrayItems is part of ValueDist: {offset: {value: count}}
     for (u64 i = 0; i < number_of_items; i++) {
@@ -410,8 +422,10 @@ namespace redshow {
     }
     int decimal_degree_f32, decimal_degree_f64;
     vp_approx_level_config(REDSHOW_APPROX_HIGH, decimal_degree_f32, decimal_degree_f64);
+    auto number_of_items = array_pattern_info.memory.len / (access_kind.unit_size >> 3);
     ItemsValueCount array_items_approx;
-    for (int i = 0; i < memory.len; ++i) {
+    array_items_approx.resize(number_of_items);
+    for (auto i = 0; i < number_of_items; ++i) {
       auto one_item_value_count = array_items[i];
       for (auto one_value_count : one_item_value_count) {
         if (access_kind.unit_size == 32) {
@@ -506,9 +520,8 @@ namespace redshow {
 
   bool ValuePattern::detect_structrued_pattern(ItemsValueCount &array_items, ArrayPatternInfo &array_pattern_info) {
 //  All of the items are unique items.
-    u64 memory_size = array_pattern_info.memory.len;
-    u64 number_of_items = memory_size / array_pattern_info.access_kind.unit_size;
     auto &access_kind = array_pattern_info.access_kind;
+    u64 number_of_items = array_pattern_info.memory.len / (access_kind.unit_size >> 3);
 //  Ignore the 0th and the last item.
     if (array_pattern_info.unique_item_count == number_of_items && number_of_items >= 3) {
       double avg_x = (1 + number_of_items - 2) * (number_of_items - 2 - 1 + 1) / 2.0 / (number_of_items - 2);

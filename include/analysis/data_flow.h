@@ -102,8 +102,8 @@ class DataFlow final : public Analysis {
   typedef Graph<Index, Node, EdgeIndex, Edge> DataFlowGraph;
 
   struct DataFlowTrace final : public Trace {
-    Map<u64, Map<u64, u32>> read_memory;
-    Map<u64, Map<u64, u32>> write_memory;
+    Map<u64, std::vector<bool>> read_memory;
+    Map<u64, std::vector<bool>> write_memory;
 
     DataFlowTrace() = default;
 
