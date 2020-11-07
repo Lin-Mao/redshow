@@ -58,6 +58,7 @@ namespace redshow {
     auto &w_value_dist = _trace->w_value_dist;
     int decimal_degree_f32;
     int decimal_degree_f64;
+//    The 7th digit in float number's decimal part is partial valid, so we set the deault approx level to REDSHOW_APPROX_MIN.
     vp_approx_level_config(REDSHOW_APPROX_MIN, decimal_degree_f32, decimal_degree_f64);
     if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
       if (access_kind.unit_size == 32) {
@@ -69,7 +70,7 @@ namespace redshow {
 
     auto size = (memory.memory_range.end - memory.memory_range.start) / (access_kind.unit_size >> 3);
     auto offset = (addr - memory.memory_range.start) / (access_kind.unit_size >> 3);
-    if(read) {
+    if (read) {
       r_value_dist[memory][access_kind].resize(size);
       r_value_dist[memory][access_kind][offset][value] += 1;
     } else {
@@ -131,7 +132,7 @@ namespace redshow {
           w_value_dist_sum[memory][access_kind].resize(array_items.size());
           value_dist_sum[memory][access_kind].resize(array_items.size());
           k_value_dist_sum[memory][access_kind].resize(array_items.size());
-          for (auto offset = 0; offset < array_items.size(); ++offset){
+          for (auto offset = 0; offset < array_items.size(); ++offset) {
             auto &value_count = array_items[offset];
             for (auto &item_value_count_iter: value_count) {
               auto &item_value = item_value_count_iter.first;
@@ -180,21 +181,26 @@ namespace redshow {
 
 /**This function is used to check how many significant bits are zeros.
  * @return pair<int, int> The first item is for signed and the second for unsigned.*/
-  std::pair<int, int> ValuePattern::get_redundant_zeros_bits(u64 a, AccessKind &accessKind) {
+  std::tuple<int, int, int> ValuePattern::get_redundant_zeros_bits(u64 a, AccessKind &accessKind) {
+    u64 b = a;
     u64 flag = 0x1u << (accessKind.unit_size - 1);
     char sign_bit = (a >> (accessKind.unit_size - 1)) & 0x1;
-    int redundat_zero_bits_signed, redundat_zero_bits_unsigned;
+    int leading_zero_bits_signed, leading_zero_bits_unsigned, tail_zero_bits;
     a <<= 1u;
     int i;
     for (i = accessKind.unit_size - 1; i >= 0; i--) {
-      if (a & flag) {
-        break;
-      }
+      if (a & flag) { break; }
       a <<= 1u;
     }
-    redundat_zero_bits_signed = accessKind.unit_size - 1 - i;
-    redundat_zero_bits_unsigned = sign_bit ? 0 : accessKind.unit_size - i;
-    return std::make_pair(redundat_zero_bits_signed, redundat_zero_bits_unsigned);
+    leading_zero_bits_signed = accessKind.unit_size - 1 - i;
+    leading_zero_bits_unsigned = sign_bit ? 0 : accessKind.unit_size - i;
+    int j;
+    for (j = 0; j < accessKind.unit_size; j++) {
+      if (b & 0x1u) { break; }
+      b >>= 1u;
+    }
+    tail_zero_bits = j;
+    return std::make_tuple(leading_zero_bits_signed, leading_zero_bits_unsigned, tail_zero_bits);
   }
 
 /** Check wehther the float number has decimal part or not.*/
@@ -219,73 +225,67 @@ namespace redshow {
     return true;
   }
 
+/** @arg zeros_bits: how many leading or tail zero bits
+ *  @arg full: the type size
+ *  @arg narrdown_down_to: what type size the current array could narrow down to
+ * */
+  void inline ValuePattern::check_zeros_bits(int zeros_bits, int full, int &narrow_down_to) {
+    const int power2[4] = {0, 1, 2, 4};
+    const int valid_int_bits[4] = {8, 16, 32, 64};
+    int i;
+    if (zeros_bits == full) {
+      narrow_down_to = 8;
+      return;
+    }
+    for (i = 3; i >= 0; i--) {
+      if (full - 8 * power2[i] > 0 && zeros_bits < full - 8 * power2[i]) {
+        break;
+      }
+    }
+    narrow_down_to = valid_int_bits[i];
+  }
+
 /**
  * @arg pair<int, int> &redundant_zero_bits how many significant bits are zeros. The first item is
  * for signed and the second for unsigned.
  *  */
-  void ValuePattern::detect_type_overuse(std::pair<int, int> &redundant_zero_bits,
+  void ValuePattern::detect_type_overuse(std::tuple<int, int, int> &redundant_zero_bits,
                                          AccessKind &accessKind,
-                                         std::pair<int, int> &narrow_down_to_unit_size) {
+                                         std::tuple<int, int, int> &narrow_down_to_unit_size) {
+    using std::get;
     int narrow_down_to_unit_size_signed = accessKind.unit_size;
     int narrow_down_to_unit_size_unsigned = accessKind.unit_size;
+    int narrow_down_to_unit_size_for_tail = accessKind.unit_size;
+    int leading_zero_bits_signed = get<0>(redundant_zero_bits);
+    int leading_zero_bits_unsigned = get<1>(redundant_zero_bits);
+    int tail_zero_bits = get<2>(redundant_zero_bits);
     switch (accessKind.unit_size) {
       case 64:
-        if (redundant_zero_bits.first >= 32)
-          if (redundant_zero_bits.first >= 48)
-            if (redundant_zero_bits.first >= 56)
-              narrow_down_to_unit_size_signed = 8;
-            else
-              narrow_down_to_unit_size_signed = 16;
-          else
-            narrow_down_to_unit_size_signed = 32;
-        else
-          narrow_down_to_unit_size_signed = 64;
-        if (redundant_zero_bits.first >= 32)
-          if (redundant_zero_bits.first >= 48)
-            if (redundant_zero_bits.first >= 56)
-              narrow_down_to_unit_size_unsigned = 8;
-            else
-              narrow_down_to_unit_size_unsigned = 16;
-          else
-            narrow_down_to_unit_size_unsigned = 32;
-        else
-          narrow_down_to_unit_size_unsigned = 64;
+        check_zeros_bits(leading_zero_bits_signed, 64, narrow_down_to_unit_size_signed);
+        check_zeros_bits(leading_zero_bits_unsigned, 64, narrow_down_to_unit_size_unsigned);
+        check_zeros_bits(tail_zero_bits, 64, narrow_down_to_unit_size_for_tail);
         break;
       case 32:
-        if (redundant_zero_bits.first >= 16)
-          if (redundant_zero_bits.first >= 24)
-            narrow_down_to_unit_size_signed = 8;
-          else
-            narrow_down_to_unit_size_signed = 16;
-        else
-          narrow_down_to_unit_size_signed = 32;
-        if (redundant_zero_bits.first >= 16)
-          if (redundant_zero_bits.first >= 24)
-            narrow_down_to_unit_size_unsigned = 8;
-          else
-            narrow_down_to_unit_size_unsigned = 16;
-        else
-          narrow_down_to_unit_size_unsigned = 32;
+        check_zeros_bits(leading_zero_bits_signed, 32, narrow_down_to_unit_size_signed);
+        check_zeros_bits(leading_zero_bits_unsigned, 32, narrow_down_to_unit_size_unsigned);
+        check_zeros_bits(tail_zero_bits, 32, narrow_down_to_unit_size_for_tail);
         break;
       case 16:
-        if (redundant_zero_bits.first >= 8)
-          narrow_down_to_unit_size_signed = 8;
-        else
-          narrow_down_to_unit_size_signed = 16;
-        if (redundant_zero_bits.first >= 8)
-          narrow_down_to_unit_size_unsigned = 8;
-        else
-          narrow_down_to_unit_size_unsigned = 16;
+        check_zeros_bits(leading_zero_bits_signed, 16, narrow_down_to_unit_size_signed);
+        check_zeros_bits(leading_zero_bits_unsigned, 16, narrow_down_to_unit_size_unsigned);
+        check_zeros_bits(tail_zero_bits, 16, narrow_down_to_unit_size_for_tail);
         break;
     }
-    narrow_down_to_unit_size =
-        std::make_pair(narrow_down_to_unit_size_signed, narrow_down_to_unit_size_unsigned);
+    narrow_down_to_unit_size = std::make_tuple(narrow_down_to_unit_size_signed, narrow_down_to_unit_size_unsigned,
+                                               narrow_down_to_unit_size_for_tail);
   }  // namespace redshow
 
   void ValuePattern::dense_value_pattern(ItemsValueCount &array_items,
                                          ArrayPatternInfo &array_pattern_info) {
-    using std::make_pair;
+    using std::make_tuple;
     using std::pair;
+    using std::get;
+    using std::tuple;
     auto &access_kind = array_pattern_info.access_kind;
     u64 memory_size = array_pattern_info.memory.len;
     auto number_of_items = array_pattern_info.memory.len / (access_kind.unit_size >> 3);
@@ -308,8 +308,9 @@ namespace redshow {
 
     ValueCount unique_value_count;
     bool inappropriate_float_type = true;
-    // XXX: <signed, unsigned>
-    std::pair<int, int> redundant_zero_bits = make_pair(access_kind.unit_size, access_kind.unit_size);
+    //     <signed_leading_zero_bits, unsigned_leading_zero_bits, tail_zero_bits>
+    tuple<int, int, int> redundant_zero_bits = make_tuple(access_kind.unit_size, access_kind.unit_size,
+                                                          access_kind.unit_size);
     // Type ArrayItems is part of ValueDist: {offset: {value: count}}
     for (u64 i = 0; i < number_of_items; i++) {
       auto &temp_item_value_count = array_items[i];
@@ -317,8 +318,9 @@ namespace redshow {
         for (auto temp_value : temp_item_value_count) {
           auto temp_redundat_zero_bits = get_redundant_zeros_bits(temp_value.first, access_kind);
           redundant_zero_bits =
-              make_pair(std::min(redundant_zero_bits.first, temp_redundat_zero_bits.first),
-                        std::min(redundant_zero_bits.second, temp_redundat_zero_bits.second));
+              make_tuple(std::min(get<0>(redundant_zero_bits), get<0>(temp_redundat_zero_bits)),
+                         std::min(get<1>(redundant_zero_bits), get<1>(temp_redundat_zero_bits)),
+                         std::min(get<2>(redundant_zero_bits), get<2>(temp_redundat_zero_bits)));
         }
       } else if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
         for (auto temp_value : temp_item_value_count) {
@@ -349,8 +351,9 @@ namespace redshow {
     }
     if (access_kind.data_type == REDSHOW_DATA_INT) {
       detect_type_overuse(redundant_zero_bits, access_kind, narrow_down_to_unit_size);
-      if (access_kind.unit_size != narrow_down_to_unit_size.first ||
-          access_kind.unit_size != narrow_down_to_unit_size.second) {
+      if (access_kind.unit_size != get<0>(narrow_down_to_unit_size) ||
+          access_kind.unit_size != get<1>(narrow_down_to_unit_size) ||
+          access_kind.unit_size != get<2>(narrow_down_to_unit_size)) {
         //      it is type overuse pattern
         vpts.emplace_back(VP_TYPE_OVERUSE);
       }
@@ -460,6 +463,7 @@ namespace redshow {
 
   void ValuePattern::show_value_pattern(ArrayPatternInfo &array_pattern_info, std::ofstream &out, uint8_t read_flag) {
     using std::endl;
+    using std::get;
     auto &memory = array_pattern_info.memory;
     int unique_item_count = array_pattern_info.unique_item_count;
     auto value_count_vec = array_pattern_info.unqiue_value_count_vec;
@@ -480,21 +484,28 @@ namespace redshow {
     for (auto a_vpt : vpts) {
       out << " * " << pattern_names[a_vpt] << "\t";
       AccessKind temp_a;
+      auto narrow_down_to_unit_size_signed = get<0>(narrow_down_to_unit_size);
+      auto narrow_down_to_unit_size_unsigned = get<1>(narrow_down_to_unit_size);
+      auto narrow_down_to_unit_size_for_tail = get<2>(narrow_down_to_unit_size);
       switch (a_vpt) {
         case VP_TYPE_OVERUSE:
-          if (access_kind.unit_size != narrow_down_to_unit_size.first) {
-            AccessKind temp_a;
+          if (access_kind.unit_size != narrow_down_to_unit_size_signed) {
             temp_a.data_type = access_kind.data_type;
-            temp_a.unit_size = narrow_down_to_unit_size.first;
+            temp_a.unit_size = narrow_down_to_unit_size_signed;
             temp_a.vec_size = temp_a.unit_size * (access_kind.vec_size / access_kind.unit_size);
             out << "signed: " << access_kind.to_string() << " --> " << temp_a.to_string() << "\t";
           }
-          if (access_kind.unit_size != narrow_down_to_unit_size.second) {
-            AccessKind temp_a;
+          if (access_kind.unit_size != narrow_down_to_unit_size_unsigned) {
             temp_a.data_type = access_kind.data_type;
-            temp_a.unit_size = narrow_down_to_unit_size.second;
+            temp_a.unit_size = narrow_down_to_unit_size_unsigned;
             temp_a.vec_size = temp_a.unit_size * (access_kind.vec_size / access_kind.unit_size);
-            out << "unsigned: " << access_kind.to_string() << " --> " << temp_a.to_string();
+            out << "unsigned: " << access_kind.to_string() << " --> " << temp_a.to_string() << "\t";
+          }
+          if (access_kind.unit_size != narrow_down_to_unit_size_for_tail) {
+            temp_a.data_type = access_kind.data_type;
+            temp_a.unit_size = narrow_down_to_unit_size_for_tail;
+            temp_a.vec_size = temp_a.unit_size * (access_kind.vec_size / access_kind.unit_size);
+            out << "cased by tail zeros: " << access_kind.to_string() << " --> " << temp_a.to_string();
           }
           break;
         case VP_INAPPROPRIATE_FLOAT:
