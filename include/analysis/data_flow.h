@@ -139,6 +139,7 @@ class DataFlow final : public Analysis {
   DataFlowGraph _graph;
   Map<u64, i32> _op_node;
   Map<i32, Set<std::string>> _node_hash;
+  Map<i32, u64> _node_count;
   Map<u64, std::shared_ptr<Memory>> _memories;
 };
 

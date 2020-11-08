@@ -60,7 +60,9 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
       auto len = 0;
       #pragma unroll 8
       for (size_t i = 0; i < mem_iter.second.size(); ++i) {
-        len++;
+        if (mem_iter.second[i]) {
+          len++;
+        }
       }
       u64 host = reinterpret_cast<u64>(memory->value.get());
       u64 host_cache = reinterpret_cast<u64>(memory->value_cache.get());
@@ -134,6 +136,7 @@ void DataFlow::op_callback(OperationPtr op) {
     // Allocate calling context node
     _graph.add_node(std::move(op->ctx_id), op->ctx_id, op->type);
   }
+  _node_count[op->ctx_id]++;
 
   if (op->type == OPERATION_TYPE_KERNEL) {
     kernel_op_callback(std::dynamic_pointer_cast<Kernel>(op));
@@ -331,7 +334,8 @@ void DataFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool>
           dup += std::to_string(iter.first) + "," + total + ";";
         }
       }
-      auto v = boost::add_vertex(VertexProperty(node.ctx_id, type, dup), g);
+      auto count = _node_count[node.ctx_id];
+      auto v = boost::add_vertex(VertexProperty(node.ctx_id, type, dup, count), g);
       vertice[node.ctx_id] = v;
     }
   }
@@ -352,7 +356,7 @@ void DataFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool>
 
         auto iv = vertice[incoming_node.ctx_id];
         auto type = get_data_flow_edge_type(edge_index.type);
-        boost::add_edge(iv, v, EdgeProperty(type, edge_index.mem_ctx_id, redundancy_avg, overwrite_avg), g);
+        boost::add_edge(iv, v, EdgeProperty(type, edge_index.mem_ctx_id, redundancy_avg, overwrite_avg, edge_count), g);
       }
     }
   }
@@ -361,10 +365,12 @@ void DataFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool>
   dp.property("node_id", boost::get(&VertexProperty::node_id, g));
   dp.property("node_type", boost::get(&VertexProperty::type, g));
   dp.property("duplicate", boost::get(&VertexProperty::duplicate, g));
+  dp.property("count", boost::get(&VertexProperty::count, g));
   dp.property("edge_type", boost::get(&EdgeProperty::type, g));
   dp.property("memory_node_id", boost::get(&EdgeProperty::memory_node_id, g));
   dp.property("overwrite", boost::get(&EdgeProperty::overwrite, g));
   dp.property("redundancy", boost::get(&EdgeProperty::redundancy, g));
+  dp.property("count", boost::get(&EdgeProperty::count, g));
 
   std::ofstream out(output_dir + "data_flow.dot");
   boost::write_graphviz_dp(out, g, dp);
