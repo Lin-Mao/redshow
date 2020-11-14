@@ -45,6 +45,11 @@ void DataFlow::init() {
 }
 
 void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
+  if (_trace.get() == NULL) {
+    // If the kernel is sampled
+    return ;
+  }
+
   // data flow analysis must be synchrounous
   for (auto &mem_iter : _trace->read_memory) {
     // Avoid local and share memories
