@@ -96,7 +96,7 @@ namespace redshow {
       Vector <std::pair<u64, u64>> unqiue_value_count_vec;
       u64 total_access_count;
 //    for structured pattern
-      double k, b;
+      double k, b, mse;
       Vector <ValuePatternType> vpts;
 
       ArrayPatternInfo() = default;
@@ -129,6 +129,9 @@ namespace redshow {
                              std::tuple<int, int, int> &narrow_down_to_unit_size);
 
     void inline check_zeros_bits(int zeros_bits, int full, int &narrow_down_to);
+
+    bool check_exponent_and_fraction(bool &all_first_Xbits_same, u64 &all_first_Xbits, int &max_exponents_X,
+                                     u64 value, AccessKind &accessKind);
 
     bool detect_structrued_pattern(ItemsValueCount &array_items, ArrayPatternInfo &array_pattern_info);
 

@@ -225,6 +225,57 @@ namespace redshow {
     return true;
   }
 
+/**@arg all_first_Xbits_same: if all first x bits are same, this value will be true.
+ * @arg all_first_Xbits: store the last first Xbits of one vlaue
+ * @arg Xbits: how many bits you want to check
+ * @arg max_exponents_X: what is the max exponents among all values we gone through */
+  bool ValuePattern::check_exponent_and_fraction(bool &all_first_Xbits_same, u64 &all_first_Xbits,
+                                                 int &max_exponents_X, u64 value, AccessKind &accessKind) {
+    u64 mask, tmp_first_Xbits, tmp_exponent;
+    int tmp_abs_exponent;
+    switch (accessKind.unit_size) {
+      case 64:
+        mask = 0xfffff00000000u;
+        tmp_first_Xbits = mask & value;
+        if (tmp_first_Xbits != all_first_Xbits) {
+          if (all_first_Xbits != 0) {
+            all_first_Xbits_same = false;
+          }
+          all_first_Xbits = tmp_first_Xbits;
+        }
+        mask = 0x7ffu;
+        tmp_exponent = (value >> 52u) & mask;
+        if (tmp_exponent >= 896 && tmp_exponent <= 1151) {
+          tmp_abs_exponent = tmp_exponent > 1023 ? tmp_exponent - 1023 : 1023 - tmp_exponent;
+          max_exponents_X = std::abs(max_exponents_X) > tmp_abs_exponent ? max_exponents_X : tmp_exponent - 1023;
+          return true;
+        } else {
+          return false;
+        }
+        break;
+      case 32:
+        mask = 0x7fc000u;
+        tmp_first_Xbits = mask & value;
+        if (tmp_first_Xbits != all_first_Xbits) {
+          if (all_first_Xbits != 0) {
+            all_first_Xbits_same = false;
+          }
+          all_first_Xbits = tmp_first_Xbits;
+        }
+        mask = 0x7f8u;
+        tmp_exponent = (value >> 23u) & mask;
+        if (tmp_exponent >= 113 && tmp_exponent <= 142) {
+          tmp_abs_exponent = tmp_exponent > 127 ? tmp_exponent - 127 : 127 - tmp_exponent;
+          max_exponents_X = std::abs(max_exponents_X) > tmp_abs_exponent ? max_exponents_X : tmp_abs_exponent - 127;
+          return true;
+        } else {
+          return false;
+        }
+        break;
+    }
+    return false;
+  }
+
 /** @arg zeros_bits: how many leading or tail zero bits
  *  @arg full: the type size
  *  @arg narrdown_down_to: what type size the current array could narrow down to
@@ -311,11 +362,21 @@ namespace redshow {
     //     <signed_leading_zero_bits, unsigned_leading_zero_bits, tail_zero_bits>
     tuple<int, int, int> redundant_zero_bits = make_tuple(access_kind.unit_size, access_kind.unit_size,
                                                           access_kind.unit_size);
+    bool all_first_20bits_double_same = true;
+    bool all_first_9bits_float_same = true;
+    u64 last_first_20bits_double = 0;
+    u64 last_first_9bits_float = 0;
+    const int MAX_DOUBLE_EXPONENT = 127;
+    const int MAX_FLOAT_EXPONENT = 14;
+    int max_exponents_double = 0;
+    int max_exponents_float = 0;
+    bool possible_float_type_overuse = true;
     // Type ArrayItems is part of ValueDist: {offset: {value: count}}
     for (u64 i = 0; i < number_of_items; i++) {
       auto &temp_item_value_count = array_items[i];
       if (access_kind.data_type == REDSHOW_DATA_INT) {
         for (auto temp_value : temp_item_value_count) {
+//          int type overuse
           auto temp_redundat_zero_bits = get_redundant_zeros_bits(temp_value.first, access_kind);
           redundant_zero_bits =
               make_tuple(std::min(get<0>(redundant_zero_bits), get<0>(temp_redundat_zero_bits)),
@@ -327,6 +388,31 @@ namespace redshow {
           if (inappropriate_float_type && !float_no_decimal(temp_value.first, access_kind)) {
             inappropriate_float_type = false;
             break;
+          }
+        }
+        if (possible_float_type_overuse) {
+          for (auto temp_value : temp_item_value_count) {
+//          float type overuse
+            if (access_kind.unit_size == 64) {
+//            float exponent range : -127 ~ 128
+              if (max_exponents_double >= -127 && max_exponents_double <= 128) {
+                possible_float_type_overuse = check_exponent_and_fraction(all_first_20bits_double_same,
+                                                                          last_first_20bits_double,
+                                                                          max_exponents_double,
+                                                                          temp_value.first, access_kind);
+                if (not possible_float_type_overuse)
+                  break;
+              }
+            } else if (access_kind.unit_size == 32) {
+//            IEEE 754 half exponent range: -14 ~ 15
+              if (max_exponents_double >= -14 && max_exponents_double <= 15) {
+                possible_float_type_overuse = check_exponent_and_fraction(all_first_9bits_float_same,
+                                                                          last_first_9bits_float, max_exponents_double,
+                                                                          temp_value.first, access_kind);
+                if (not possible_float_type_overuse)
+                  break;
+              }
+            }
           }
         }
       }
@@ -403,6 +489,22 @@ namespace redshow {
       if (unique_item_count >= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE_2 * number_of_items) {
         if (unique_value_count_vec.size() <= THRESHOLD_PERCENTAGE_OF_ARRAY_SIZE * number_of_items) {
           vpt = VP_DENSE_VALUE;
+        }
+      }
+    }
+    //    float type overuse
+    if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
+      if (access_kind.unit_size == 32) {
+        if (((vpt == VP_SINGLE_VALUE or vpt == VP_REDUNDANT_ZEROS) || (not all_first_9bits_float_same)) &&
+            max_exponents_float <= MAX_FLOAT_EXPONENT) {
+          narrow_down_to_unit_size = make_tuple(16, 32, 32);
+          vpts.emplace_back(VP_TYPE_OVERUSE);
+        }
+      } else if (access_kind.unit_size == 64) {
+        if (((vpt == VP_SINGLE_VALUE or vpt == VP_REDUNDANT_ZEROS) || (not all_first_20bits_double_same)) &&
+            max_exponents_double <= MAX_DOUBLE_EXPONENT) {
+          narrow_down_to_unit_size = make_tuple(32, 64, 64);
+          vpts.emplace_back(VP_TYPE_OVERUSE);
         }
       }
     }
@@ -515,7 +617,7 @@ namespace redshow {
           out << access_kind.to_string() << " --> " << temp_a.to_string();
           break;
         case VP_STRUCTURED_PATTERN:
-          out << "y = " << array_pattern_info.k << "x + " << array_pattern_info.b;
+          out << "y = " << array_pattern_info.k << "x + " << array_pattern_info.b << " mse: " << array_pattern_info.mse;
           break;
       }
       out << endl;
@@ -562,15 +664,32 @@ namespace redshow {
         }
         avg_y = sum_y_f / (number_of_items - 2);
       }
-      double sum1 = 0, sum2 = 0;
+      double sum1 = 0, sum2 = 0, mse = 0;
       for (u64 i = 1; i < number_of_items - 1; i++) {
         auto &temp_item_value_count = array_items[i];
         sum1 += (i - avg_x) * (temp_item_value_count.begin()->first - avg_y);
         sum2 += (i - avg_x) * (i - avg_x);
       }
-      array_pattern_info.k = sum1 / sum2;
-      array_pattern_info.b = avg_y - array_pattern_info.k * avg_x;
-      return true;
+      double k = sum1 / sum2;
+      double b = avg_y - k * avg_x;
+      double threshold = 0;
+//      calculate precision of our predictor
+      for (u64 i = 1; i < number_of_items - 1; i++) {
+        auto &temp_item_value_count = array_items[i];
+        double y_p = k * i + b;
+        double temp_t = y_p - temp_item_value_count.begin()->first;
+        mse += temp_t * temp_t;
+        threshold += (0.1 * temp_t) * (0.1 * temp_t);
+      }
+      mse = mse / (number_of_items - 2);
+      threshold = threshold / (number_of_items - 2);
+      if (std::abs(mse - threshold) < 1e-3) {
+        array_pattern_info.k = k;
+        array_pattern_info.b = b;
+        array_pattern_info.mse = mse;
+        return true;
+      } else
+        return false;
     }
     return false;
   }
