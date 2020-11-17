@@ -29,9 +29,7 @@ class Analysis {
 
   virtual void unlock() { this->_lock.unlock(); }
 
-  virtual void dtoh_register(redshow_tool_dtoh_func dtoh) {
-    this->_dtoh = dtoh;
-  }
+  virtual void dtoh_register(redshow_tool_dtoh_func dtoh) { this->_dtoh = dtoh; }
 
   virtual void dtoh(u64 host, u64 device, u64 len) {
     if (this->_dtoh) {
@@ -52,8 +50,8 @@ class Analysis {
   virtual void block_exit(const ThreadId &thread_id) = 0;
 
   /**
-   * @brief A callback for every unit 
-   * 
+   * @brief A callback for every unit
+   *
    * @param kernel_id kernel context id
    * @param thread_id GPU thread id
    * @param access_kind unit size, vec size, and access type
