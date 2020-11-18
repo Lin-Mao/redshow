@@ -65,7 +65,7 @@ static uint32_t mem_views_limit = MEM_VIEWS_LIMIT;
 static int decimal_degree_f32 = VALID_FLOAT_DIGITS;
 static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
 
-static redshow_data_type_t default_data_type = REDSHOW_DATA_FLOAT;
+static redshow_data_type_t default_data_type = REDSHOW_DATA_UNKNOWN;
 
 static redshow_result_t analyze_cubin(const char *path, SymbolVector &symbols,
                                       InstructionGraph &inst_graph) {
@@ -598,7 +598,7 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
 
 redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t start, uint64_t end) {
   PRINT("\nredshow->Enter redshow_memory_unregister\nhost_op_id: %llu\nstart: %p\nend: %p\n",
-    host_op_id, start, end);
+        host_op_id, start, end);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -639,8 +639,9 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
   auto snapshot_iter = memory_snapshot.prev(host_op_id);
   if (snapshot_iter != memory_snapshot.end()) {
     auto &memory_map = snapshot_iter->second;
-    auto memory_map_iter = memory_map.find(memory_range);
-    if (memory_map_iter != memory_map.end()) {
+    auto memory_map_iter = memory_map.prev(memory_range);
+    if (memory_map_iter != memory_map.end() && memory_map_iter->first.end >= start) {
+      // Fall into the range, assume no memory overflow
       *memory_id = memory_map_iter->second->ctx_id;
       *memory_op_id = memory_map_iter->second->op_id;
       *shadow_start = reinterpret_cast<uint64_t>(memory_map_iter->second->value.get());
@@ -834,7 +835,8 @@ redshow_result_t redshow_flush_thread(uint32_t cpu_thread) {
   PRINT("\nredshow->Enter redshow_flush cpu_thread %u\n", cpu_thread);
 
   for (auto aiter : analysis_enabled) {
-    aiter.second->flush_thread(cpu_thread, output_dir[aiter.first], cubin_map, record_data_callback);
+    aiter.second->flush_thread(cpu_thread, output_dir[aiter.first], cubin_map,
+                               record_data_callback);
   }
 
   return REDSHOW_SUCCESS;

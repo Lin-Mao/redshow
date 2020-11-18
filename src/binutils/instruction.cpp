@@ -228,7 +228,7 @@ bool InstructionParser::parse(const std::string &file_path, SymbolVector &symbol
         }
 
         std::vector<int> srcs;
-        std::map<int, std::vector<int> > assign_pcs;
+        std::map<int, std::vector<int>> assign_pcs;
         auto &ptree_srcs = ptree_inst.second.get_child("srcs");
         for (auto &ptree_src : ptree_srcs) {
           int src = ptree_src.second.get<int>("id", 0);
@@ -310,8 +310,9 @@ bool InstructionParser::parse(const std::string &file_path, SymbolVector &symbol
   for (auto iter = inst_graph.nodes_begin(); iter != inst_graph.nodes_end(); ++iter) {
     auto &inst = iter->second;
     if (inst.op.find("MEMORY") != std::string::npos) {
-      std::cout << "Func Index: " << pc_offsets[inst.pc].first << ", PC: " << std::hex <<
-        pc_offsets[inst.pc].second << ", TYPE: " << inst.access_kind->to_string() << std::dec << std::endl;
+      std::cout << "Func Index: " << pc_offsets[inst.pc].first << ", PC: " << std::hex
+                << pc_offsets[inst.pc].second << ", TYPE: " << inst.access_kind->to_string()
+                << std::dec << std::endl;
     }
   }
 #endif

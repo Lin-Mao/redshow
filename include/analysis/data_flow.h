@@ -10,11 +10,11 @@
 #include "common/map.h"
 #include "common/set.h"
 #include "common/utils.h"
-#include "operation/operation.h"
+#include "operation/kernel.h"
 #include "operation/memcpy.h"
 #include "operation/memory.h"
 #include "operation/memset.h"
-#include "operation/kernel.h"
+#include "operation/operation.h"
 #include "redshow.h"
 
 namespace redshow {
@@ -36,8 +36,7 @@ class DataFlow final : public Analysis {
   virtual void block_exit(const ThreadId &thread_id);
 
   virtual void unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
-                           const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
-                           bool read);
+                           const Memory &memory, u64 pc, u64 value, u64 addr, u32 index, bool read);
 
   virtual void flush_thread(u32 cpu_thread, const std::string &output_dir,
                             const LockableMap<u32, Cubin> &cubins,
@@ -72,7 +71,8 @@ class DataFlow final : public Analysis {
 
     EdgeIndex() = default;
 
-    EdgeIndex(Index &from, Index &to, i32 mem_ctx_id, EdgeType type) : from(from), to(to), mem_ctx_id(mem_ctx_id), type(type) {}
+    EdgeIndex(Index &from, Index &to, i32 mem_ctx_id, EdgeType type)
+        : from(from), to(to), mem_ctx_id(mem_ctx_id), type(type) {}
 
     bool operator<(const EdgeIndex &other) const {
       if (this->from == other.from) {
@@ -89,12 +89,12 @@ class DataFlow final : public Analysis {
     EdgeType type;
     u64 redundancy;
     u64 overwrite;  // write count
-    u64 count;  // total byte count
+    u64 count;      // total byte count
 
     Edge() = default;
 
-    Edge(EdgeType type, u64 redundancy, u64 overwrite) :
-      type(type), redundancy(redundancy), overwrite(overwrite), count(0) {}
+    Edge(EdgeType type, u64 redundancy, u64 overwrite)
+        : type(type), redundancy(redundancy), overwrite(overwrite), count(0) {}
 
     Edge(EdgeType type) : Edge(type, 0, 0) {}
   };
@@ -102,8 +102,8 @@ class DataFlow final : public Analysis {
   typedef Graph<Index, Node, EdgeIndex, Edge> DataFlowGraph;
 
   struct DataFlowTrace final : public Trace {
-    Map<u64, std::vector<bool>> read_memory;
-    Map<u64, std::vector<bool>> write_memory;
+    Map<u64, Set<MemoryRange>> read_memory;
+    Map<u64, Set<MemoryRange>> write_memory;
 
     DataFlowTrace() = default;
 
@@ -125,7 +125,8 @@ class DataFlow final : public Analysis {
 
   void link_ctx_node(i32 src_ctx_id, i32 dst_ctx_id, i32 mem_ctx_id, EdgeType type);
 
-  void update_op_metrics(u64 op_id, i32 ctx_id, i32 mem_ctx_id, u64 redundancy, u64 overwrite, u64 count);
+  void update_op_metrics(u64 op_id, i32 ctx_id, i32 mem_ctx_id, u64 redundancy, u64 overwrite,
+                         u64 count, EdgeType type = DATA_FLOW_EDGE_ORDER);
 
   void update_op_node(u64 op_id, i32 ctx_id);
 
@@ -133,12 +134,15 @@ class DataFlow final : public Analysis {
 
   void dump(const std::string &output_dir, const Map<i32, Map<i32, bool>> &duplicate);
 
+  void merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &memory_range);
+
  private:
   static inline thread_local std::shared_ptr<DataFlowTrace> _trace;
 
   DataFlowGraph _graph;
   Map<u64, i32> _op_node;
   Map<i32, Set<std::string>> _node_hash;
+  Map<i32, u64> _node_count;
   Map<u64, std::shared_ptr<Memory>> _memories;
 };
 

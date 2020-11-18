@@ -50,7 +50,14 @@ namespace redshow {
   void ValuePattern::unit_access(i32 kernel_id, const ThreadId &thread_id,
                                  const AccessKind &access_kind, const Memory &memory, u64 pc,
                                  u64 value, u64 addr, u32 index, bool read) {
-    if (memory.op_id <= REDSHOW_MEMORY_HOST) {
+    if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
+      // If unknown, try each data type
+      auto enum_access_kind = access_kind;
+      enum_access_kind.data_type = REDSHOW_DATA_FLOAT;
+      unit_access(kernel_id, thread_id, enum_access_kind, memory, pc, value, addr, index, read);
+      enum_access_kind.data_type = REDSHOW_DATA_INT;
+      unit_access(kernel_id, thread_id, enum_access_kind, memory, pc, value, addr, index, read);
+
       return;
     }
     //  @todo If memory usage is too high, we can limit the save of various values of one item.
@@ -61,6 +68,35 @@ namespace redshow {
 //    The 7th digit in float number's decimal part is partial valid, so we set the deault approx level to REDSHOW_APPROX_MIN.
     vp_approx_level_config(REDSHOW_APPROX_MIN, decimal_degree_f32, decimal_degree_f64);
     if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
+    auto &r_value_dist_compact = _trace->r_value_dist_compact;
+    auto &w_value_dist_compact = _trace->w_value_dist_compact;
+
+    auto size = (memory.memory_range.end - memory.memory_range.start) / (access_kind.unit_size >> 3);
+    auto offset = (addr - memory.memory_range.start) / (access_kind.unit_size >> 3);
+
+    ValueCount *value_count = NULL;
+
+    if (memory.op_id <= REDSHOW_MEMORY_HOST) {
+      if (read) {
+        value_count = &r_value_dist_compact[memory][access_kind];
+      } else {
+        value_count = &w_value_dist_compact[memory][access_kind];
+      }
+    } else {
+      if (read) {
+        r_value_dist[memory][access_kind].resize(size);
+        value_count = &r_value_dist[memory][access_kind][offset];
+      } else {
+        w_value_dist[memory][access_kind].resize(size);
+        value_count = &w_value_dist[memory][access_kind][offset];
+      }
+    }
+
+    if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
+      int decimal_degree_f32;
+      int decimal_degree_f64;
+      vp_approx_level_config(REDSHOW_APPROX_MIN, decimal_degree_f32, decimal_degree_f64);
+
       if (access_kind.unit_size == 32) {
         value = value_to_float(value, decimal_degree_f32);
       } else if (access_kind.unit_size == 64) {
@@ -68,15 +104,7 @@ namespace redshow {
       }
     }
 
-    auto size = (memory.memory_range.end - memory.memory_range.start) / (access_kind.unit_size >> 3);
-    auto offset = (addr - memory.memory_range.start) / (access_kind.unit_size >> 3);
-    if (read) {
-      r_value_dist[memory][access_kind].resize(size);
-      r_value_dist[memory][access_kind][offset][value] += 1;
-    } else {
-      w_value_dist[memory][access_kind].resize(size);
-      w_value_dist[memory][access_kind][offset][value] += 1;
-    }
+    (*value_count)[value] += 1;
   }
 
   void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,

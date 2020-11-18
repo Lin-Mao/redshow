@@ -56,6 +56,7 @@ namespace redshow {
     typedef Map <u64, u64> ValueCount;
     typedef Vector <ValueCount> ItemsValueCount;
     typedef Map <Memory, Map<AccessKind, ItemsValueCount>> ValueDist;
+    typedef Map <Memory, Map<AccessKind, ValueCount>> ValueDistCompact;
 
     enum ValuePatternType {
       VP_REDUNDANT_ZEROS = 0,
@@ -110,6 +111,8 @@ namespace redshow {
     struct ValuePatternTrace final : public Trace {
       ValueDist w_value_dist;
       ValueDist r_value_dist;
+      ValueDistCompact w_value_dist_compact;
+      ValueDistCompact r_value_dist_compact; 
 
       ValuePatternTrace() = default;
 

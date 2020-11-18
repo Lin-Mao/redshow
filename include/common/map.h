@@ -11,7 +11,7 @@ class Map : public std::map<K, V> {
  public:
   Map() = default;
 
-  typename Map<K, V>::iterator prev(K &key) {
+  typename Map<K, V>::iterator prev(const K &key) {
     auto iter = this->upper_bound(key);
     if (iter == this->begin()) {
       return this->end();
@@ -21,7 +21,7 @@ class Map : public std::map<K, V> {
     }
   }
 
-  typename Map<K, V>::const_iterator prev(K &key) const {
+  typename Map<K, V>::const_iterator prev(const K &key) const {
     auto iter = this->upper_bound(key);
     if (iter == this->begin()) {
       return this->end();
