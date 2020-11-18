@@ -639,8 +639,9 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
   auto snapshot_iter = memory_snapshot.prev(host_op_id);
   if (snapshot_iter != memory_snapshot.end()) {
     auto &memory_map = snapshot_iter->second;
-    auto memory_map_iter = memory_map.find(memory_range);
-    if (memory_map_iter != memory_map.end()) {
+    auto memory_map_iter = memory_map.prev(memory_range);
+    if (memory_map_iter != memory_map.end() && memory_map_iter->first.end >= start) {
+      // Fall into the range, assume no memory overflow
       *memory_id = memory_map_iter->second->ctx_id;
       *memory_op_id = memory_map_iter->second->op_id;
       *shadow_start = reinterpret_cast<uint64_t>(memory_map_iter->second->value.get());
