@@ -54,7 +54,7 @@ namespace redshow {
   private:
     // <Offset, <Value, Count>>
     typedef Map <u64, u64> ValueCount;
-    typedef Vector<ValueCount> ItemsValueCount;
+    typedef Vector <ValueCount> ItemsValueCount;
     typedef Map <Memory, Map<AccessKind, ItemsValueCount>> ValueDist;
     typedef Map <Memory, Map<AccessKind, ValueCount>> ValueDistCompact;
 
@@ -86,7 +86,8 @@ namespace redshow {
     struct ArrayPatternInfo {
       AccessKind access_kind;
       Memory memory;
-      std::pair<int, int> narrow_down_to_unit_size;
+//     <signed_leading_zero_bits, unsigned_leading_zero_bits, tail_zero_bits>
+      std::tuple<int, int, int> narrow_down_to_unit_size;
       // E.g., <<10,1000>, > there are 1000 items have single value 10.
       Vector <std::pair<u64, u64>> top_value_count_vec;
       //  How many items are unique value
@@ -96,7 +97,7 @@ namespace redshow {
       Vector <std::pair<u64, u64>> unqiue_value_count_vec;
       u64 total_access_count;
 //    for structured pattern
-      double k, b;
+      double k, b, mse;
       Vector <ValuePatternType> vpts;
 
       ArrayPatternInfo() = default;
@@ -126,8 +127,14 @@ namespace redshow {
 
     void show_value_pattern(ArrayPatternInfo &array_pattern_info, std::ofstream &out, uint8_t read_flag);
 
-    void detect_type_overuse(std::pair<int, int> &redundat_zero_bits, AccessKind &accessKind,
-                             std::pair<int, int> &narrow_down_to_unit_size);
+    void detect_type_overuse(std::tuple<int, int, int> &redundant_zero_bits,
+                             AccessKind &accessKind,
+                             std::tuple<int, int, int> &narrow_down_to_unit_size);
+
+    void inline check_zeros_bits(int zeros_bits, int full, int &narrow_down_to);
+
+    bool check_exponent_and_fraction(bool &all_first_Xbits_same, u64 &all_first_Xbits, int &max_exponents_X,
+                                     u64 value, AccessKind &accessKind);
 
     bool detect_structrued_pattern(ItemsValueCount &array_items, ArrayPatternInfo &array_pattern_info);
 
@@ -135,7 +142,7 @@ namespace redshow {
 
     void check_pattern_for_value_dist(ValueDist &value_dist, std::ofstream &out, uint8_t read_flag);
 
-    std::pair<int, int> get_redundant_zeros_bits(u64 a, AccessKind &accessKind);
+    std::tuple<int, int, int> get_redundant_zeros_bits(u64 a, AccessKind &accessKind);
 
     void vp_approx_level_config(redshow_approx_level_t level, int &decimal_degree_f32, int &decimal_degree_f64);
 
