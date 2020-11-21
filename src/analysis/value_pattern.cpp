@@ -63,14 +63,8 @@ namespace redshow {
     //  @todo If memory usage is too high, we can limit the save of various values of one item.
     auto &r_value_dist = _trace->r_value_dist;
     auto &w_value_dist = _trace->w_value_dist;
-    int decimal_degree_f32;
-    int decimal_degree_f64;
-//    The 7th digit in float number's decimal part is partial valid, so we set the deault approx level to REDSHOW_APPROX_MIN.
-    vp_approx_level_config(REDSHOW_APPROX_MIN, decimal_degree_f32, decimal_degree_f64);
-    if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
     auto &r_value_dist_compact = _trace->r_value_dist_compact;
     auto &w_value_dist_compact = _trace->w_value_dist_compact;
-
     auto size = (memory.memory_range.end - memory.memory_range.start) / (access_kind.unit_size >> 3);
     auto offset = (addr - memory.memory_range.start) / (access_kind.unit_size >> 3);
 
@@ -95,6 +89,7 @@ namespace redshow {
     if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
       int decimal_degree_f32;
       int decimal_degree_f64;
+      //    The 7th digit in float number's decimal part is partial valid, so we set the deault approx level to REDSHOW_APPROX_MIN.
       vp_approx_level_config(REDSHOW_APPROX_MIN, decimal_degree_f32, decimal_degree_f64);
 
       if (access_kind.unit_size == 32) {
