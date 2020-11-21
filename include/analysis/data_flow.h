@@ -59,7 +59,7 @@ class DataFlow final : public Analysis {
     Node() : Node(0, OPERATION_TYPE_KERNEL) {}
   };
 
-  enum EdgeType { DATA_FLOW_EDGE_ORDER, DATA_FLOW_EDGE_READ };
+  enum EdgeType { DATA_FLOW_EDGE_ORDER, DATA_FLOW_EDGE_READ, DATA_FLOW_EDGE_SINK };
 
   std::string get_data_flow_edge_type(EdgeType type);
 
@@ -124,6 +124,9 @@ class DataFlow final : public Analysis {
   void link_op_node(u64 op_id, i32 ctx_id, i32 mem_ctx_id);
 
   void link_ctx_node(i32 src_ctx_id, i32 dst_ctx_id, i32 mem_ctx_id, EdgeType type);
+
+  void update_edge_metrics(i32 src_ctx_id, i32 dst_ctx_id, i32 mem_ctx_id, u64 redundancy,
+                           u64 overwrite, u64 count, EdgeType type);
 
   void update_op_metrics(u64 op_id, i32 ctx_id, i32 mem_ctx_id, u64 redundancy, u64 overwrite,
                          u64 count, EdgeType type = DATA_FLOW_EDGE_ORDER);

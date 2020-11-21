@@ -19,7 +19,7 @@
 namespace redshow {
 
 std::string DataFlow::get_data_flow_edge_type(EdgeType type) {
-  static std::string data_flow_edge_type[] = {"WRITE", "READ"};
+  static std::string data_flow_edge_type[] = {"WRITE", "READ", "SINK"};
   return data_flow_edge_type[type];
 }
 
@@ -130,10 +130,19 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
 
   auto src_memory = _memories.at(op->src_memory_op_id);
   auto dst_memory = _memories.at(op->dst_memory_op_id);
-  link_op_node(op->dst_memory_op_id, op->ctx_id, dst_memory->ctx_id);
-  update_op_metrics(op->dst_memory_op_id, op->ctx_id, dst_memory->ctx_id, redundancy, overwrite,
-                    dst_len);
-  update_op_node(op->dst_memory_op_id, op->ctx_id);
+  if (op->dst_memory_op_id == REDSHOW_MEMORY_HOST || op->dst_memory_op_id == REDSHOW_MEMORY_UVM) {
+    // sink edge
+    auto dst_ctx_id = _op_node.at(op->dst_memory_op_id);
+    std::cout <<  op->dst_memory_op_id << " " << dst_ctx_id << std::endl;
+    link_ctx_node(op->ctx_id, dst_ctx_id, src_memory->ctx_id, DATA_FLOW_EDGE_SINK);
+    update_edge_metrics(op->ctx_id, dst_ctx_id, src_memory->ctx_id, redundancy, overwrite, dst_len,
+                        DATA_FLOW_EDGE_SINK);
+  } else {
+    link_op_node(op->dst_memory_op_id, op->ctx_id, dst_memory->ctx_id);
+    update_op_metrics(op->dst_memory_op_id, op->ctx_id, dst_memory->ctx_id, redundancy, overwrite,
+                      dst_len);
+    update_op_node(op->dst_memory_op_id, op->ctx_id);
+  }
 
   auto src_ctx_id = _op_node.at(op->src_memory_op_id);
   auto dst_ctx_id = _op_node.at(op->dst_memory_op_id);
@@ -307,13 +316,20 @@ void DataFlow::update_op_metrics(u64 op_id, i32 ctx_id, i32 mem_ctx_id, u64 redu
   // Update current edge's property
   if (_op_node.find(op_id) != _op_node.end()) {
     auto prev_ctx_id = _op_node.at(op_id);
-    auto edge_index = EdgeIndex(prev_ctx_id, ctx_id, mem_ctx_id, type);
-    if (_graph.has_edge(edge_index)) {
-      auto &edge = _graph.edge(edge_index);
-      edge.redundancy += redundancy;
-      edge.overwrite += overwrite;
-      edge.count += count;
-    }
+    update_edge_metrics(prev_ctx_id, ctx_id, mem_ctx_id, redundancy, overwrite, count, type);
+  }
+}
+
+
+void DataFlow::update_edge_metrics(i32 src_ctx_id, i32 dst_ctx_id, i32 mem_ctx_id, u64 redundancy,
+                                 u64 overwrite, u64 count, EdgeType type) {
+  // Update current edge's property
+  auto edge_index = EdgeIndex(src_ctx_id, dst_ctx_id, mem_ctx_id, type);
+  if (_graph.has_edge(edge_index)) {
+    auto &edge = _graph.edge(edge_index);
+    edge.redundancy += redundancy;
+    edge.overwrite += overwrite;
+    edge.count += count;
   }
 }
 
