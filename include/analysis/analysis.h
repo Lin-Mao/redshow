@@ -78,7 +78,7 @@ class Analysis {
 
  protected:
   Map<u32, Map<i32, std::shared_ptr<Trace>>> _kernel_trace;
-
+  bool do_summary_analysis;
   redshow_tool_dtoh_func _dtoh;
   redshow_analysis_type_t _type;
   std::mutex _lock;
