@@ -50,6 +50,7 @@ namespace redshow {
   void ValuePattern::unit_access(i32 kernel_id, const ThreadId &thread_id,
                                  const AccessKind &access_kind, const Memory &memory, u64 pc,
                                  u64 value, u64 addr, u32 index, bool read) {
+    addr += index * access_kind.unit_size;
     if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
       // If unknown, try each data type
       auto enum_access_kind = access_kind;
@@ -110,13 +111,12 @@ namespace redshow {
     auto &thread_kernel_trace = this->_kernel_trace.at(cpu_thread);
 
     unlock();
+    std::ofstream out(output_dir + "value_pattern_t" + std::to_string(cpu_thread) + ".csv");
+    do_summary_analysis = false;
 // for all kernels
     ValueDist value_dist_sum;
     ValueDist r_value_dist_sum;
     ValueDist w_value_dist_sum;
-
-    std::ofstream out(output_dir + "value_pattern_t" + std::to_string(cpu_thread) + ".csv");
-
     for (auto &trace_iter : thread_kernel_trace) {
       auto kernel_id = trace_iter.first;
       out << "kernel id\t" << kernel_id << std::endl;
@@ -131,16 +131,20 @@ namespace redshow {
         for (auto &array_iter : memory_iter.second) {
           auto &access_kind = array_iter.first;
           auto &array_items = array_iter.second;
-          r_value_dist_sum[memory][access_kind].resize(array_items.size());
-          value_dist_sum[memory][access_kind].resize(array_items.size());
+          if (do_summary_analysis) {
+            r_value_dist_sum[memory][access_kind].resize(array_items.size());
+            value_dist_sum[memory][access_kind].resize(array_items.size());
+          }
           k_value_dist_sum[memory][access_kind].resize(array_items.size());
           for (auto offset = 0; offset < array_items.size(); ++offset) {
             auto &value_count = array_items[offset];
             for (auto &item_value_count_iter: value_count) {
               auto &item_value = item_value_count_iter.first;
               auto &item_value_count = item_value_count_iter.second;
-              r_value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
-              value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
+              if (do_summary_analysis) {
+                r_value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
+                value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
+              }
               k_value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
             }
           }
@@ -152,16 +156,20 @@ namespace redshow {
         for (auto &array_iter : memory_iter.second) {
           auto &access_kind = array_iter.first;
           auto &array_items = array_iter.second;
-          w_value_dist_sum[memory][access_kind].resize(array_items.size());
-          value_dist_sum[memory][access_kind].resize(array_items.size());
+          if (do_summary_analysis) {
+            w_value_dist_sum[memory][access_kind].resize(array_items.size());
+            value_dist_sum[memory][access_kind].resize(array_items.size());
+          }
           k_value_dist_sum[memory][access_kind].resize(array_items.size());
           for (auto offset = 0; offset < array_items.size(); ++offset) {
             auto &value_count = array_items[offset];
             for (auto &item_value_count_iter: value_count) {
               auto &item_value = item_value_count_iter.first;
               auto &item_value_count = item_value_count_iter.second;
-              w_value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
-              value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
+              if (do_summary_analysis) {
+                w_value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
+                value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
+              }
               k_value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
             }
           }
@@ -170,10 +178,12 @@ namespace redshow {
       check_pattern_for_value_dist(k_value_dist_sum, out, 0);
 
     }
-    out << "================\narray pattern summary\n================" << std::endl;
-    check_pattern_for_value_dist(r_value_dist_sum, out, GPU_PATCH_READ);
-    check_pattern_for_value_dist(w_value_dist_sum, out, GPU_PATCH_WRITE);
-    check_pattern_for_value_dist(value_dist_sum, out, 0);
+    if(do_summary_analysis){
+      out << "================\narray pattern summary\n================" << std::endl;
+      check_pattern_for_value_dist(r_value_dist_sum, out, GPU_PATCH_READ);
+      check_pattern_for_value_dist(w_value_dist_sum, out, GPU_PATCH_WRITE);
+      check_pattern_for_value_dist(value_dist_sum, out, 0);
+    }
   }
 
   void ValuePattern::check_pattern_for_value_dist(ValueDist &value_dist, std::ofstream &out, uint8_t read_flag) {
