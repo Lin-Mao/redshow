@@ -254,7 +254,7 @@ void DataFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const Acces
   }
 
   auto byte_size = access_kind.unit_size >> 3;
-  auto memory_range = MemoryRange(addr, addr + byte_size);
+  auto memory_range = MemoryRange(addr, addr + index * byte_size);
   if (read) {
     merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
   } else {
