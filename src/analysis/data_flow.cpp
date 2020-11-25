@@ -58,15 +58,17 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
   for (auto &mem_iter : _trace->read_memory) {
     // Avoid local and share memories
     auto memory = _memories.at(mem_iter.first);
-    auto node_id = _op_node.at(memory->op_id);
-    auto len = 0;
-    for (auto &range_iter : mem_iter.second) {
-      len += range_iter.end - range_iter.start;
+    if (memory->op_id > REDSHOW_MEMORY_HOST) {
+      auto node_id = _op_node.at(memory->op_id);
+      auto len = 0;
+      for (auto &range_iter : mem_iter.second) {
+        len += range_iter.end - range_iter.start;
+      }
+      // Link a pure read edge between two calling contexts
+      link_ctx_node(node_id, op->ctx_id, memory->ctx_id, DATA_FLOW_EDGE_READ);
+      update_op_metrics(memory->op_id, op->ctx_id, memory->ctx_id, 0.0, len, memory->len,
+        DATA_FLOW_EDGE_READ);
     }
-    // Link a pure read edge between two calling contexts
-    link_ctx_node(node_id, op->ctx_id, memory->ctx_id, DATA_FLOW_EDGE_READ);
-    update_op_metrics(memory->op_id, op->ctx_id, memory->ctx_id, 0.0, len, memory->len,
-                      DATA_FLOW_EDGE_READ);
   }
 
   for (auto &mem_iter : _trace->write_memory) {
@@ -124,9 +126,9 @@ void DataFlow::memset_op_callback(std::shared_ptr<Memset> op) {
 }
 
 void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
-  u64 redundancy = compute_memcpy_redundancy(op->dst_start, op->src_start, op->len);
   u64 overwrite = op->len;
   u64 dst_len = op->dst_len == 0 ? op->len : op->dst_len;
+  u64 redundancy = compute_memcpy_redundancy(op->dst_start, op->src_start, dst_len);
 
   auto src_memory = _memories.at(op->src_memory_op_id);
   auto dst_memory = _memories.at(op->dst_memory_op_id);
@@ -253,7 +255,7 @@ void DataFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const Acces
   }
 
   auto byte_size = access_kind.unit_size / 8;
-  auto memory_range = MemoryRange(addr, addr + index * byte_size);
+  auto memory_range = MemoryRange(addr + index * byte_size, addr + (index + 1) * byte_size);
   if (read) {
     merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
   } else {
