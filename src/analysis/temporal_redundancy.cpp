@@ -42,7 +42,7 @@ void TemporalRedundancy::block_exit(const ThreadId &thread_id) {
 void TemporalRedundancy::unit_access(i32 kernel_id, const ThreadId &thread_id,
                                      const AccessKind &access_kind, const Memory &memory, u64 pc,
                                      u64 value, u64 addr, u32 index, bool read) {
-  addr += index * access_kind.unit_size;
+  addr += index * access_kind.unit_size / 8;
   if (read) {
     auto &pc_pairs = _trace->read_pc_pairs;
     auto &temporal_trace = _trace->read_temporal_trace;

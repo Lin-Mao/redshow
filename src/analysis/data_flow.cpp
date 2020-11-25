@@ -133,7 +133,6 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
   if (op->dst_memory_op_id == REDSHOW_MEMORY_HOST || op->dst_memory_op_id == REDSHOW_MEMORY_UVM) {
     // sink edge
     auto dst_ctx_id = _op_node.at(op->dst_memory_op_id);
-    std::cout <<  op->dst_memory_op_id << " " << dst_ctx_id << std::endl;
     link_ctx_node(op->ctx_id, dst_ctx_id, src_memory->ctx_id, DATA_FLOW_EDGE_SINK);
     update_edge_metrics(op->ctx_id, dst_ctx_id, src_memory->ctx_id, redundancy, overwrite, dst_len,
                         DATA_FLOW_EDGE_SINK);
@@ -148,7 +147,7 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
   auto dst_ctx_id = _op_node.at(op->dst_memory_op_id);
   u64 src_len = op->src_len == 0 ? op->len : op->src_len;
   link_ctx_node(src_ctx_id, op->ctx_id, src_memory->ctx_id, DATA_FLOW_EDGE_READ);
-  update_op_metrics(op->src_memory_op_id, op->ctx_id, src_memory->ctx_id, 0.0, src_len, src_len,
+  update_op_metrics(op->src_memory_op_id, op->ctx_id, src_memory->ctx_id, 0.0, overwrite, src_len,
                     DATA_FLOW_EDGE_READ);
 
   std::string hash = compute_memory_hash(op->src_start, op->len);
@@ -253,7 +252,7 @@ void DataFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const Acces
     return;
   }
 
-  auto byte_size = access_kind.unit_size >> 3;
+  auto byte_size = access_kind.unit_size / 8;
   auto memory_range = MemoryRange(addr, addr + index * byte_size);
   if (read) {
     merge_memory_range(_trace->read_memory[memory.op_id], memory_range);

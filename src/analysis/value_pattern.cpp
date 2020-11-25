@@ -50,7 +50,7 @@ namespace redshow {
   void ValuePattern::unit_access(i32 kernel_id, const ThreadId &thread_id,
                                  const AccessKind &access_kind, const Memory &memory, u64 pc,
                                  u64 value, u64 addr, u32 index, bool read) {
-    addr += index * access_kind.unit_size;
+    addr += index * access_kind.unit_size / 8;
     if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
       // If unknown, try each data type
       auto enum_access_kind = access_kind;
