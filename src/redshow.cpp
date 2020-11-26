@@ -644,10 +644,11 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
       // Fall into the range, assume no memory overflow
       *memory_id = memory_map_iter->second->ctx_id;
       *memory_op_id = memory_map_iter->second->op_id;
-      *shadow_start = reinterpret_cast<uint64_t>(memory_map_iter->second->value.get());
-      *len = memory_map_iter->first.end - memory_map_iter->first.start;
-      PRINT("memory_id: %d\nmemory_op_id: %llu\nshadow: %p\nlen: %llu\n", *memory_id, *memory_op_id,
-            *shadow_start, *len);
+      auto offset = start - memory_map_iter->first.start;
+      *shadow_start = reinterpret_cast<uint64_t>(memory_map_iter->second->value.get()) + offset;
+      *len = memory_map_iter->second->len;
+      PRINT("memory_id: %d\nmemory_op_id: %llu\noffset %llu\nshadow: %p\nlen: %llu\n", *memory_id,
+            *memory_op_id, offset, *shadow_start, *len);
       result = REDSHOW_SUCCESS;
     } else {
       result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
@@ -660,42 +661,74 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
   return result;
 }
 
-redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
-                                         uint64_t src_memory_op_id, uint64_t src_start,
-                                         uint64_t src_len, uint64_t dst_memory_op_id,
-                                         uint64_t dst_start, uint64_t dst_len, uint64_t len) {
+redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id, bool src_host,
+                                         uint64_t src_start, bool dst_host, uint64_t dst_start,
+                                         uint64_t len) {
   PRINT(
       "\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %d\nhost_op_id: "
-      "%llu\nsrc_memory_op_id: "
-      "%llu\nsrc_start: %p\nsrc_len: %llu\ndst_memory_op_id: %llu\ndst_start: %p\ndst_len: "
+      "%llu\nsrc_host: %d\nsrc_start: %llu\ndst_host: %d\ndst_start: "
       "%llu\nlen: %llu\n",
-      memcpy_id, host_op_id, src_memory_op_id, src_start, src_len, dst_memory_op_id, dst_start,
-      dst_len, len);
+      memcpy_id, host_op_id, src_host, src_start, dst_host, dst_start, len);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  auto memcpy = std::make_shared<Memcpy>(host_op_id, memcpy_id, src_memory_op_id, src_start,
-                                         src_len, dst_memory_op_id, dst_start, dst_len, len);
+  i32 src_mem_id = 0;
+  u64 src_mem_op_id = 0;
+  u64 src_mem_addr = 0;
+  u64 src_size = 0;
+  i32 dst_mem_id = 0;
+  u64 dst_mem_op_id = 0;
+  u64 dst_mem_addr = 0;
+  u64 dst_size = 0;
 
-  for (auto aiter : analysis_enabled) {
-    aiter.second->op_callback(memcpy);
+  if (src_host) {
+    src_mem_addr = src_start;
+    src_mem_id = REDSHOW_MEMORY_HOST;
+    src_mem_op_id = REDSHOW_MEMORY_HOST;
+  } else {
+    redshow_memory_query(host_op_id, src_start, &src_mem_id, &src_mem_op_id, &src_mem_addr,
+                         &src_size);
+  }
+
+  if (dst_host) {
+    dst_mem_addr = dst_start;
+    dst_mem_id = REDSHOW_MEMORY_HOST;
+    dst_mem_op_id = REDSHOW_MEMORY_HOST;
+  } else {
+    redshow_memory_query(host_op_id, dst_start, &dst_mem_id, &dst_mem_op_id, &dst_mem_addr,
+                         &dst_size);
+  }
+
+  if (dst_mem_addr != 0) {
+    // Avoid memcpy to symbol without allocation
+    auto memcpy = std::make_shared<Memcpy>(host_op_id, memcpy_id, src_mem_op_id, src_mem_addr,
+                                           dst_mem_op_id, dst_mem_addr, len);
+
+    for (auto aiter : analysis_enabled) {
+      aiter.second->op_callback(memcpy);
+    }
   }
 
   return result;
 }
 
-redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
-                                         uint64_t memory_op_id, uint64_t shadow_start,
-                                         uint64_t shadow_len, uint32_t value, uint64_t len) {
+redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id, uint64_t start,
+                                         uint32_t value, uint64_t len) {
   PRINT(
-      "\nredshow->Enter redshow_memset_register\nmemset_id: %d\nhost_op_id: %llu\nmemory_op_id: "
-      "%llu\nshadow_start: %p\nshadow_len: %llu\nvalue: %u\nlen: %llu\n",
-      memset_id, host_op_id, memory_op_id, shadow_start, shadow_len, value, len);
+      "\nredshow->Enter redshow_memset_register\nmemset_id: %d\nhost_op_id: %llu\nstart: "
+      "%llu\nvalue: %u\nlen: %llu\n",
+      memset_id, host_op_id, start, value, len);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  auto memset = std::make_shared<Memset>(host_op_id, memset_id, memory_op_id, shadow_start,
-                                         shadow_len, value, len);
+  i32 mem_id = 0;
+  u64 mem_op_id = 0;
+  u64 addr = 0;
+  u64 size = 0;
+
+  redshow_memory_query(host_op_id, start, &mem_id, &mem_op_id, &addr, &size);
+
+  auto memset = std::make_shared<Memset>(host_op_id, memset_id, mem_op_id, addr, value, len);
 
   for (auto aiter : analysis_enabled) {
     aiter.second->op_callback(memset);

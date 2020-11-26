@@ -67,7 +67,7 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
       // Link a pure read edge between two calling contexts
       link_ctx_node(node_id, op->ctx_id, memory->ctx_id, DATA_FLOW_EDGE_READ);
       update_op_metrics(memory->op_id, op->ctx_id, memory->ctx_id, 0.0, len, memory->len,
-        DATA_FLOW_EDGE_READ);
+                        DATA_FLOW_EDGE_READ);
     }
   }
 
@@ -88,12 +88,13 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
       for (auto &range_iter : mem_iter.second) {
         auto host_cache_start = host_cache + range_iter.start - device;
         auto host_start = host + range_iter.start - device;
-        redundancy += compute_memcpy_redundancy(host_cache_start, host_start, range_iter.end - range_iter.start);
+        redundancy += compute_memcpy_redundancy(host_cache_start, host_start,
+                                                range_iter.end - range_iter.start);
       }
 
 #ifdef DEBUG_DATA_FLOW
-      std::cout << "redundancy " << redundancy << " overwrite " << overwrite << " memory->len " << memory->len << ": " << 
-        overwrite / float(memory->len) << std::endl;
+      std::cout << "redundancy " << redundancy << " overwrite " << overwrite << " memory->len "
+                << memory->len << ": " << overwrite / float(memory->len) << std::endl;
 #endif
 
       // Point the operation to the calling context
@@ -105,7 +106,7 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
       std::string hash = compute_memory_hash(reinterpret_cast<u64>(host_cache), memory->len);
       _node_hash[op->ctx_id].emplace(hash);
 
-      // XXX(Keren): This is tricky, should let the tool do update
+      // Update host
       memcpy(reinterpret_cast<void *>(host), reinterpret_cast<void *>(host_cache), memory->len);
     }
   }
@@ -118,32 +119,37 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
 void DataFlow::memory_op_callback(std::shared_ptr<Memory> op) {
   update_op_node(op->op_id, op->ctx_id);
   _memories.try_emplace(op->op_id, op);
+
+  // Update host
+  dtoh(reinterpret_cast<u64>(op->value.get()), op->memory_range.start, op->len);
 }
 
 void DataFlow::memset_op_callback(std::shared_ptr<Memset> op) {
-  u64 redundancy = compute_memset_redundancy(op->shadow_start, op->value, op->shadow_len);
+  u64 redundancy = compute_memset_redundancy(op->start, op->value, op->len);
   u64 overwrite = op->len;
 
   auto memory = _memories.at(op->memory_op_id);
   link_op_node(op->memory_op_id, op->ctx_id, memory->ctx_id);
   update_op_metrics(op->memory_op_id, op->ctx_id, memory->ctx_id, redundancy, overwrite,
-                    op->shadow_len);
+                    memory->len);
   update_op_node(op->memory_op_id, op->ctx_id);
 
-  u64 host = reinterpret_cast<u64>(memory->value_cache.get());
-  dtoh(host, memory->memory_range.start, memory->len);
-  std::string hash = compute_memory_hash(host, op->shadow_len);
+  // Update host
+  memset(reinterpret_cast<void *>(op->start), op->value, op->len);
+  u64 host = reinterpret_cast<u64>(memory->value.get());
+  std::string hash = compute_memory_hash(host, memory->len);
   _node_hash[op->ctx_id].emplace(hash);
 }
 
 void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
-  u64 overwrite = op->len;
-  u64 dst_len = op->dst_len == 0 ? op->len : op->dst_len;
-  u64 src_len = op->src_len == 0 ? op->len : op->src_len;
-  u64 redundancy = compute_memcpy_redundancy(op->dst_start, op->src_start, op->len);
-
+  auto overwrite = op->len;
   auto src_memory = _memories.at(op->src_memory_op_id);
   auto dst_memory = _memories.at(op->dst_memory_op_id);
+  auto src_len = src_memory->len == 0 ? op->len : src_memory->len;
+  auto dst_len = dst_memory->len == 0 ? op->len : dst_memory->len;
+
+  u64 redundancy = compute_memcpy_redundancy(op->dst_start, op->src_start, op->len);
+
   if (op->dst_memory_op_id == REDSHOW_MEMORY_HOST || op->dst_memory_op_id == REDSHOW_MEMORY_UVM) {
     // sink edge
     auto dst_ctx_id = _op_node.at(op->dst_memory_op_id);
@@ -163,7 +169,15 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
   update_op_metrics(op->src_memory_op_id, op->ctx_id, src_memory->ctx_id, 0.0, overwrite, src_len,
                     DATA_FLOW_EDGE_READ);
 
-  std::string hash = compute_memory_hash(op->src_start, op->len);
+  // Update host
+  memcpy(reinterpret_cast<void *>(op->dst_start), reinterpret_cast<void *>(op->src_start), op->len);
+  u64 host = 0;
+  if (op->dst_memory_op_id == REDSHOW_MEMORY_HOST || op->dst_memory_op_id == REDSHOW_MEMORY_UVM) {
+    host = op->dst_start;
+  } else {
+    host = reinterpret_cast<u64>(dst_memory->value.get());
+  }
+  std::string hash = compute_memory_hash(host, dst_len);
   _node_hash[op->ctx_id].emplace(hash);
 }
 
@@ -332,9 +346,8 @@ void DataFlow::update_op_metrics(u64 op_id, i32 ctx_id, i32 mem_ctx_id, u64 redu
   }
 }
 
-
 void DataFlow::update_edge_metrics(i32 src_ctx_id, i32 dst_ctx_id, i32 mem_ctx_id, u64 redundancy,
-                                 u64 overwrite, u64 count, EdgeType type) {
+                                   u64 overwrite, u64 count, EdgeType type) {
   // Update current edge's property
   auto edge_index = EdgeIndex(src_ctx_id, dst_ctx_id, mem_ctx_id, type);
   if (_graph.has_edge(edge_index)) {
@@ -431,7 +444,8 @@ void DataFlow::dump(const std::string &output_dir, const Map<i32, Map<i32, bool>
         auto &incoming_node = _graph.node(edge_index.from);
         auto &edge = _graph.edge(edge_index);
         auto edge_count = edge.count == 0 ? 1 : edge.count;
-        auto redundancy_avg = edge.overwrite == 0 ? 0 : edge.redundancy / static_cast<double>(edge.overwrite);
+        auto redundancy_avg =
+            edge.overwrite == 0 ? 0 : edge.redundancy / static_cast<double>(edge.overwrite);
         auto overwrite_avg = edge.overwrite / static_cast<double>(edge_count);
 
         auto iv = vertice[incoming_node.ctx_id];

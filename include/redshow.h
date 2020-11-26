@@ -86,7 +86,8 @@ typedef struct redshow_record_data {
  *
  * @thread-safe: No
  */
-EXTERNC redshow_result_t redshow_output_dir_config(redshow_analysis_type_t analysis, const char *dir);
+EXTERNC redshow_result_t redshow_output_dir_config(redshow_analysis_type_t analysis,
+                                                   const char *dir);
 
 /**
  * @brief Config default data type
@@ -258,30 +259,21 @@ EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t star
  *
  * @param memcpy_id Calling context of the mempry operation
  * @param host_op_id Unique identifier of a memcpy operation
- * @param src_memory_op_id Unique identifier of a src memory object except for MEMORY_ID_HOST as we
- * do not track host memory objects
- * @param src_start Start address of a src memory (shadow) object
- * @param dst_memory_op_id Unique identifier of a dst memory object except for MEMORY_ID_HOST as we
- * do not track host memory objects
- * @param dst_start Start address of a dst memory (shadow) object
  * @param len Number of copied bytes
  * @return reshow_result_t
  *
  * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
-                                                 uint64_t src_memory_op_id, uint64_t src_start,
-                                                 uint64_t src_len, uint64_t dst_memory_op_id,
-                                                 uint64_t dst_start, uint64_t dst_len,
-                                                 uint64_t len);
+                                                 bool src_host, uint64_t src_start, bool dst_host,
+                                                 uint64_t dst_start, uint64_t len);
 
 /**
  * @brief This funciton is used to track a memset operation
  *
  * @param memset_id
- * @param memory_op_id
- * @param memory_id
- * @param shadow_start
+ * @param host_op_id
+ * @param start
  * @param value
  * @param len
  * @return reshow_result_t
@@ -289,8 +281,7 @@ EXTERNC redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t hos
  * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
-                                                 uint64_t memory_op_id, uint64_t shadow_start,
-                                                 uint64_t shadow_len, uint32_t value, uint64_t len);
+                                                 uint64_t start, uint32_t value, uint64_t len);
 
 /**
  * @brief Callback function prototype
@@ -357,30 +348,30 @@ typedef void (*redshow_tool_dtoh_func)(uint64_t host_start, uint64_t device_star
 
 /**
  * @brief Register dtoh function
- * 
- * @param func 
- * @return EXTERNC 
+ *
+ * @param func
+ * @return EXTERNC
  */
 EXTERNC redshow_result_t redshow_tool_dtoh_register(redshow_tool_dtoh_func func);
 
 /**
  * @brief when a kernel starts
- * 
- * @param cpu_thread 
- * @param kernel_id 
- * @param host_op_id 
- * @return EXTERNC 
+ *
+ * @param cpu_thread
+ * @param kernel_id
+ * @param host_op_id
+ * @return EXTERNC
  */
 EXTERNC redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id,
                                               uint64_t host_op_id);
 
 /**
  * @brief when a kernel ends
- * 
- * @param cpu_thread 
- * @param kernel_id 
- * @param host_op_id 
- * @return EXTERNC 
+ *
+ * @param cpu_thread
+ * @param kernel_id
+ * @param host_op_id
+ * @return EXTERNC
  */
 EXTERNC redshow_result_t redshow_kernel_end(uint32_t cpu_thread, int32_t kernel_id,
                                             uint64_t host_op_id);
