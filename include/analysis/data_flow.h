@@ -77,7 +77,10 @@ class DataFlow final : public Analysis {
     bool operator<(const EdgeIndex &other) const {
       if (this->from == other.from) {
         if (this->to == other.to) {
-          return this->type < other.type;
+          if (this->mem_ctx_id == other.mem_ctx_id) {
+            return this->type < other.type;
+          }
+          return this->mem_ctx_id < other.mem_ctx_id;
         }
         return this->to < other.to;
       }

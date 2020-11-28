@@ -14,7 +14,7 @@
 #include "operation/memset.h"
 #include "redshow_graphviz.h"
 
-#define DEBUG_DATA_FLOW 0
+//#define DEBUG_DATA_FLOW
 
 namespace redshow {
 
@@ -92,11 +92,6 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
                                                 range_iter.end - range_iter.start);
       }
 
-#ifdef DEBUG_DATA_FLOW
-      std::cout << "redundancy " << redundancy << " overwrite " << overwrite << " memory->len "
-                << memory->len << ": " << overwrite / float(memory->len) << std::endl;
-#endif
-
       // Point the operation to the calling context
       link_op_node(memory->op_id, op->ctx_id, memory->ctx_id);
       update_op_metrics(memory->op_id, op->ctx_id, memory->ctx_id, redundancy, overwrite,
@@ -105,6 +100,13 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
 
       std::string hash = compute_memory_hash(reinterpret_cast<u64>(host_cache), memory->len);
       _node_hash[op->ctx_id].emplace(hash);
+
+#ifdef DEBUG_DATA_FLOW
+      std::cout << "ctx: " << op->ctx_id << ", hash: " << hash
+                << ", redundancy: " << redundancy
+                << " overwrite, " << overwrite << ", memory->len: "
+                << memory->len << std::endl;
+#endif
 
       // Update host
       memcpy(reinterpret_cast<void *>(host), reinterpret_cast<void *>(host_cache), memory->len);
@@ -286,6 +288,7 @@ void DataFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const Acces
   } else {
     merge_memory_range(_trace->write_memory[memory.op_id], memory_range);
   }
+  //std::cout << std::hex << "[" << memory_range.start << "," << memory_range.end << "]" << std::dec << std::endl;
 }
 
 void DataFlow::flush_thread(u32 cpu_thread, const std::string &output_dir,
