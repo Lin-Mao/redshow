@@ -71,20 +71,10 @@ namespace redshow {
 
     ValueCount *value_count = NULL;
 
-    if (memory.op_id <= REDSHOW_MEMORY_HOST) {
-      if (read) {
-        value_count = &r_value_dist_compact[memory][access_kind];
-      } else {
-        value_count = &w_value_dist_compact[memory][access_kind];
-      }
+    if (read) {
+      value_count = &r_value_dist[memory][access_kind][offset];
     } else {
-      if (read) {
-        r_value_dist[memory][access_kind].resize(size);
-        value_count = &r_value_dist[memory][access_kind][offset];
-      } else {
-        w_value_dist[memory][access_kind].resize(size);
-        value_count = &w_value_dist[memory][access_kind][offset];
-      }
+      value_count = &w_value_dist[memory][access_kind][offset];
     }
 
     if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
@@ -131,11 +121,6 @@ namespace redshow {
         for (auto &array_iter : memory_iter.second) {
           auto &access_kind = array_iter.first;
           auto &array_items = array_iter.second;
-          if (do_summary_analysis) {
-            r_value_dist_sum[memory][access_kind].resize(array_items.size());
-            value_dist_sum[memory][access_kind].resize(array_items.size());
-          }
-          k_value_dist_sum[memory][access_kind].resize(array_items.size());
           for (auto offset = 0; offset < array_items.size(); ++offset) {
             auto &value_count = array_items[offset];
             for (auto &item_value_count_iter: value_count) {
@@ -156,11 +141,6 @@ namespace redshow {
         for (auto &array_iter : memory_iter.second) {
           auto &access_kind = array_iter.first;
           auto &array_items = array_iter.second;
-          if (do_summary_analysis) {
-            w_value_dist_sum[memory][access_kind].resize(array_items.size());
-            value_dist_sum[memory][access_kind].resize(array_items.size());
-          }
-          k_value_dist_sum[memory][access_kind].resize(array_items.size());
           for (auto offset = 0; offset < array_items.size(); ++offset) {
             auto &value_count = array_items[offset];
             for (auto &item_value_count_iter: value_count) {
@@ -562,7 +542,6 @@ namespace redshow {
     vp_approx_level_config(REDSHOW_APPROX_HIGH, decimal_degree_f32, decimal_degree_f64);
     auto number_of_items = array_pattern_info.memory.len / (access_kind.unit_size >> 3);
     ItemsValueCount array_items_approx;
-    array_items_approx.resize(number_of_items);
     for (auto i = 0; i < number_of_items; ++i) {
       auto one_item_value_count = array_items[i];
       for (auto one_value_count : one_item_value_count) {

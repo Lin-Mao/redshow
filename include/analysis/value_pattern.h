@@ -54,7 +54,7 @@ namespace redshow {
   private:
     // <Offset, <Value, Count>>
     typedef Map <u64, u64> ValueCount;
-    typedef Vector <ValueCount> ItemsValueCount;
+    typedef Map <u64, ValueCount> ItemsValueCount;
     typedef Map <Memory, Map<AccessKind, ItemsValueCount>> ValueDist;
     typedef Map <Memory, Map<AccessKind, ValueCount>> ValueDistCompact;
 
