@@ -158,7 +158,7 @@ namespace redshow {
       check_pattern_for_value_dist(k_value_dist_sum, out, 0);
 
     }
-    if(do_summary_analysis){
+    if (do_summary_analysis) {
       out << "================\narray pattern summary\n================" << std::endl;
       check_pattern_for_value_dist(r_value_dist_sum, out, GPU_PATCH_READ);
       check_pattern_for_value_dist(w_value_dist_sum, out, GPU_PATCH_WRITE);
@@ -352,7 +352,8 @@ namespace redshow {
     using std::tuple;
     auto &access_kind = array_pattern_info.access_kind;
     u64 memory_size = array_pattern_info.memory.len;
-    auto number_of_items = array_pattern_info.memory.len / (access_kind.unit_size >> 3);
+//    number of accessed items
+    auto number_of_items = array_items.size();
     //  the following variables will be updated.
     auto &top_value_count_vec = array_pattern_info.top_value_count_vec;
     int unique_item_count = 0;
@@ -385,8 +386,8 @@ namespace redshow {
     int max_exponents_float = 0;
     bool possible_float_type_overuse = true;
     // Type ArrayItems is part of ValueDist: {offset: {value: count}}
-    for (u64 i = 0; i < number_of_items; i++) {
-      auto &temp_item_value_count = array_items[i];
+    for (auto temp_item_value_count_w_i:array_items) {
+      auto temp_item_value_count = temp_item_value_count_w_i.second;
       if (access_kind.data_type == REDSHOW_DATA_INT) {
         for (auto temp_value : temp_item_value_count) {
 //          int type overuse
@@ -540,17 +541,20 @@ namespace redshow {
     }
     int decimal_degree_f32, decimal_degree_f64;
     vp_approx_level_config(REDSHOW_APPROX_HIGH, decimal_degree_f32, decimal_degree_f64);
-    auto number_of_items = array_pattern_info.memory.len / (access_kind.unit_size >> 3);
+//    auto number_of_items = array_pattern_info.memory.len / (access_kind.unit_size >> 3);
+    auto number_of_items = array_items.size();
     ItemsValueCount array_items_approx;
-    for (auto i = 0; i < number_of_items; ++i) {
-      auto one_item_value_count = array_items[i];
+//    for (auto i = 0; i < number_of_items; ++i) {
+    for (auto one_item_value_count_w_i: array_items) {
+      auto index = one_item_value_count_w_i.first;
+      auto one_item_value_count = one_item_value_count_w_i.second;
       for (auto one_value_count : one_item_value_count) {
         if (access_kind.unit_size == 32) {
           u64 new_value = value_to_float(one_value_count.first, decimal_degree_f32);
-          array_items_approx[i][new_value] += one_value_count.second;
+          array_items_approx[index][new_value] += one_value_count.second;
         } else if (access_kind.unit_size == 64) {
           u64 new_value = value_to_double(one_value_count.first, decimal_degree_f64);
-          array_items_approx[i][new_value] += one_value_count.second;
+          array_items_approx[index][new_value] += one_value_count.second;
         }
       }
     }
@@ -646,24 +650,28 @@ namespace redshow {
   bool ValuePattern::detect_structrued_pattern(ItemsValueCount &array_items, ArrayPatternInfo &array_pattern_info) {
 //  All of the items are unique items.
     auto &access_kind = array_pattern_info.access_kind;
-    u64 number_of_items = array_pattern_info.memory.len / (access_kind.unit_size >> 3);
+//    u64 number_of_items = array_pattern_info.memory.len / (access_kind.unit_size >> 3);
+    u64 number_of_items = array_items.size();
 //  Ignore the 0th and the last item.
     if (array_pattern_info.unique_item_count == number_of_items && number_of_items >= 3) {
-      double avg_x = (1 + number_of_items - 2) * (number_of_items - 2 - 1 + 1) / 2.0 / (number_of_items - 2);
+      double sum_x = 0;
       double sum_y_f = 0;
       long long sum_y_i = 0;
       double avg_y = 0;
+      for (auto temp_item_value_count_wi:array_items) {
+        sum_x += temp_item_value_count_wi.first;
+      }
+      double avg_x = sum_x / number_of_items;
       if (access_kind.data_type == REDSHOW_DATA_INT) {
-        for (u64 i = 1; i < number_of_items - 1; i++) {
-          auto &temp_item_value_count = array_items[i];
-          sum_y_i += temp_item_value_count.begin()->first;
+        for (auto temp_item_value_count_wi:array_items) {
+          sum_y_i += temp_item_value_count_wi.second.begin()->first;
         }
-        avg_y = (double) sum_y_i / (number_of_items - 2);
+        avg_y = (double) sum_y_i / number_of_items ;
       } else if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
         float a;
         double b;
-        for (u64 i = 1; i < number_of_items - 1; i++) {
-          auto &temp_item_value_count = array_items[i];
+        for (auto temp_item_value_count_wi:array_items) {
+          auto &temp_item_value_count = temp_item_value_count_wi.second;
           if (access_kind.unit_size == 32) {
             u32 c = temp_item_value_count.begin()->first & 0xffffffffu;
             memcpy(&a, &c, sizeof(c));
@@ -674,27 +682,26 @@ namespace redshow {
             sum_y_f += b;
           }
         }
-        avg_y = sum_y_f / (number_of_items - 2);
+        avg_y = sum_y_f / number_of_items;
       }
       double sum1 = 0, sum2 = 0, mse = 0;
-      for (u64 i = 1; i < number_of_items - 1; i++) {
-        auto &temp_item_value_count = array_items[i];
-        sum1 += (i - avg_x) * (temp_item_value_count.begin()->first - avg_y);
+      for (auto temp_item_value_count_wi:array_items) {
+        auto i = temp_item_value_count_wi.first;
+        sum1 += (i - avg_x) * (temp_item_value_count_wi.second.begin()->first - avg_y);
         sum2 += (i - avg_x) * (i - avg_x);
       }
       double k = sum1 / sum2;
       double b = avg_y - k * avg_x;
       double threshold = 0;
 //      calculate precision of our predictor
-      for (u64 i = 1; i < number_of_items - 1; i++) {
-        auto &temp_item_value_count = array_items[i];
-        double y_p = k * i + b;
-        double temp_t = y_p - temp_item_value_count.begin()->first;
+      for (auto temp_item_value_count_wi:array_items) {
+        double y_p = k * temp_item_value_count_wi.first + b;
+        double temp_t = y_p - temp_item_value_count_wi.second.begin()->first;
         mse += temp_t * temp_t;
         threshold += (0.1 * temp_t) * (0.1 * temp_t);
       }
-      mse = mse / (number_of_items - 2);
-      threshold = threshold / (number_of_items - 2);
+      mse = mse / number_of_items;
+      threshold = threshold / number_of_items;
       if (std::abs(mse - threshold) < 1e-3) {
         array_pattern_info.k = k;
         array_pattern_info.b = b;
