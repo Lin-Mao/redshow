@@ -104,7 +104,6 @@ namespace redshow {
     std::ofstream out(output_dir + "value_pattern_t" + std::to_string(cpu_thread) + ".csv");
     do_summary_analysis = false;
 // for all kernels
-    ValueDist value_dist_sum;
     ValueDist r_value_dist_sum;
     ValueDist w_value_dist_sum;
     for (auto &trace_iter : thread_kernel_trace) {
@@ -115,54 +114,45 @@ namespace redshow {
       auto &w_value_dist = trace->w_value_dist;
       check_pattern_for_value_dist(r_value_dist, out, GPU_PATCH_READ);
       check_pattern_for_value_dist(w_value_dist, out, GPU_PATCH_WRITE);
-      ValueDist k_value_dist_sum;
-      for (auto &memory_iter : r_value_dist) {
-        auto &memory = memory_iter.first;
-        for (auto &array_iter : memory_iter.second) {
-          auto &access_kind = array_iter.first;
-          auto &array_items = array_iter.second;
-          for (auto offset = 0; offset < array_items.size(); ++offset) {
-            auto &value_count = array_items[offset];
-            for (auto &item_value_count_iter: value_count) {
-              auto &item_value = item_value_count_iter.first;
-              auto &item_value_count = item_value_count_iter.second;
-              if (do_summary_analysis) {
+
+      if (do_summary_analysis) {
+        for (auto &memory_iter : r_value_dist) {
+          auto &memory = memory_iter.first;
+          for (auto &array_iter : memory_iter.second) {
+            auto &access_kind = array_iter.first;
+            auto &array_items = array_iter.second;
+            for (auto offset = 0; offset < array_items.size(); ++offset) {
+              auto &value_count = array_items[offset];
+              for (auto &item_value_count_iter: value_count) {
+                auto &item_value = item_value_count_iter.first;
+                auto &item_value_count = item_value_count_iter.second;
                 r_value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
-                value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
               }
-              k_value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
             }
           }
         }
-      }
 
-      for (auto &memory_iter : w_value_dist) {
-        auto &memory = memory_iter.first;
-        for (auto &array_iter : memory_iter.second) {
-          auto &access_kind = array_iter.first;
-          auto &array_items = array_iter.second;
-          for (auto offset = 0; offset < array_items.size(); ++offset) {
-            auto &value_count = array_items[offset];
-            for (auto &item_value_count_iter: value_count) {
-              auto &item_value = item_value_count_iter.first;
-              auto &item_value_count = item_value_count_iter.second;
-              if (do_summary_analysis) {
+        for (auto &memory_iter : w_value_dist) {
+          auto &memory = memory_iter.first;
+          for (auto &array_iter : memory_iter.second) {
+            auto &access_kind = array_iter.first;
+            auto &array_items = array_iter.second;
+            for (auto offset = 0; offset < array_items.size(); ++offset) {
+              auto &value_count = array_items[offset];
+              for (auto &item_value_count_iter: value_count) {
+                auto &item_value = item_value_count_iter.first;
+                auto &item_value_count = item_value_count_iter.second;
                 w_value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
-                value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
               }
-              k_value_dist_sum[memory][access_kind][offset][item_value] += item_value_count;
             }
           }
         }
       }
-      check_pattern_for_value_dist(k_value_dist_sum, out, 0);
-
     }
     if (do_summary_analysis) {
       out << "================\narray pattern summary\n================" << std::endl;
       check_pattern_for_value_dist(r_value_dist_sum, out, GPU_PATCH_READ);
       check_pattern_for_value_dist(w_value_dist_sum, out, GPU_PATCH_WRITE);
-      check_pattern_for_value_dist(value_dist_sum, out, 0);
     }
   }
 

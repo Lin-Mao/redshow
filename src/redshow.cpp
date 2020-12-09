@@ -246,13 +246,15 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
       if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
         // Default mode, we identify every data as 32 bits unit size, 32 bits vec size, float type
         access_kind.data_type = default_data_type;
-        access_kind.vec_size = record->size * 8;
-        access_kind.unit_size = MIN2(GPU_PATCH_WARP_SIZE, access_kind.vec_size * 8);
+        if (access_kind.vec_size == 0) {
+          access_kind.vec_size = record->size * 8;
+          access_kind.unit_size = MIN2(32, access_kind.vec_size);
+        }
       }
 
       //// Reserved for debugging
-      // std::cout << "function_index: " << function_index << ", pc_offset: " <<
-      //  pc_offset << ", " << access_kind.to_string() << std::endl;
+      // std::cout << "function_index: " << real_pc.function_index << ", pc_offset: " <<
+      //   real_pc.pc_offset << ", " << access_kind.to_string() << std::endl;
       // TODO: accelerate by handling all threads in a warp together
       for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
         if ((record->active & (0x1u << j)) == 0) {
