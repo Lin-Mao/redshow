@@ -84,7 +84,7 @@ AccessKind InstructionParser::init_access_kind(Instruction &inst, InstructionGra
   auto &edges = load ? inst_graph.outgoing_edges(inst.pc) : inst_graph.incoming_edges(inst.pc);
 
   for (auto iter = edges.begin(); iter != edges.end(); ++iter) {
-    auto pc = iter->to;
+    auto pc = load ? iter->to : iter->from;
     auto &neighbor_inst = inst_graph.node(pc);
     AccessKind neighbor_access_kind;
 
