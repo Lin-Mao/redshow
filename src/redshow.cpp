@@ -194,9 +194,6 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
   size_t size = trace_data->head_index;
   gpu_patch_record_t *records = reinterpret_cast<gpu_patch_record_t *>(trace_data->records);
 
-  //  debug
-  redshow_approx_level_config(REDSHOW_APPROX_MIN);
-
   for (size_t i = 0; i < size; ++i) {
     // Iterate over each record
     gpu_patch_record_t *record = records + i;
@@ -248,13 +245,13 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
         access_kind.data_type = default_data_type;
         if (access_kind.vec_size == 0) {
           access_kind.vec_size = record->size * 8;
-          access_kind.unit_size = MIN2(32, access_kind.vec_size);
+          access_kind.unit_size = access_kind.vec_size;
         }
       }
 
-      //// Reserved for debugging
-      // std::cout << "function_index: " << real_pc.function_index << ", pc_offset: " <<
-      //   real_pc.pc_offset << ", " << access_kind.to_string() << std::endl;
+      // Reserved for debugging
+      //std::cout << "function_index: " << real_pc.function_index << ", pc_offset: " <<
+      //  real_pc.pc_offset << ", " << access_kind.to_string() << std::endl;
       // TODO: accelerate by handling all threads in a warp together
       for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
         if ((record->active & (0x1u << j)) == 0) {
@@ -313,8 +310,12 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
           uint64_t value = 0;
           uint32_t byte_size = unit_access_kind.unit_size >> 3u;
           memcpy(&value, &record->value[j][m * byte_size], byte_size);
+          // The 7th digit in float number's decimal part is partial valid, so we set the deault approx level to REDSHOW_APPROX_MIN.
           value =
               unit_access_kind.value_to_basic_type(value, decimal_degree_f32, decimal_degree_f64);
+
+          // Reserved for debug
+          //std::cout << "thread: " << j << ", value: " << value << std::endl;
 
           for (auto aiter : analysis_enabled) {
             aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory, record->pc,

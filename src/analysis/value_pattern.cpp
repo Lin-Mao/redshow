@@ -80,13 +80,18 @@ namespace redshow {
     if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
       int decimal_degree_f32;
       int decimal_degree_f64;
-      //    The 7th digit in float number's decimal part is partial valid, so we set the deault approx level to REDSHOW_APPROX_MIN.
-      vp_approx_level_config(REDSHOW_APPROX_MIN, decimal_degree_f32, decimal_degree_f64);
 
-      if (access_kind.unit_size == 32) {
-        value = value_to_float(value, decimal_degree_f32);
-      } else if (access_kind.unit_size == 64) {
-        value = value_to_double(value, decimal_degree_f64);
+      redshow_approx_get(&decimal_degree_f32, &decimal_degree_f64);
+
+      if (decimal_degree_f32 == VALID_FLOAT_DIGITS) {
+        // The 7th digit in float number's decimal part is partial valid, so we set the deault approx level to REDSHOW_APPROX_MIN.
+        vp_approx_level_config(REDSHOW_APPROX_MIN, decimal_degree_f32, decimal_degree_f64);
+
+        if (access_kind.unit_size == 32) {
+          value = value_to_float(value, decimal_degree_f32);
+        } else if (access_kind.unit_size == 64) {
+          value = value_to_double(value, decimal_degree_f64);
+        }
       }
     }
 
@@ -173,7 +178,6 @@ namespace redshow {
         if (valid_approx) {
           out << "====  approximate ====" << std::endl;
           show_value_pattern(array_pattern_info_approx, out, read_flag);
-          out << "==== end approximate ====" << std::endl;
         }
       }
     }
@@ -530,7 +534,7 @@ namespace redshow {
       return false;
     }
     int decimal_degree_f32, decimal_degree_f64;
-    vp_approx_level_config(REDSHOW_APPROX_HIGH, decimal_degree_f32, decimal_degree_f64);
+    vp_approx_level_config(REDSHOW_APPROX_MAX, decimal_degree_f32, decimal_degree_f64);
 //    auto number_of_items = array_pattern_info.memory.len / (access_kind.unit_size >> 3);
     auto number_of_items = array_items.size();
     ItemsValueCount array_items_approx;

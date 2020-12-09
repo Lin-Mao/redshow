@@ -43,7 +43,7 @@ void InstructionParser::default_access_kind(Instruction &inst) {
   // Default mode
   if (inst.access_kind->unit_size == 0) {
     // If unit size is not determined
-    inst.access_kind->unit_size = MIN2(32, inst.access_kind->vec_size);
+    inst.access_kind->unit_size = inst.access_kind->vec_size;
   }
 
   if (inst.access_kind->data_type == REDSHOW_DATA_UNKNOWN) {

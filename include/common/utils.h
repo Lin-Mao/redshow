@@ -25,17 +25,17 @@ const int VALID_DOUBLE_DIGITS = 52;
 const int MIN_FLOAT_DIGITS = 20;
 const int MIN_DOUBLE_DIGITS = 46;
 
-const int LOW_FLOAT_DIGITS = 17;
-const int LOW_DOUBLE_DIGITS = 40;
+const int LOW_FLOAT_DIGITS = 15;
+const int LOW_DOUBLE_DIGITS = 36;
 
-const int MID_FLOAT_DIGITS = 14;
-const int MID_DOUBLE_DIGITS = 34;
+const int MID_FLOAT_DIGITS = 11;
+const int MID_DOUBLE_DIGITS = 28;
 
-const int HIGH_FLOAT_DIGITS = 11;
-const int HIGH_DOUBLE_DIGITS = 28;
+const int HIGH_FLOAT_DIGITS = 7;
+const int HIGH_DOUBLE_DIGITS = 20;
 
-const int MAX_FLOAT_DIGITS = 8;
-const int MAX_DOUBLE_DIGITS = 22;
+const int MAX_FLOAT_DIGITS = 3;
+const int MAX_DOUBLE_DIGITS = 12;
 
 const int SHARED_MEMORY_OFFSET = 4;
 const int LOCAL_MEMORY_OFFSET = 4;
