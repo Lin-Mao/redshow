@@ -113,7 +113,7 @@ namespace redshow {
     ValueDist w_value_dist_sum;
     for (auto &trace_iter : thread_kernel_trace) {
       auto kernel_id = trace_iter.first;
-      out << "kernel id\t" << kernel_id << std::endl;
+      out << "kernel id: " << kernel_id << std::endl;
       auto trace = std::dynamic_pointer_cast<ValuePatternTrace>(trace_iter.second);
       auto &r_value_dist = trace->r_value_dist;
       auto &w_value_dist = trace->w_value_dist;
@@ -585,7 +585,7 @@ namespace redshow {
     auto narrow_down_to_unit_size = array_pattern_info.narrow_down_to_unit_size;
     auto top_value_count_vec = array_pattern_info.top_value_count_vec;
     std::string read_write = read_flag == GPU_PATCH_READ ? "Read" : "Write";
-    out << "total access count:" << array_pattern_info.total_access_count << endl;
+    out << "total access count: " << array_pattern_info.total_access_count << endl;
     out << "unique item count: " << unique_item_count <<endl;
     out << "unqiue item value count: "<< value_count_vec.size() << endl;
     out << "unqiue item access count: "<< array_pattern_info.unique_item_access_count << endl;
