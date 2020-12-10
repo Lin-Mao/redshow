@@ -584,13 +584,13 @@ namespace redshow {
     auto vpts = array_pattern_info.vpts;
     auto narrow_down_to_unit_size = array_pattern_info.narrow_down_to_unit_size;
     auto top_value_count_vec = array_pattern_info.top_value_count_vec;
-    std::string rw_names[] = {"R&W", "Read", "Write"};
-    out << "unique item count " << unique_item_count << " unqiue_value_count_vec.size "
-        << value_count_vec.size() << endl;
-    out << "total access " << array_pattern_info.total_access_count << "\tunqiue value access count "
-        << array_pattern_info.unique_item_access_count << endl;
-    out << "array " << memory.ctx_id << " : memory size " << memory_size << " value type "
-        << access_kind.to_string() << " " << rw_names[read_flag] << endl;
+    std::string read_write = read_flag == GPU_PATCH_READ ? "Read" : "Write";
+    out << "total access count:" << array_pattern_info.total_access_count << endl;
+    out << "unique item count: " << unique_item_count <<endl;
+    out << "unqiue item value count: "<< value_count_vec.size() << endl;
+    out << "unqiue item access count: "<< array_pattern_info.unique_item_access_count << endl;
+    out << "array " << memory.ctx_id << " : memory size " << memory_size << ", value type "
+        << access_kind.to_string() << " " << read_write << endl;
     out << "pattern type\n";
     if (vpts.size() == 0) vpts.emplace_back(VP_NO_PATTERN);
     for (auto a_vpt : vpts) {
@@ -660,7 +660,7 @@ namespace redshow {
         for (auto temp_item_value_count_wi:array_items) {
           sum_y_i += temp_item_value_count_wi.second.begin()->first;
         }
-        avg_y = (double) sum_y_i / number_of_items ;
+        avg_y = (double) sum_y_i / number_of_items;
       } else if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
         float a;
         double b;
