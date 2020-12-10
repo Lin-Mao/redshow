@@ -210,6 +210,8 @@ bool InstructionParser::parse(const std::string &file_path, SymbolVector &symbol
   for (auto &ptree_function : root) {
     int function_index = ptree_function.second.get<int>("index", 0);
     int cubin_offset = ptree_function.second.get<int>("address", 0);
+    // Ensure space
+    symbols.resize(MAX2(symbols.size(), function_index + 1));
     symbols[function_index] = Symbol(function_index, cubin_offset);
 
     auto &ptree_blocks = ptree_function.second.get_child("blocks");
