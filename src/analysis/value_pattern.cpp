@@ -585,13 +585,13 @@ namespace redshow {
     auto narrow_down_to_unit_size = array_pattern_info.narrow_down_to_unit_size;
     auto top_value_count_vec = array_pattern_info.top_value_count_vec;
     std::string read_write = read_flag == GPU_PATCH_READ ? "Read" : "Write";
+    out << "array id: " << memory.ctx_id << ", memory size " << memory_size << ", value type "
+        << access_kind.to_string() << " " << read_write << endl;
     out << "total access count: " << array_pattern_info.total_access_count << endl;
     out << "unique item count: " << unique_item_count <<endl;
     out << "unqiue item value count: "<< value_count_vec.size() << endl;
     out << "unqiue item access count: "<< array_pattern_info.unique_item_access_count << endl;
-    out << "array " << memory.ctx_id << " : memory size " << memory_size << ", value type "
-        << access_kind.to_string() << " " << read_write << endl;
-    out << "pattern type\n";
+    out << "pattern type:\n";
     if (vpts.size() == 0) vpts.emplace_back(VP_NO_PATTERN);
     for (auto a_vpt : vpts) {
       out << " * " << pattern_names[a_vpt] << "\t";

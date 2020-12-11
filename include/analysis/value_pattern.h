@@ -72,14 +72,14 @@ namespace redshow {
     };
     std::map<ValuePatternType, std::string> pattern_names = {
         {VP_REDUNDANT_ZEROS,     "Redundant Zeros"},
-        {VP_SINGLE_VALUE,        "Single value"},
-        {VP_DENSE_VALUE,         "Dense value"},
+        {VP_SINGLE_VALUE,        "Single Value"},
+        {VP_DENSE_VALUE,         "Dense Value"},
         {VP_TYPE_OVERUSE,        "Type Overuse"},
-        {VP_APPROXIMATE_VALUE,   "Approximate value"},
-        {VP_SILENT_STORE,        "Silent store"},
-        {VP_SILENT_LOAD,         "Silent load"},
-        {VP_NO_PATTERN,          "No pattern"},
-        {VP_INAPPROPRIATE_FLOAT, "Inappropriate float type"},
+        {VP_APPROXIMATE_VALUE,   "Approximate Value"},
+        {VP_SILENT_STORE,        "Silent Store"},
+        {VP_SILENT_LOAD,         "Silent Load"},
+        {VP_NO_PATTERN,          "No Pattern"},
+        {VP_INAPPROPRIATE_FLOAT, "Inappropriate Float Type"},
         {VP_STRUCTURED_PATTERN,  "Structured"}};
 
 
