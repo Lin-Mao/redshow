@@ -56,6 +56,8 @@ void InstructionParser::default_access_kind(Instruction &inst) {
 AccessKind InstructionParser::init_access_kind(Instruction &inst, InstructionGraph &inst_graph,
                                                std::set<unsigned int> &visited, bool load) {
   if (visited.find(inst.pc) != visited.end()) {
+    // This node was visited before in the search for inst
+    // It is still unknown as it appears again
     return AccessKind();
   }
   visited.insert(inst.pc);
@@ -76,9 +78,14 @@ AccessKind InstructionParser::init_access_kind(Instruction &inst, InstructionGra
     access_kind.vec_size = 32;
   }
 
+  // Special handling for uniform register instructions
+  if (inst.op.find("UNIFORM") != std::string::npos) {
+    access_kind.data_type = REDSHOW_DATA_INT;
+  }
+
   if ((load && inst_graph.outgoing_edge_size(inst.pc) == 0) ||
       (!load && inst_graph.incoming_edge_size(inst.pc) == 0)) {
-    return AccessKind();
+    return access_kind;
   }
 
   auto &edges = load ? inst_graph.outgoing_edges(inst.pc) : inst_graph.incoming_edges(inst.pc);
@@ -116,6 +123,7 @@ AccessKind InstructionParser::init_access_kind(Instruction &inst, InstructionGra
     if (neighbor_inst.op.find("MOVE") != std::string::npos) {
       // Transit node
       // INTEGER.IMAD.MOVE is handled here
+      // Since a transit node is never a memory instruction, so do not cache its result
       neighbor_access_kind = init_access_kind(neighbor_inst, inst_graph, visited, load);
       if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
         access_kind.data_type = neighbor_access_kind.data_type;
@@ -130,17 +138,24 @@ AccessKind InstructionParser::init_access_kind(Instruction &inst, InstructionGra
             neighbor_inst.op.find(".LOCAL") != std::string::npos) {
           if (std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[0]) !=
               inst.dsts.end()) {
-            // Used as a
-            access_kind.data_type = REDSHOW_DATA_INT;
-            access_kind.unit_size = 32;
+            if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
+              access_kind.data_type = REDSHOW_DATA_INT;
+            }
+            if (access_kind.unit_size == 0) {
+              access_kind.unit_size = 32;
+            }
           }
         } else {
           if (std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[0]) !=
                   inst.dsts.end() ||
               std::find(inst.dsts.begin(), inst.dsts.end(), neighbor_inst.srcs[1]) !=
                   inst.dsts.end()) {
-            access_kind.data_type = REDSHOW_DATA_INT;
-            access_kind.unit_size = 64;
+            if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
+              access_kind.data_type = REDSHOW_DATA_INT;
+            }
+            if (access_kind.unit_size == 0) {
+              access_kind.unit_size = 64;
+            }
           }
         }
       } else {
@@ -160,7 +175,8 @@ AccessKind InstructionParser::init_access_kind(Instruction &inst, InstructionGra
           access_kind.unit_size = neighbor_access_kind.unit_size;
         }
       }
-    } else if (neighbor_inst.op.find("INTEGER") != std::string::npos) {
+    } else if (neighbor_inst.op.find("INTEGER") != std::string::npos ||
+               neighbor_inst.op.find("UNIFORM") != std::string::npos) {
       access_kind.data_type = REDSHOW_DATA_INT;
     } else if (neighbor_inst.op.find("FLOAT") != std::string::npos) {
       access_kind.data_type = REDSHOW_DATA_FLOAT;
@@ -242,7 +258,28 @@ bool InstructionParser::parse(const std::string &file_path, SymbolVector &symbol
           }
         }
 
-        Instruction inst(op, pc, pred, dsts, srcs, assign_pcs);
+        std::vector<int> udsts;
+        auto &ptree_udsts = ptree_inst.second.get_child("udsts");
+        for (auto &ptree_udst : ptree_udsts) {
+          int udst = boost::lexical_cast<int>(ptree_udst.second.data());
+          udsts.push_back(udst);
+        }
+
+        std::vector<int> usrcs;
+        std::map<int, std::vector<int>> uassign_pcs;
+        auto &ptree_usrcs = ptree_inst.second.get_child("usrcs");
+        for (auto &ptree_usrc : ptree_usrcs) {
+          int usrc = ptree_usrc.second.get<int>("id", 0);
+          usrcs.push_back(usrc);
+          auto &ptree_uassign_pcs = ptree_usrc.second.get_child("uassign_pcs");
+          for (auto &ptree_uassign_pc : ptree_uassign_pcs) {
+            int uassign_pc =
+                boost::lexical_cast<int>(ptree_uassign_pc.second.data()) + cubin_offset;
+            uassign_pcs[usrc].push_back(uassign_pc);
+          }
+        }
+
+        Instruction inst(op, pc, pred, dsts, srcs, udsts, usrcs, assign_pcs, uassign_pcs);
         inst_graph.add_node(pc, inst);
 
 #ifdef DEBUG_INSTRUCTION
@@ -276,6 +313,14 @@ bool InstructionParser::parse(const std::string &file_path, SymbolVector &symbol
         inst_graph.add_edge(std::move(edge_index), false);
       }
     }
+
+    for (; i < inst.usrcs.size(); ++i) {
+      int usrc = inst.usrcs[i];
+      for (auto usrc_pc : inst.uassign_pcs[usrc]) {
+        auto edge_index = InstructionDependencyIndex(usrc_pc, inst.pc);
+        inst_graph.add_edge(std::move(edge_index), false);
+      }
+    }
   }
 
   // Analyze memory instruction's access kind
@@ -296,11 +341,9 @@ bool InstructionParser::parse(const std::string &file_path, SymbolVector &symbol
     std::set<unsigned int> visited;
 
     // Associate access type with instruction
-    if (inst.op.find(".STORE") != std::string::npos &&
-        inst_graph.incoming_edge_size(inst.pc) != 0) {
+    if (inst.op.find(".STORE") != std::string::npos) {
       *inst.access_kind = init_access_kind(inst, inst_graph, visited, false);
-    } else if (inst.op.find(".LOAD") != std::string::npos &&
-               inst_graph.outgoing_edge_size(inst.pc) != 0) {
+    } else if (inst.op.find(".LOAD") != std::string::npos) {
       *inst.access_kind = init_access_kind(inst, inst_graph, visited, true);
     }
 

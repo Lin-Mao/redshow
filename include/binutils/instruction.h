@@ -62,12 +62,16 @@ struct AccessKind {
 struct Instruction {
   std::string op;
   unsigned int pc;
-  int predicate;          // P0-P6
-  std::vector<int> dsts;  // R0-R255: only records normal registers
-  std::vector<int> srcs;  // R0-R255, only records normal registers
+  int predicate;           // P0-P6
+  std::vector<int> dsts;   // R0-R255: only records normal registers
+  std::vector<int> srcs;   // R0-R255; only records normal registers
+  std::vector<int> udsts;  // UR0-UR63
+  std::vector<int> usrcs;  // UR0-UR63
   std::map<int, std::vector<int> > assign_pcs;
+  std::map<int, std::vector<int> > uassign_pcs;
   std::shared_ptr<AccessKind> access_kind;
 
+  // legacy interface
   Instruction(const std::string &op, unsigned int pc, int predicate, std::vector<int> &dsts,
               std::vector<int> &srcs, std::map<int, std::vector<int> > &assign_pcs)
       : op(op),
@@ -76,6 +80,21 @@ struct Instruction {
         dsts(dsts),
         srcs(srcs),
         assign_pcs(assign_pcs),
+        access_kind(NULL) {}
+
+  Instruction(const std::string &op, unsigned int pc, int predicate, std::vector<int> &dsts,
+              std::vector<int> &srcs, std::vector<int> &udsts, std::vector<int> &usrcs,
+              std::map<int, std::vector<int> > &assign_pcs,
+              std::map<int, std::vector<int> > &uassign_pcs)
+      : op(op),
+        pc(pc),
+        predicate(predicate),
+        dsts(dsts),
+        srcs(srcs),
+        udsts(udsts),
+        usrcs(usrcs),
+        assign_pcs(assign_pcs),
+        uassign_pcs(uassign_pcs),
         access_kind(NULL) {}
 
   Instruction() : access_kind(NULL) {}
