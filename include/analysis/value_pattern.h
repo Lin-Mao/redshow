@@ -54,7 +54,7 @@ namespace redshow {
   private:
     struct ValueDistMemoryComp {
       bool operator()(const Memory &l, const Memory &r) const {
-        return l.ctx_id < r.ctx_id;
+        return l.op_id < r.op_id;
       }
     };
 
