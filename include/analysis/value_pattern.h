@@ -52,11 +52,17 @@ namespace redshow {
     ~ValuePattern() {}
 
   private:
+    struct ValueDistMemoryComp {
+      bool operator()(const Memory &l, const Memory &r) const {
+        return l.ctx_id < r.ctx_id;
+      }
+    };
+
     // <Offset, <Value, Count>>
     typedef Map <u64, u64> ValueCount;
     typedef Map <u64, ValueCount> ItemsValueCount;
-    typedef Map <Memory, Map<AccessKind, ItemsValueCount>> ValueDist;
-    typedef Map <Memory, Map<AccessKind, ValueCount>> ValueDistCompact;
+    typedef std::map<Memory, Map<AccessKind, ItemsValueCount>, ValueDistMemoryComp> ValueDist;
+    typedef std::map<Memory, Map<AccessKind, ValueCount>, ValueDistMemoryComp> ValueDistCompact;
 
     enum ValuePatternType {
       VP_REDUNDANT_ZEROS = 0,

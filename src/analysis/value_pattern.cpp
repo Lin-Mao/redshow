@@ -71,10 +71,14 @@ namespace redshow {
 
     ValueCount *value_count = NULL;
 
+    // Merge memory allocated by the same calling context
+    auto ctx_memory = memory;
+    ctx_memory.op_id = 0;
+
     if (read) {
-      value_count = &r_value_dist[memory][access_kind][offset];
+      value_count = &r_value_dist[ctx_memory][access_kind][offset];
     } else {
-      value_count = &w_value_dist[memory][access_kind][offset];
+      value_count = &w_value_dist[ctx_memory][access_kind][offset];
     }
 
     if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
