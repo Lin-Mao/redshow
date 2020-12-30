@@ -269,10 +269,17 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
         uint64_t memory_size = 0;
         uint64_t memory_addr = 0;
         if (iter != memory_map->end()) {
-          memory_op_id = iter->second->op_id;
-          memory_id = iter->second->ctx_id;
-          memory_size = iter->second->len;
-          memory_addr = iter->second->memory_range.start;
+          if (record->address[j] >= iter->second->memory_range.start &&
+            record->address[j] < iter->second->memory_range.end) {
+            memory_op_id = iter->second->op_id;
+            memory_id = iter->second->ctx_id;
+            memory_size = iter->second->len;
+            memory_addr = iter->second->memory_range.start;
+          } else {
+            // TODO(Keren): Investigate what are the causes
+            // Prevent out of bound memory accesses
+            continue;
+          }
         }
 
         uint32_t stride = GLOBAL_MEMORY_OFFSET;
