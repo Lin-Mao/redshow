@@ -123,7 +123,7 @@ void DataFlow::memory_op_callback(std::shared_ptr<Memory> op) {
   _memories.try_emplace(op->op_id, op);
 
   // Update host
-  //dtoh(reinterpret_cast<u64>(op->value.get()), op->memory_range.start, op->len);
+  dtoh(reinterpret_cast<u64>(op->value.get()), op->memory_range.start, op->len);
 }
 
 void DataFlow::memset_op_callback(std::shared_ptr<Memset> op) {
