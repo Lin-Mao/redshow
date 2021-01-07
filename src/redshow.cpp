@@ -241,11 +241,11 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
       }
 
       if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
-        // Default mode, we identify every data as 32 bits unit size, 32 bits vec size, float type
+        // Default mode, we identify every data as 64 bits unit size, 64 bits vec size, float type
         access_kind.data_type = default_data_type;
         if (access_kind.vec_size == 0) {
           access_kind.vec_size = record->size * 8;
-          access_kind.unit_size = access_kind.vec_size;
+          access_kind.unit_size = MIN2(64, access_kind.vec_size);
         }
       }
 
