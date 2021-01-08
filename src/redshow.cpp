@@ -245,7 +245,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
         access_kind.data_type = default_data_type;
         if (access_kind.vec_size == 0) {
           access_kind.vec_size = record->size * 8;
-          access_kind.unit_size = MIN2(64, access_kind.vec_size);
+          access_kind.unit_size = MIN2(32, access_kind.vec_size);
         }
       }
 
