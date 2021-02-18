@@ -155,6 +155,16 @@ EXTERNC redshow_result_t redshow_approx_get(int *degree_f32, int *degree_f64);
 EXTERNC redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type);
 
 /**
+ * @brief This function is used to check an analysis type is enabled.
+ *
+ * @param analysis_type
+ * @return reshow_result_t
+ *
+ * @thread-safe: No
+ */
+EXTERNC redshow_result_t redshow_analysis_enabled(redshow_analysis_type_t analysis_type);
+
+/**
  * @brief This function is used to cancel specific analysis types.
  *
  * @param analysis_type

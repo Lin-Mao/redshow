@@ -49,6 +49,7 @@ typedef Map<MemoryRange, std::shared_ptr<Memory>> MemoryMap;
 static LockableMap<uint64_t, MemoryMap> memory_snapshot;
 
 // Init analysis instance
+// TODO(Keren): Separate address and full analysis modes
 static Map<redshow_analysis_type_t, std::shared_ptr<Analysis>> analysis_enabled;
 
 static Map<redshow_analysis_type_t, std::string> output_dir;
@@ -101,95 +102,133 @@ static redshow_result_t analyze_cubin(const char *path, SymbolVector &symbols,
   return result;
 }
 
-static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_t mod_id,
-  int32_t kernel_id, uint64_t host_op_id,
-  gpu_patch_buffer_t *trace_data) {
+static redshow_result_t trace_analyze_address_patch(int32_t kernel_id, 
+  MemoryMap *memory_map, gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  SymbolVector *symbols = NULL;
-  InstructionGraph *inst_graph = NULL;
-  // Cubin path is added just for debugging purpose
-  std::string cubin_path;
+  size_t size = trace_data->head_index;
+  gpu_patch_record_address_t *records = reinterpret_cast<gpu_patch_record_address_t *>(trace_data->records);
 
-  cubin_map.lock();
-  if (!cubin_map.has(cubin_id) || !cubin_map.at(cubin_id).symbols.has(mod_id)) {
-    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
-  } else {
-    symbols = &(cubin_map.at(cubin_id).symbols.at(mod_id));
-    inst_graph = &(cubin_map.at(cubin_id).inst_graph);
-    cubin_path = cubin_map.at(cubin_id).path;
-  }
-  cubin_map.unlock();
+  // Dummy entries
+  AccessKind access_kind;
+  ThreadId thread_id{0, 0};
 
-  // Cubin not found, maybe in the cache map
-  if (result == REDSHOW_ERROR_NOT_EXIST_ENTRY) {
-    uint32_t nsymbols;
-    uint64_t *symbol_pcs;
-    const char *path;
+  for (size_t i = 0; i < size; ++i) {
+    // Iterate over each record
+    gpu_patch_record_address_t *record = records + i;
 
-    cubin_cache_map.lock();
-    if (!cubin_cache_map.has(cubin_id)) {
-      result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
-    } else {
-      auto &cubin_cache = cubin_cache_map.at(cubin_id);
-      if (!cubin_cache.symbol_pcs.has(mod_id)) {
-        result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
-      } else {
-        result = REDSHOW_SUCCESS;
-        nsymbols = cubin_cache.nsymbols;
-        symbol_pcs = cubin_cache.symbol_pcs.at(mod_id).get();
-        path = cubin_cache.path.c_str();
+    for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+      if ((record->active & (0x1u << j)) == 0) {
+        continue;
       }
-    }
-    cubin_cache_map.unlock();
 
-    if (result == REDSHOW_SUCCESS) {
-      result = redshow_cubin_register(cubin_id, mod_id, nsymbols, symbol_pcs, path);
-    }
+      // <start, end>
+      MemoryRange memory_range(record->address[j], record->address[j] + record->size);
 
-    // Try fetch cubin again
-    if (result == REDSHOW_SUCCESS) {
-      cubin_map.lock();
-      if (!cubin_map.has(cubin_id)) {
-        result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
-      } else {
-        auto &cubin = cubin_map.at(cubin_id);
-        if (!cubin.symbols.has(mod_id)) {
-          result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+      auto iter = memory_map->prev(memory_range);
+      uint64_t memory_op_id = 0;
+      int32_t memory_id = 0;
+      uint64_t memory_size = 0;
+      uint64_t memory_addr = 0;
+      if (iter != memory_map->end()) {
+        if (record->address[j] >= iter->second->memory_range.start &&
+          record->address[j] < iter->second->memory_range.end) {
+          memory_op_id = iter->second->op_id;
+          memory_id = iter->second->ctx_id;
+          memory_size = record->size;
+          memory_addr = memory_range.start;
         } else {
-          result = REDSHOW_SUCCESS;
-          symbols = &(cubin.symbols.at(mod_id));
-          inst_graph = &(cubin.inst_graph);
-          cubin_path = cubin.path;
+          // TODO(Keren): Investigate what are the causes
+          // Prevent out of bound memory accesses
+          continue;
         }
       }
-      cubin_map.unlock();
+
+      if (memory_op_id == 0) {
+        // Unknown memory object
+        continue;
+      }
+
+      bool read = (trace_data->flags & GPU_PATCH_WRITE) ? false : true;
+      Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
+      // XXX(Keren): Need to separate address analysis with value analysis
+      for (auto aiter : analysis_enabled) {
+        aiter.second->unit_access(kernel_id, thread_id, access_kind, memory, 0, 0, 0, 0, read);
+      }
+    }
+  }
+  return result;
+}
+
+static redshow_result_t trace_analyze_address_analysis(int32_t kernel_id, 
+  MemoryMap *memory_map, gpu_patch_buffer_t *trace_data) {
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  size_t size = trace_data->head_index;
+  gpu_patch_analysis_address_t *records = reinterpret_cast<gpu_patch_analysis_address_t *>(trace_data->records);
+
+  // Dummy entries
+  AccessKind access_kind;
+  ThreadId thread_id{0, 0};
+
+  for (size_t i = 0; i < size; ++i) {
+    // Iterate over each record
+    gpu_patch_analysis_address_t *record = records + i;
+
+    // <start, end>
+    MemoryRange memory_range(record->start, record->end);
+    uint64_t addr_start = record->start;
+    uint64_t addr_end = addr_start;
+
+    // Separate memories from a continous address region
+    while (addr_end < memory_range.end) {
+      MemoryRange cur_memory_range(addr_end, addr_end);
+      auto iter = memory_map->prev(cur_memory_range);
+      if (addr_start == 0) {
+        addr_start = iter->first.start;
+      }
+      addr_end = iter->first.end;
+
+      uint64_t memory_op_id = 0;
+      int32_t memory_id = 0;
+      uint64_t memory_size = 0;
+      uint64_t memory_addr = 0;
+      if (iter != memory_map->end()) {
+        if (record->start >= addr_start && record->start < addr_end) {
+          memory_op_id = iter->second->op_id;
+          memory_id = iter->second->ctx_id;
+          memory_size = addr_end - addr_start;
+          memory_addr = addr_start;
+        } else {
+          // TODO(Keren): Investigate what are the causes
+          // Prevent out of bound memory accesses
+          continue;
+        }
+      }
+
+      if (memory_op_id == 0) {
+        // Unknown memory object
+        continue;
+      }
+
+      bool read = (trace_data->flags & GPU_PATCH_WRITE) ? false : true;
+      Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
+      // XXX(Keren): Need to separate address analysis with value analysis
+      for (auto aiter : analysis_enabled) {
+        aiter.second->unit_access(kernel_id, thread_id, access_kind, memory, 0, 0, 0, 0, read);
+      }
+
+      // Clear address start
+      addr_start = 0;
     }
   }
 
-  if (result != REDSHOW_SUCCESS) {
-    return result;
-  }
+  return result;
+}
 
-  MemoryMap *memory_map = NULL;
-
-  memory_snapshot.lock();
-  auto snapshot_iter = memory_snapshot.prev(host_op_id);
-  if (snapshot_iter == memory_snapshot.end()) {
-    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
-  } else {
-    memory_map = &(snapshot_iter->second);
-  }
-  memory_snapshot.unlock();
-
-  // Memory snapshot not found
-  if (result != REDSHOW_SUCCESS) {
-    return result;
-  }
-
-  for (auto aiter : analysis_enabled) {
-    aiter.second->analysis_begin(cpu_thread, kernel_id, cubin_id, mod_id);
-  }
+static redshow_result_t trace_analyze_default(int32_t kernel_id, InstructionGraph *inst_graph,
+  SymbolVector *symbols, MemoryMap *memory_map, gpu_patch_buffer_t *trace_data) {
+  redshow_result_t result = REDSHOW_SUCCESS;
 
   size_t size = trace_data->head_index;
   gpu_patch_record_t *records = reinterpret_cast<gpu_patch_record_t *>(trace_data->records);
@@ -333,6 +372,107 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
     }
   }
 
+  return result;
+}
+
+static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_t mod_id,
+  int32_t kernel_id, uint64_t host_op_id,
+  gpu_patch_buffer_t *trace_data) {
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  SymbolVector *symbols = NULL;
+  InstructionGraph *inst_graph = NULL;
+  // Cubin path is added just for debugging purpose
+  std::string cubin_path;
+
+  cubin_map.lock();
+  if (!cubin_map.has(cubin_id) || !cubin_map.at(cubin_id).symbols.has(mod_id)) {
+    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+  } else {
+    symbols = &(cubin_map.at(cubin_id).symbols.at(mod_id));
+    inst_graph = &(cubin_map.at(cubin_id).inst_graph);
+    cubin_path = cubin_map.at(cubin_id).path;
+  }
+  cubin_map.unlock();
+
+  // Cubin not found, maybe in the cache map
+  if (result == REDSHOW_ERROR_NOT_EXIST_ENTRY) {
+    uint32_t nsymbols;
+    uint64_t *symbol_pcs;
+    const char *path;
+
+    cubin_cache_map.lock();
+    if (!cubin_cache_map.has(cubin_id)) {
+      result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+    } else {
+      auto &cubin_cache = cubin_cache_map.at(cubin_id);
+      if (!cubin_cache.symbol_pcs.has(mod_id)) {
+        result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+      } else {
+        result = REDSHOW_SUCCESS;
+        nsymbols = cubin_cache.nsymbols;
+        symbol_pcs = cubin_cache.symbol_pcs.at(mod_id).get();
+        path = cubin_cache.path.c_str();
+      }
+    }
+    cubin_cache_map.unlock();
+
+    if (result == REDSHOW_SUCCESS) {
+      result = redshow_cubin_register(cubin_id, mod_id, nsymbols, symbol_pcs, path);
+    }
+
+    // Try fetch cubin again
+    if (result == REDSHOW_SUCCESS) {
+      cubin_map.lock();
+      if (!cubin_map.has(cubin_id)) {
+        result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+      } else {
+        auto &cubin = cubin_map.at(cubin_id);
+        if (!cubin.symbols.has(mod_id)) {
+          result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+        } else {
+          result = REDSHOW_SUCCESS;
+          symbols = &(cubin.symbols.at(mod_id));
+          inst_graph = &(cubin.inst_graph);
+          cubin_path = cubin.path;
+        }
+      }
+      cubin_map.unlock();
+    }
+  }
+
+  if (result != REDSHOW_SUCCESS) {
+    return result;
+  }
+
+  MemoryMap *memory_map = NULL;
+
+  memory_snapshot.lock();
+  auto snapshot_iter = memory_snapshot.prev(host_op_id);
+  if (snapshot_iter == memory_snapshot.end()) {
+    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+  } else {
+    memory_map = &(snapshot_iter->second);
+  }
+  memory_snapshot.unlock();
+
+  // Memory snapshot not found
+  if (result != REDSHOW_SUCCESS) {
+    return result;
+  }
+
+  for (auto aiter : analysis_enabled) {
+    aiter.second->analysis_begin(cpu_thread, kernel_id, cubin_id, mod_id);
+  }
+
+  if (trace_data->type == GPU_PATCH_DEFAULT) {
+    result = trace_analyze_default(kernel_id, inst_graph, symbols, memory_map, trace_data);
+  } else if (trace_data->type == GPU_PATCH_ADDRESS_PATCH) {
+    result = trace_analyze_address_patch(kernel_id, memory_map, trace_data);
+  } else if (trace_data->type == GPU_PATCH_ADDRESS_ANALYSIS) {
+    result = trace_analyze_address_analysis(kernel_id, memory_map, trace_data);
+  }
+
   for (auto aiter : analysis_enabled) {
     aiter.second->analysis_end(cpu_thread, kernel_id);
   }
@@ -448,6 +588,18 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
     default:
       result = REDSHOW_ERROR_NO_SUCH_ANALYSIS;
       break;
+  }
+
+  return result;
+}
+
+redshow_result_t redshow_analysis_enabled(redshow_analysis_type_t analysis_type) {
+  PRINT("\nredshow->Enter redshow_analysis_enabled\nanalysis_type: %u\n", analysis_type);
+
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  if (!analysis_enabled.has(analysis_type)) {
+    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
   }
 
   return result;
