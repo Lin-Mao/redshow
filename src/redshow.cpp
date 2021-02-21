@@ -149,7 +149,7 @@ static redshow_result_t trace_analyze_address_patch(int32_t kernel_id,
         continue;
       }
 
-      bool read = (trace_data->flags & GPU_PATCH_WRITE) ? false : true;
+      bool read = (record->flags & GPU_PATCH_WRITE) ? false : true;
       Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
       // XXX(Keren): Need to separate address analysis with value analysis
       for (auto aiter : analysis_enabled) {
@@ -182,33 +182,31 @@ static redshow_result_t trace_analyze_address_analysis(int32_t kernel_id,
 
     // Separate memories from a continous address region
     while (addr_end < memory_range.end) {
-      MemoryRange cur_memory_range(addr_end, addr_end);
+      MemoryRange cur_memory_range(addr_start, addr_start);
       auto iter = memory_map->prev(cur_memory_range);
-      if (addr_start == 0) {
-        addr_start = iter->first.start;
-      }
-      addr_end = iter->first.end;
 
       uint64_t memory_op_id = 0;
       int32_t memory_id = 0;
       uint64_t memory_size = 0;
       uint64_t memory_addr = 0;
       if (iter != memory_map->end()) {
-        if (record->start >= addr_start && record->start < addr_end) {
+        if (iter->first.start <= addr_start && iter->first.end > addr_start) {
+          addr_end = MIN2(memory_range.end, iter->first.end);
           memory_op_id = iter->second->op_id;
           memory_id = iter->second->ctx_id;
           memory_size = addr_end - addr_start;
           memory_addr = addr_start;
+          addr_start = iter->first.end;
         } else {
           // TODO(Keren): Investigate what are the causes
           // Prevent out of bound memory accesses
-          continue;
+          break;
         }
       }
 
       if (memory_op_id == 0) {
         // Unknown memory object
-        continue;
+        break;
       }
 
       bool read = (trace_data->flags & GPU_PATCH_WRITE) ? false : true;
@@ -217,9 +215,6 @@ static redshow_result_t trace_analyze_address_analysis(int32_t kernel_id,
       for (auto aiter : analysis_enabled) {
         aiter.second->unit_access(kernel_id, thread_id, access_kind, memory, 0, 0, 0, 0, read);
       }
-
-      // Clear address start
-      addr_start = 0;
     }
   }
 
