@@ -293,19 +293,19 @@ void DataFlow::merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &m
 
 void DataFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
-                           bool read) {
+                           GPUPatchFlags flags) {
   // TODO(Keren): handle other memories
   if (memory.op_id <= REDSHOW_MEMORY_HOST) {
     return;
   }
 
   auto &memory_range = memory.memory_range;
-  if (read) {
+  if (flags & GPU_PATCH_READ) {
     merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
-  } else {
+  } 
+  if (flags & GPU_PATCH_WRITE) {
     merge_memory_range(_trace->write_memory[memory.op_id], memory_range);
   }
-  //std::cout << std::hex << "[" << memory_range.start << "," << memory_range.end << "]" << std::dec << std::endl;
 }
 
 void DataFlow::flush_thread(u32 cpu_thread, const std::string &output_dir,

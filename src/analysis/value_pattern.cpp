@@ -49,15 +49,15 @@ namespace redshow {
 
   void ValuePattern::unit_access(i32 kernel_id, const ThreadId &thread_id,
                                  const AccessKind &access_kind, const Memory &memory, u64 pc,
-                                 u64 value, u64 addr, u32 index, bool read) {
+                                 u64 value, u64 addr, u32 index, GPUPatchFlags flags) {
     addr += index * access_kind.unit_size / 8;
     if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
       // If unknown, try each data type
       auto enum_access_kind = access_kind;
       enum_access_kind.data_type = REDSHOW_DATA_FLOAT;
-      unit_access(kernel_id, thread_id, enum_access_kind, memory, pc, value, addr, index, read);
+      unit_access(kernel_id, thread_id, enum_access_kind, memory, pc, value, addr, index, flags);
       enum_access_kind.data_type = REDSHOW_DATA_INT;
-      unit_access(kernel_id, thread_id, enum_access_kind, memory, pc, value, addr, index, read);
+      unit_access(kernel_id, thread_id, enum_access_kind, memory, pc, value, addr, index, flags);
 
       return;
     }
@@ -68,14 +68,6 @@ namespace redshow {
     auto &w_value_dist_compact = _trace->w_value_dist_compact;
     auto size = (memory.memory_range.end - memory.memory_range.start) / (access_kind.unit_size >> 3);
     auto offset = (addr - memory.memory_range.start) / (access_kind.unit_size >> 3);
-
-    ValueCount *value_count = NULL;
-
-    if (read) {
-      value_count = &r_value_dist[memory][access_kind][offset];
-    } else {
-      value_count = &w_value_dist[memory][access_kind][offset];
-    }
 
     if (access_kind.data_type == REDSHOW_DATA_FLOAT) {
       int decimal_degree_f32;
@@ -95,7 +87,13 @@ namespace redshow {
       }
     }
 
-    (*value_count)[value] += 1;
+    if (flags & GPU_PATCH_READ) {
+      r_value_dist[memory][access_kind][offset][value] += 1;
+    }
+    
+    if (flags & GPU_PATCH_WRITE) {
+      w_value_dist[memory][access_kind][offset][value] += 1;
+    }
   }
 
   void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,

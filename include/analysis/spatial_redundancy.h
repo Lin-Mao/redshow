@@ -40,7 +40,7 @@ class SpatialRedundancy final : public Analysis {
 
   virtual void unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
-                           bool read);
+                           GPUPatchFlags flags);
 
   // Flush
   virtual void flush_thread(u32 cpu_thread, const std::string &output_dir,

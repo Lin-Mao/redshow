@@ -132,7 +132,7 @@ static redshow_result_t trace_analyze_address_patch(int32_t kernel_id,
       uint64_t memory_addr = 0;
       if (iter != memory_map->end()) {
         if (record->address[j] >= iter->second->memory_range.start &&
-          record->address[j] < iter->second->memory_range.end) {
+          record->address[j] + record->size <= iter->second->memory_range.end) {
           memory_op_id = iter->second->op_id;
           memory_id = iter->second->ctx_id;
           memory_size = record->size;
@@ -149,11 +149,10 @@ static redshow_result_t trace_analyze_address_patch(int32_t kernel_id,
         continue;
       }
 
-      bool read = (record->flags & GPU_PATCH_WRITE) ? false : true;
       Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
       // XXX(Keren): Need to separate address analysis with value analysis
       for (auto aiter : analysis_enabled) {
-        aiter.second->unit_access(kernel_id, thread_id, access_kind, memory, 0, 0, 0, 0, read);
+        aiter.second->unit_access(kernel_id, thread_id, access_kind, memory, 0, 0, 0, 0, static_cast<GPUPatchFlags>(record->flags));
       }
     }
   }
@@ -209,11 +208,11 @@ static redshow_result_t trace_analyze_address_analysis(int32_t kernel_id,
         break;
       }
 
-      bool read = (trace_data->flags & GPU_PATCH_WRITE) ? false : true;
       Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
       // XXX(Keren): Need to separate address analysis with value analysis
       for (auto aiter : analysis_enabled) {
-        aiter.second->unit_access(kernel_id, thread_id, access_kind, memory, 0, 0, 0, 0, read);
+        aiter.second->unit_access(kernel_id, thread_id, access_kind, memory, 0, 0, 0, 0,
+          static_cast<GPUPatchFlags>(trace_data->flags));
       }
     }
   }
@@ -304,7 +303,7 @@ static redshow_result_t trace_analyze_default(int32_t kernel_id, InstructionGrap
         uint64_t memory_addr = 0;
         if (iter != memory_map->end()) {
           if (record->address[j] >= iter->second->memory_range.start &&
-            record->address[j] < iter->second->memory_range.end) {
+            record->address[j] + record->size <= iter->second->memory_range.end) {
             memory_op_id = iter->second->op_id;
             memory_id = iter->second->ctx_id;
             memory_size = iter->second->len;
@@ -345,8 +344,6 @@ static redshow_result_t trace_analyze_default(int32_t kernel_id, InstructionGrap
         // We iterate through all the units such that every unit's vec_size = unit_size
         unit_access_kind.vec_size = unit_access_kind.unit_size;
 
-        bool read = (record->flags & GPU_PATCH_WRITE) ? false : true;
-
         for (size_t m = 0; m < num_units; m++) {
           uint64_t value = 0;
           uint32_t byte_size = unit_access_kind.unit_size >> 3u;
@@ -360,7 +357,7 @@ static redshow_result_t trace_analyze_default(int32_t kernel_id, InstructionGrap
 
           for (auto aiter : analysis_enabled) {
             aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory, record->pc,
-              value, record->address[j], m, read);
+              value, record->address[j], m, static_cast<GPUPatchFlags>(record->flags));
           }
         }
       }
