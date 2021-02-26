@@ -28,6 +28,10 @@ endif
 CFLAGS := -fPIC -std=c++17 $(OFLAGS)
 LDFLAGS := -fPIC -shared -L$(BOOST_DIR)/lib -lboost_graph -lboost_regex
 
+ifdef OPENMP
+LDFLAGS += -fopenmp
+endif
+
 ifdef STATIC_CPP
 LDFLAGS += -static-libstdc++
 endif

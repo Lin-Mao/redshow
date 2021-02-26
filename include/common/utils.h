@@ -5,6 +5,7 @@
 #define MAX2(x, y) (x > y ? x : y)
 
 #include <cstdint>
+#include <cassert>
 
 namespace redshow {
 
@@ -49,6 +50,8 @@ const int LOCAL_MEMORY_CTX_ID    = (1 << 30) + 4;
 
 const int PC_VIEWS_LIMIT = 10;
 const int MEM_VIEWS_LIMIT = 10;
+
+const int OMP_SEQ_LEN = 100000;
 
 struct ThreadId {
   u32 flat_block_id;

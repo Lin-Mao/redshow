@@ -41,7 +41,7 @@ class Analysis {
   virtual void op_callback(OperationPtr operation) = 0;
 
   // Fine-grained
-  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id) = 0;
+  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id, GPUPatchType type) = 0;
 
   virtual void analysis_end(u32 cpu_thread, i32 kernel_id) = 0;
 

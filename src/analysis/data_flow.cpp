@@ -206,7 +206,9 @@ void DataFlow::op_callback(OperationPtr op) {
   unlock();
 }
 
-void DataFlow::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id) {
+void DataFlow::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id, GPUPatchType type) {
+  assert(type == GPU_PATCH_TYPE_ADDRESS_PATCH || type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS);
+
   lock();
 
   if (!this->_kernel_trace[cpu_thread].has(kernel_id)) {

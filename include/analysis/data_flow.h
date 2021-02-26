@@ -27,7 +27,7 @@ class DataFlow final : public Analysis {
   virtual void op_callback(OperationPtr operation);
 
   // Fine-grained
-  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mode_id);
+  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mode_id, GPUPatchType type);
 
   virtual void analysis_end(u32 cpu_thread, i32 kernel_id);
 
