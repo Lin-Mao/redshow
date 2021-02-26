@@ -233,43 +233,61 @@ void DataFlow::block_exit(const ThreadId &thread_id) {
 }
 
 void DataFlow::merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &memory_range) {
-  bool delete_left = false;
-  bool delete_right = false;
+  auto start = memory_range.start;
+  auto end = memory_range.end;
 
   auto liter = memory.prev(memory_range);
   if (liter != memory.end()) {
     if (liter->end >= memory_range.start) {
       if (liter->end < memory_range.end) {
         // overlap and not covered
-        delete_left = true;
+        start = liter->start;
+        memory.erase(liter);
       } else {
+        // Fully covered
         return;
       }
     }
   }
 
+  bool range_delete = false;
   auto riter = memory.lower_bound(memory_range);
   if (riter != memory.end()) {
     if (riter->start <= memory_range.end) {
-      if (riter->start > memory_range.start) {
+      if (riter->end < memory_range.end) {
         // overlap and not covered
-        delete_right = true;
-      } else {
+        range_delete = true;
+        memory.erase(riter);
+      } else if (riter->start == memory_range.start) {
+        // riter->end >= memory_range.end
+        // Fully covered
         return;
+      } else {
+        // riter->end >= memory_range.end
+        // Partial covered
+        end = riter->end;
+        memory.erase(riter);
+      }
+    }
+ }
+
+  while (range_delete) {
+    range_delete = false;
+    auto riter = memory.lower_bound(memory_range);
+    if (riter != memory.end()) {
+      if (riter->start <= memory_range.end) {
+        if (riter->end < memory_range.end) {
+          // overlap and not covered
+          range_delete = true;
+        } else {
+          // Partial covered
+          end = riter->end;
+        }
+        memory.erase(riter);
       }
     }
   }
 
-  auto start = memory_range.start;
-  auto end = memory_range.end;
-  if (delete_left) {
-    start = liter->start;
-    memory.erase(liter);
-  }
-  if (delete_right) {
-    end = riter->end;
-    memory.erase(riter);
-  }
   memory.insert(MemoryRange(start, end));
 }
 
