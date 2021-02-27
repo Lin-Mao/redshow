@@ -484,7 +484,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
  */
 
 redshow_result_t redshow_output_dir_config(redshow_analysis_type_t analysis, const char *dir) {
-  PRINT("\nredshow->Enter redshow_output_dir_config\nanalysis: %u\ndir: %s\n", analysis, dir);
+  PRINT("\nredshow-> Enter redshow_output_dir_config\nanalysis: %u\ndir: %s\n", analysis, dir);
 
   if (dir) {
     output_dir[analysis] = std::string(dir);
@@ -494,7 +494,7 @@ redshow_result_t redshow_output_dir_config(redshow_analysis_type_t analysis, con
 }
 
 redshow_result_t redshow_data_type_config(redshow_data_type_t data_type) {
-  PRINT("\nredshow->Enter redshow_data_type_config\ndata_type: %u\n", data_type);
+  PRINT("\nredshow-> Enter redshow_data_type_config\ndata_type: %u\n", data_type);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -565,7 +565,7 @@ redshow_result_t redshow_approx_get(int *degree_f32, int *degree_f64) {
 }
 
 redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) {
-  PRINT("\nredshow->Enter redshow_analysis_enable\nanalysis_type: %u\n", analysis_type);
+  PRINT("\nredshow-> Enter redshow_analysis_enable\nanalysis_type: %u\n", analysis_type);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -593,7 +593,7 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
 }
 
 redshow_result_t redshow_analysis_enabled(redshow_analysis_type_t analysis_type) {
-  PRINT("\nredshow->Enter redshow_analysis_enabled\nanalysis_type: %u\n", analysis_type);
+  PRINT("\nredshow-> Enter redshow_analysis_enabled\nanalysis_type: %u\n", analysis_type);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -605,7 +605,7 @@ redshow_result_t redshow_analysis_enabled(redshow_analysis_type_t analysis_type)
 }
 
 redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type) {
-  PRINT("\nredshow->Enter redshow_analysis_disable\nanalysis_type: %u\n", analysis_type);
+  PRINT("\nredshow-> Enter redshow_analysis_disable\nanalysis_type: %u\n", analysis_type);
 
   analysis_enabled.erase(analysis_type);
 
@@ -614,7 +614,7 @@ redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type)
 
 redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols,
                                         const uint64_t *symbol_pcs, const char *path) {
-  PRINT("\nredshow->Enter redshow_cubin_register\ncubin_id: %u\nmode_id: %u\npath: %s\n", cubin_id,
+  PRINT("\nredshow-> Enter redshow_cubin_register\ncubin_id: %u\nmode_id: %u\npath: %s\n", cubin_id,
         mod_id, path);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -657,7 +657,7 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id, uint
 
 redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols,
                                               uint64_t *symbol_pcs, const char *path) {
-  PRINT("\nredshow->Enter redshow_cubin_cache_register\ncubin_id: %u\nmod_id: %u\npath: %s\n",
+  PRINT("\nredshow-> Enter redshow_cubin_cache_register\ncubin_id: %u\nmod_id: %u\npath: %s\n",
         cubin_id, mod_id, path);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -690,7 +690,7 @@ redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id
 }
 
 redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mod_id) {
-  PRINT("\nredshow->Enter redshow_cubin_unregister\ncubin_id: %u\n", cubin_id);
+  PRINT("\nredshow-> Enter redshow_cubin_unregister\ncubin_id: %u\n", cubin_id);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -712,7 +712,7 @@ redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mod_id) {
 redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id, uint64_t start,
                                          uint64_t end) {
   PRINT(
-      "\nredshow->Enter redshow_memory_register\nmemory_id: %d\nhost_op_id: %llu\nstart: %p\nend: "
+      "\nredshow-> Enter redshow_memory_register\nmemory_id: %d\nhost_op_id: %llu\nstart: %p\nend: "
       "%p\n",
       memory_id, host_op_id, start, end);
 
@@ -758,7 +758,7 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
 }
 
 redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t start, uint64_t end) {
-  PRINT("\nredshow->Enter redshow_memory_unregister\nhost_op_id: %llu\nstart: %p\nend: %p\n",
+  PRINT("\nredshow-> Enter redshow_memory_unregister\nhost_op_id: %llu\nstart: %p\nend: %p\n",
         host_op_id, start, end);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -790,7 +790,7 @@ redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t start, 
 redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32_t *memory_id,
                                       uint64_t *memory_op_id, uint64_t *shadow_start,
                                       uint64_t *len) {
-  PRINT("\nredshow->Enter redshow_memory_query\nhost_op_id: %lu\nstart: %p\n", host_op_id, start);
+  PRINT("\nredshow-> Enter redshow_memory_query\nhost_op_id: %lu\nstart: %p\n", host_op_id, start);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -826,7 +826,7 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
                                          uint64_t src_start, bool dst_host, uint64_t dst_start,
                                          uint64_t len) {
   PRINT(
-      "\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %d\nhost_op_id: "
+      "\nredshow-> Enter redshow_memcpy_register\nmemcpy_id: %d\nhost_op_id: "
       "%llu\nsrc_host: %d\nsrc_start: %llu\ndst_host: %d\ndst_start: "
       "%llu\nlen: %llu\n",
       memcpy_id, host_op_id, src_host, src_start, dst_host, dst_start, len);
@@ -876,7 +876,7 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
 redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id, uint64_t start,
                                          uint32_t value, uint64_t len) {
   PRINT(
-      "\nredshow->Enter redshow_memset_register\nmemset_id: %d\nhost_op_id: %llu\nstart: "
+      "\nredshow-> Enter redshow_memset_register\nmemset_id: %d\nhost_op_id: %llu\nstart: "
       "%llu\nvalue: %u\nlen: %llu\n",
       memset_id, host_op_id, start, value, len);
 
@@ -955,7 +955,7 @@ redshow_result_t redshow_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_
                                  int32_t kernel_id, uint64_t host_op_id,
                                  gpu_patch_buffer_t *trace_data) {
   PRINT(
-      "\nredshow->Enter redshow_analyze\ncpu_thread: %u\ncubin_id: %u\nmod_id: %u\n"
+      "\nredshow-> Enter redshow_analyze\ncpu_thread: %u\ncubin_id: %u\nmod_id: %u\n"
       "kernel_id: %d\nhost_op_id: %llu\ntrace_data: %p\n",
       cpu_thread, cubin_id, mod_id, kernel_id, host_op_id, trace_data);
 
@@ -977,14 +977,14 @@ redshow_result_t redshow_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_
       result = REDSHOW_ERROR_NOT_REGISTER_CALLBACK;
     }
   } else {
-    PRINT("\nredshow->Fail redshow_analyze result %d\n", result);
+    PRINT("\nredshow-> Fail redshow_analyze result %d\n", result);
   }
 
   return result;
 }
 
 redshow_result_t redshow_analysis_begin() {
-  PRINT("\nredshow->Enter redshow_analysis_begin\n");
+  PRINT("\nredshow-> Enter redshow_analysis_begin\n");
 
   mini_host_op_id = 0;
 
@@ -992,7 +992,7 @@ redshow_result_t redshow_analysis_begin() {
 }
 
 redshow_result_t redshow_analysis_end() {
-  PRINT("\nredshow->Enter redshow_analysis_end\n");
+  PRINT("\nredshow-> Enter redshow_analysis_end\n");
 
   redshow_result_t result;
 
@@ -1026,7 +1026,7 @@ redshow_result_t redshow_analysis_end() {
 }
 
 redshow_result_t redshow_flush_thread(uint32_t cpu_thread) {
-  PRINT("\nredshow->Enter redshow_flush cpu_thread %u\n", cpu_thread);
+  PRINT("\nredshow-> Enter redshow_flush cpu_thread %u\n", cpu_thread);
 
   for (auto aiter : analysis_enabled) {
     aiter.second->flush_thread(cpu_thread, output_dir[aiter.first], cubin_map,
@@ -1037,7 +1037,7 @@ redshow_result_t redshow_flush_thread(uint32_t cpu_thread) {
 }
 
 redshow_result_t redshow_flush() {
-  PRINT("\nredshow->Enter redshow_flush\n");
+  PRINT("\nredshow-> Enter redshow_flush\n");
 
   for (auto aiter : analysis_enabled) {
     aiter.second->flush(output_dir[aiter.first], cubin_map, record_data_callback);

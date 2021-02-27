@@ -61,8 +61,12 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
     if (memory->op_id > REDSHOW_MEMORY_HOST) {
       auto node_id = _op_node.at(memory->op_id);
       auto len = 0;
-      for (auto &range_iter : mem_iter.second) {
-        len += range_iter.end - range_iter.start;
+      if (_read_trace) {
+        for (auto &range_iter : mem_iter.second) {
+          len += range_iter.end - range_iter.start;
+        }
+      } else {
+        len = memory->len;
       }
       // Link a pure read edge between two calling contexts
       link_ctx_node(node_id, op->ctx_id, memory->ctx_id, DATA_FLOW_EDGE_READ);
@@ -244,22 +248,24 @@ void DataFlow::merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &m
       if (liter->end < memory_range.end) {
         // overlap and not covered
         start = liter->start;
-        memory.erase(liter);
+        liter = memory.erase(liter);
       } else {
         // Fully covered
         return;
       }
+    } else {
+      liter++;
     }
   }
 
   bool range_delete = false;
-  auto riter = memory.lower_bound(memory_range);
+  auto riter = liter;
   if (riter != memory.end()) {
     if (riter->start <= memory_range.end) {
       if (riter->end < memory_range.end) {
         // overlap and not covered
         range_delete = true;
-        memory.erase(riter);
+        riter = memory.erase(riter);
       } else if (riter->start == memory_range.start) {
         // riter->end >= memory_range.end
         // Fully covered
@@ -268,14 +274,13 @@ void DataFlow::merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &m
         // riter->end >= memory_range.end
         // Partial covered
         end = riter->end;
-        memory.erase(riter);
+        riter = memory.erase(riter);
       }
     }
  }
 
   while (range_delete) {
     range_delete = false;
-    auto riter = memory.lower_bound(memory_range);
     if (riter != memory.end()) {
       if (riter->start <= memory_range.end) {
         if (riter->end < memory_range.end) {
@@ -285,12 +290,17 @@ void DataFlow::merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &m
           // Partial covered
           end = riter->end;
         }
-        memory.erase(riter);
+        riter = memory.erase(riter);
       }
     }
   }
 
-  memory.insert(MemoryRange(start, end));
+  if (riter != memory.end()) {
+    // Hint for constant time insert: insert(h, p) if p is before h
+    memory.insert(riter, MemoryRange(start, end));
+  } else {
+    memory.emplace(start, end);
+  }
 }
 
 void DataFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
@@ -303,7 +313,11 @@ void DataFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const Acces
 
   auto &memory_range = memory.memory_range;
   if (flags & GPU_PATCH_READ) {
-    merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
+    if (_read_trace) {
+      merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
+    } else if (_trace->read_memory[memory.op_id].empty()) {
+      _trace->read_memory[memory.op_id].insert(memory_range);
+    }
   } 
   if (flags & GPU_PATCH_WRITE) {
     merge_memory_range(_trace->write_memory[memory.op_id], memory_range);

@@ -143,13 +143,16 @@ class DataFlow final : public Analysis {
   void merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &memory_range);
 
  private:
-  static inline thread_local std::shared_ptr<DataFlowTrace> _trace;
+  // Multi-threading is not allowable for data flow profiling
+  std::shared_ptr<DataFlowTrace> _trace;
 
   DataFlowGraph _graph;
   Map<u64, i32> _op_node;
   Map<i32, Set<std::string>> _node_hash;
   Map<i32, u64> _node_count;
   Map<u64, std::shared_ptr<Memory>> _memories;
+
+  bool _read_trace = false;
 };
 
 }  // namespace redshow
