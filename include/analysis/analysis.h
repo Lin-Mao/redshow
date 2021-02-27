@@ -37,6 +37,10 @@ class Analysis {
     }
   }
 
+  virtual void trace_read_on() { this->_trace_read = true; }
+
+  virtual void trace_read_off() { this->_trace_read = false; }
+
   // Coarse-grained
   virtual void op_callback(OperationPtr operation) = 0;
 
@@ -82,6 +86,8 @@ class Analysis {
   redshow_tool_dtoh_func _dtoh;
   redshow_analysis_type_t _type;
   std::mutex _lock;
+
+  bool _trace_read = true;
 };
 
 struct CompareView {

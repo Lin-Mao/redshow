@@ -175,6 +175,16 @@ EXTERNC redshow_result_t redshow_analysis_enabled(redshow_analysis_type_t analys
 EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type);
 
 /**
+ * @brief This function is used to turn on/off tracing read activities
+ *
+ * @param analysis_type
+ * @return reshow_result_t
+ *
+ * @thread-safe: NO
+ */
+EXTERNC redshow_result_t redshow_analysis_trace_read_config(redshow_analysis_type_t analysis_type, bool trace_read);
+
+/**
  * @brief This function is used to register a cubin module. redshow analyzes a cubin module to
  * extract CFGs and instruction statistics.
  *
@@ -263,6 +273,12 @@ EXTERNC redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t
 EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start,
                                               int32_t *memory_id, uint64_t *memory_op_id,
                                               uint64_t *shadow_start, uint64_t *len);
+
+/**
+ * @brief This funciton is used to return the first limit memory ranges at the current snapshot
+ */
+EXTERNC redshow_result_t redshow_memory_ranges_get(uint64_t host_op_id, uint64_t limit,
+                                                   uint64_t *start_end, uint64_t *len);
 
 /**
  * @brief This funciton is used to track a memcpy operation

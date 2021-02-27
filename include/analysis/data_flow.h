@@ -151,8 +151,6 @@ class DataFlow final : public Analysis {
   Map<i32, Set<std::string>> _node_hash;
   Map<i32, u64> _node_count;
   Map<u64, std::shared_ptr<Memory>> _memories;
-
-  bool _read_trace = false;
 };
 
 }  // namespace redshow

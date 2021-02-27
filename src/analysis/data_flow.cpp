@@ -61,7 +61,7 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
     if (memory->op_id > REDSHOW_MEMORY_HOST) {
       auto node_id = _op_node.at(memory->op_id);
       auto len = 0;
-      if (_read_trace) {
+      if (_trace_read) {
         for (auto &range_iter : mem_iter.second) {
           len += range_iter.end - range_iter.start;
         }
@@ -313,7 +313,7 @@ void DataFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const Acces
 
   auto &memory_range = memory.memory_range;
   if (flags & GPU_PATCH_READ) {
-    if (_read_trace) {
+    if (_trace_read) {
       merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
     } else if (_trace->read_memory[memory.op_id].empty()) {
       _trace->read_memory[memory.op_id].insert(memory_range);
