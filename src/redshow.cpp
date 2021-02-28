@@ -837,21 +837,23 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
 }
 
 EXTERNC redshow_result_t redshow_memory_ranges_get(uint64_t host_op_id, uint64_t limit,
-                                                   uint64_t *start_end, uint64_t *len)
+                                                   gpu_patch_analysis_address *start_end, uint32_t *len)
 {
   PRINT("\nredshow-> Enter redshow_memory_ranges_get\nhost_op_id: %lu\nlimit: %lu\n", host_op_id, limit);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
+  *len = 0;
   memory_snapshot.lock();
   auto snapshot_iter = memory_snapshot.prev(host_op_id);
   if (snapshot_iter != memory_snapshot.end()) {
     auto &memory_map = snapshot_iter->second;
     if (memory_map.size() != 0) {
       auto memory_map_iter = memory_map.begin();
-      for (size_t i = 0; i < limit; ++i) {
-        start_end[i * 2] = memory_map_iter->first.start;
-        start_end[i * 2 + 1] = memory_map_iter->first.end;
+      while (memory_map_iter != memory_map.end()) {
+        start_end[(*len)].start = memory_map_iter->first.start;
+        start_end[(*len)].end = memory_map_iter->first.end;
+        ++(*len);
         ++memory_map_iter;
       }
     } else {
