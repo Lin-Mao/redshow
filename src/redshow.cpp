@@ -905,7 +905,7 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
                          &dst_size);
   }
 
-  if (dst_mem_addr != 0) {
+  if (dst_mem_addr != 0 && src_mem_addr != 0) {
     // Avoid memcpy to symbol without allocation
     auto memcpy = std::make_shared<Memcpy>(host_op_id, memcpy_id, src_mem_op_id, src_mem_addr,
                                            dst_mem_op_id, dst_mem_addr, len);
