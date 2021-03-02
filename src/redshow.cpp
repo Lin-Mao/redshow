@@ -936,8 +936,10 @@ redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
 
   auto memset = std::make_shared<Memset>(host_op_id, memset_id, mem_op_id, addr, value, len);
 
-  for (auto aiter : analysis_enabled) {
-    aiter.second->op_callback(memset);
+  if (addr != 0) {
+    for (auto aiter : analysis_enabled) {
+      aiter.second->op_callback(memset);
+    }
   }
 
   return result;
