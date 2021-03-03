@@ -184,6 +184,8 @@ EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analys
  */
 EXTERNC redshow_result_t redshow_analysis_trace_read_config(redshow_analysis_type_t analysis_type, bool trace_read);
 
+EXTERNC redshow_result_t redshow_analysis_data_flow_hash_config(bool hash);
+
 /**
  * @brief This function is used to register a cubin module. redshow analyzes a cubin module to
  * extract CFGs and instruction statistics.

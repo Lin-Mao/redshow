@@ -626,6 +626,21 @@ redshow_result_t redshow_analysis_trace_read_config(redshow_analysis_type_t anal
   return REDSHOW_SUCCESS;
 }
 
+redshow_result_t redshow_analysis_data_flow_hash_config(bool hash) {
+  PRINT("\nredshow-> Enter redshow_analysis_data_flow_hash_config\nhash: %u\n", hash);
+
+  if (analysis_enabled.has(REDSHOW_ANALYSIS_DATA_FLOW)) {
+    auto *data_flow = dynamic_cast<DataFlow *>(analysis_enabled[REDSHOW_ANALYSIS_DATA_FLOW].get());
+    if (hash) {
+      data_flow->hash_on();
+    } else {
+      data_flow->hash_off();
+    }
+  }
+
+  return REDSHOW_SUCCESS;
+}
+
 redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols,
                                         const uint64_t *symbol_pcs, const char *path) {
   PRINT("\nredshow-> Enter redshow_cubin_register\ncubin_id: %u\nmode_id: %u\npath: %s\n", cubin_id,
@@ -985,6 +1000,10 @@ redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id, ui
 }
 
 redshow_result_t redshow_kernel_end(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id) {
+  PRINT(
+      "\nredshow-> Enter redshow_kernel_end\ncpu_thread: %u\nkernel_id: %d\nhost_op_id: %llu\n",
+      cpu_thread, kernel_id, host_op_id);
+
   // propose changes
   // read_memory_op_ids, write_memory_op_ids
   redshow_result_t result = REDSHOW_SUCCESS;

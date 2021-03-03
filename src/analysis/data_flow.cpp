@@ -78,22 +78,23 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
   for (auto &mem_iter : _trace->write_memory) {
     auto memory = _memories.at(mem_iter.first);
     if (memory->op_id > REDSHOW_MEMORY_HOST) {
-      auto len = 0;
+      auto overwrite = 0;
       for (auto &range_iter : mem_iter.second) {
-        len += range_iter.end - range_iter.start;
+        overwrite += range_iter.end - range_iter.start;
       }
-      u64 overwrite = len;
+
       u64 host = reinterpret_cast<u64>(memory->value.get());
       u64 host_cache = reinterpret_cast<u64>(memory->value_cache.get());
       u64 device = memory->memory_range.start;
-      dtoh(host_cache, device, memory->len);
 
       auto redundancy = 0;
       for (auto &range_iter : mem_iter.second) {
         auto host_cache_start = host_cache + range_iter.start - device;
         auto host_start = host + range_iter.start - device;
-        redundancy += compute_memcpy_redundancy(host_cache_start, host_start,
-                                                range_iter.end - range_iter.start);
+        auto range_len = range_iter.end - range_iter.start;
+        redundancy += compute_memcpy_redundancy(host_cache_start, host_start, range_len);
+        // Update host
+        memory_copy(reinterpret_cast<void *>(host_start), reinterpret_cast<void *>(host_cache_start), range_len);
       }
 
       // Point the operation to the calling context
@@ -102,8 +103,10 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
                         memory->len);
       update_op_node(memory->op_id, op->ctx_id);
 
-      std::string hash = compute_memory_hash(reinterpret_cast<u64>(host_cache), memory->len);
-      _node_hash[op->ctx_id].emplace(hash);
+      if (_hash) {
+        std::string hash = compute_memory_hash(reinterpret_cast<u64>(host_cache), memory->len);
+        _node_hash[op->ctx_id].emplace(hash);
+      }
 
 #ifdef DEBUG_DATA_FLOW
       std::cout << "ctx: " << op->ctx_id << ", hash: " << hash
@@ -111,9 +114,6 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
                 << " overwrite, " << overwrite << ", memory->len: "
                 << memory->len << std::endl;
 #endif
-
-      // Update host
-      memcpy(reinterpret_cast<void *>(host), reinterpret_cast<void *>(host_cache), memory->len);
     }
   }
 
@@ -143,8 +143,11 @@ void DataFlow::memset_op_callback(std::shared_ptr<Memset> op) {
   // Update host
   memset(reinterpret_cast<void *>(op->start), op->value, op->len);
   u64 host = reinterpret_cast<u64>(memory->value.get());
-  std::string hash = compute_memory_hash(host, memory->len);
-  _node_hash[op->ctx_id].emplace(hash);
+
+  if (_hash) {
+    std::string hash = compute_memory_hash(host, memory->len);
+    _node_hash[op->ctx_id].emplace(hash);
+  }
 }
 
 void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
@@ -176,15 +179,18 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
                     DATA_FLOW_EDGE_READ);
 
   // Update host
-  memcpy(reinterpret_cast<void *>(op->dst_start), reinterpret_cast<void *>(op->src_start), op->len);
+  memory_copy(reinterpret_cast<void *>(op->dst_start), reinterpret_cast<void *>(op->src_start), op->len);
   u64 host = 0;
   if (op->dst_memory_op_id == REDSHOW_MEMORY_HOST || op->dst_memory_op_id == REDSHOW_MEMORY_UVM) {
     host = op->dst_start;
   } else {
     host = reinterpret_cast<u64>(dst_memory->value.get());
   }
-  std::string hash = compute_memory_hash(host, dst_len);
-  _node_hash[op->ctx_id].emplace(hash);
+
+  if (_hash) {
+    std::string hash = compute_memory_hash(host, dst_len);
+    _node_hash[op->ctx_id].emplace(hash);
+  }
 }
 
 void DataFlow::op_callback(OperationPtr op) {

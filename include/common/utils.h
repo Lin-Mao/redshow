@@ -4,8 +4,12 @@
 #define MIN2(x, y) (x > y ? y : x)
 #define MAX2(x, y) (x > y ? x : y)
 
+#include <cstddef>
 #include <cstdint>
 #include <cassert>
+#ifdef OPENMP
+#include <omp.h>
+#endif
 
 namespace redshow {
 
@@ -84,6 +88,9 @@ u64 value_to_float(u64 value, int decimal_degree_f32);
  * @return u64
  */
 u64 value_to_double(u64 value, int decimal_degree_f64);
+
+
+void memory_copy(void *dst, void *src, size_t len);
 
 }  // namespace redshow
 

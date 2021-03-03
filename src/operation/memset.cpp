@@ -13,7 +13,7 @@ u64 compute_memset_redundancy(u64 start, u32 value, u64 len) {
 
   auto *ptr = reinterpret_cast<unsigned char *>(start);
 
-#if defined(_OPENMP)
+#ifdef OPENMP
   #pragma omp parallel for if (len > OMP_SEQ_LEN) reduction (+:same)
 #endif
   for (size_t i = 0; i < len; ++i) {

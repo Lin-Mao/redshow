@@ -21,7 +21,7 @@ namespace redshow {
 
 class DataFlow final : public Analysis {
  public:
-  DataFlow() : Analysis(REDSHOW_ANALYSIS_DATA_FLOW) { init(); }
+  DataFlow(bool hash = false) : Analysis(REDSHOW_ANALYSIS_DATA_FLOW), _hash(hash) { init(); }
 
   // Coarse-grained
   virtual void op_callback(OperationPtr operation);
@@ -44,6 +44,10 @@ class DataFlow final : public Analysis {
 
   virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback);
+
+  void hash_on() { _hash = true; }
+
+  void hash_off() { _hash = false; }
 
   ~DataFlow() {}
 
@@ -151,6 +155,8 @@ class DataFlow final : public Analysis {
   Map<i32, Set<std::string>> _node_hash;
   Map<i32, u64> _node_count;
   Map<u64, std::shared_ptr<Memory>> _memories;
+
+  bool _hash;
 };
 
 }  // namespace redshow

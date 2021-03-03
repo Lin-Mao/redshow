@@ -22,4 +22,16 @@ u64 value_to_float(u64 a, int decimal_degree_f32) {
   return b;
 }
 
+void memory_copy(void *dst, void *src, size_t len) {
+  auto *dst_ptr = reinterpret_cast<unsigned char *>(dst);
+  auto *src_ptr = reinterpret_cast<unsigned char *>(src);
+
+#ifdef OPENMP
+  #pragma omp parallel for if (len > OMP_SEQ_LEN)
+#endif
+  for (size_t i = 0; i < len; ++i) {
+    dst_ptr[i] = src_ptr[i];
+  }
+}
+
 }
