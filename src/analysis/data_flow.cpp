@@ -87,13 +87,22 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
       u64 host_cache = reinterpret_cast<u64>(memory->value_cache.get());
       u64 device = memory->memory_range.start;
 
-      dtoh(host_cache, device, memory->len);
+      bool fragmented = false;
+      if ((static_cast<double>(overwrite) / memory->len) < _FRAGMENT_RATIO_LIMIT &&
+        memory->len > _FRAGMENT_SIZE_LIMIT) {
+        fragmented = true;
+      } else {
+        dtoh(host_cache, device, memory->len);
+      }
 
       auto redundancy = 0;
       for (auto &range_iter : mem_iter.second) {
         auto host_cache_start = host_cache + range_iter.start - device;
         auto host_start = host + range_iter.start - device;
         auto range_len = range_iter.end - range_iter.start;
+        if (fragmented) {
+          dtoh(host_cache_start, range_iter.start, range_len);
+        }
         redundancy += compute_memcpy_redundancy(host_cache_start, host_start, range_len);
         // Update host
         memory_copy(reinterpret_cast<void *>(host_start),

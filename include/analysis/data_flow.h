@@ -153,6 +153,10 @@ class DataFlow final : public Analysis {
   Map<i32, Set<std::string>> _node_hash;
   Map<i32, u64> _node_count;
   Map<u64, std::shared_ptr<Memory>> _memories;
+
+  const double _FRAGMENT_RATIO_LIMIT = 0.1;
+  // 256MB
+  const size_t _FRAGMENT_SIZE_LIMIT = 256 * 1024 * 1024;
 };
 
 }  // namespace redshow
