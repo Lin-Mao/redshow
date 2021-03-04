@@ -314,8 +314,8 @@ void DataFlow::merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &m
   }
 
   if (riter != memory.end()) {
-    // Hint for constant time insert: insert(h, p) if p is before h
-    memory.insert(riter, MemoryRange(start, end));
+    // Hint for constant time insert: emplace(h, p) if p is before h
+    memory.emplace_hint(riter, start, end);
   } else {
     memory.emplace(start, end);
   }
