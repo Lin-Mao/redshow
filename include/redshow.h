@@ -17,6 +17,11 @@ typedef enum redshow_analysis_type {
   REDSHOW_ANALYSIS_DATA_FLOW = 4
 } redshow_analysis_type_t;
 
+typedef enum redshow_analysis_config_type {
+  REDSHOW_ANALYSIS_READ_TRACE_IGNORE = 0,
+  REDSHOW_ANALYSIS_DATA_FLOW_HASH = 1
+} redshow_analysis_config_type_t;
+
 typedef enum redshow_access_type {
   REDSHOW_ACCESS_UNKNOWN = 0,
   REDSHOW_ACCESS_READ = 1,
@@ -175,16 +180,16 @@ EXTERNC redshow_result_t redshow_analysis_enabled(redshow_analysis_type_t analys
 EXTERNC redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type);
 
 /**
- * @brief This function is used to turn on/off tracing read activities
+ * @brief This function is used to turn on/off analysis knobs
  *
  * @param analysis_type
  * @return reshow_result_t
  *
  * @thread-safe: NO
  */
-EXTERNC redshow_result_t redshow_analysis_trace_read_config(redshow_analysis_type_t analysis_type, bool trace_read);
-
-EXTERNC redshow_result_t redshow_analysis_data_flow_hash_config(bool hash);
+EXTERNC redshow_result_t redshow_analysis_config(redshow_analysis_type_t analysis_type,
+                                                 redshow_analysis_config_type_t config,
+                                                 bool enable);
 
 /**
  * @brief This function is used to register a cubin module. redshow analyzes a cubin module to
@@ -280,7 +285,8 @@ EXTERNC redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t star
  * @brief This funciton is used to return the first limit memory ranges at the current snapshot
  */
 EXTERNC redshow_result_t redshow_memory_ranges_get(uint64_t host_op_id, uint64_t limit,
-                                                   gpu_patch_analysis_address_t *start_end, uint32_t *len);
+                                                   gpu_patch_analysis_address_t *start_end,
+                                                   uint32_t *len);
 
 /**
  * @brief This funciton is used to track a memcpy operation

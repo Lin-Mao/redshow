@@ -612,30 +612,14 @@ redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type)
   return REDSHOW_SUCCESS;
 }
 
-redshow_result_t redshow_analysis_trace_read_config(redshow_analysis_type_t analysis_type, bool trace_read) {
-  PRINT("\nredshow-> Enter redshow_analysis_trace_read_config\nanalysis_type: %u, trace_read: %u\n", analysis_type, trace_read);
+redshow_result_t redshow_analysis_config(redshow_analysis_type_t analysis_type,
+                                         redshow_analysis_config_type_t config_type, bool enable) {
+  PRINT(
+      "\nredshow-> Enter redshow_analysis_config\nanalysis_type: %u, config_type: %u, enable: %u\n",
+      analysis_type, config_type, enable);
 
   if (analysis_enabled.has(analysis_type)) {
-    if (trace_read) {
-      analysis_enabled[analysis_type]->trace_read_on();
-    } else {
-      analysis_enabled[analysis_type]->trace_read_off();
-    }
-  }
-
-  return REDSHOW_SUCCESS;
-}
-
-redshow_result_t redshow_analysis_data_flow_hash_config(bool hash) {
-  PRINT("\nredshow-> Enter redshow_analysis_data_flow_hash_config\nhash: %u\n", hash);
-
-  if (analysis_enabled.has(REDSHOW_ANALYSIS_DATA_FLOW)) {
-    auto *data_flow = dynamic_cast<DataFlow *>(analysis_enabled[REDSHOW_ANALYSIS_DATA_FLOW].get());
-    if (hash) {
-      data_flow->hash_on();
-    } else {
-      data_flow->hash_off();
-    }
+    analysis_enabled[analysis_type]->config(config_type, enable);
   }
 
   return REDSHOW_SUCCESS;
@@ -852,9 +836,10 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
 }
 
 EXTERNC redshow_result_t redshow_memory_ranges_get(uint64_t host_op_id, uint64_t limit,
-                                                   gpu_patch_analysis_address *start_end, uint32_t *len)
-{
-  PRINT("\nredshow-> Enter redshow_memory_ranges_get\nhost_op_id: %lu\nlimit: %lu\n", host_op_id, limit);
+                                                   gpu_patch_analysis_address *start_end,
+                                                   uint32_t *len) {
+  PRINT("\nredshow-> Enter redshow_memory_ranges_get\nhost_op_id: %lu\nlimit: %lu\n", host_op_id,
+        limit);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -1000,9 +985,8 @@ redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id, ui
 }
 
 redshow_result_t redshow_kernel_end(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id) {
-  PRINT(
-      "\nredshow-> Enter redshow_kernel_end\ncpu_thread: %u\nkernel_id: %d\nhost_op_id: %llu\n",
-      cpu_thread, kernel_id, host_op_id);
+  PRINT("\nredshow-> Enter redshow_kernel_end\ncpu_thread: %u\nkernel_id: %d\nhost_op_id: %llu\n",
+        cpu_thread, kernel_id, host_op_id);
 
   // propose changes
   // read_memory_op_ids, write_memory_op_ids

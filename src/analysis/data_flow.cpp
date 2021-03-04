@@ -61,7 +61,7 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
     if (memory->op_id > REDSHOW_MEMORY_HOST) {
       auto node_id = _op_node.at(memory->op_id);
       auto len = 0;
-      if (_trace_read) {
+      if (_configs[REDSHOW_ANALYSIS_READ_TRACE_IGNORE] == false) {
         for (auto &range_iter : mem_iter.second) {
           len += range_iter.end - range_iter.start;
         }
@@ -87,6 +87,8 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
       u64 host_cache = reinterpret_cast<u64>(memory->value_cache.get());
       u64 device = memory->memory_range.start;
 
+      dtoh(host_cache, device, memory->len);
+
       auto redundancy = 0;
       for (auto &range_iter : mem_iter.second) {
         auto host_cache_start = host_cache + range_iter.start - device;
@@ -94,7 +96,8 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
         auto range_len = range_iter.end - range_iter.start;
         redundancy += compute_memcpy_redundancy(host_cache_start, host_start, range_len);
         // Update host
-        memory_copy(reinterpret_cast<void *>(host_start), reinterpret_cast<void *>(host_cache_start), range_len);
+        memory_copy(reinterpret_cast<void *>(host_start),
+                    reinterpret_cast<void *>(host_cache_start), range_len);
       }
 
       // Point the operation to the calling context
@@ -103,16 +106,14 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
                         memory->len);
       update_op_node(memory->op_id, op->ctx_id);
 
-      if (_hash) {
+      if (_configs[REDSHOW_ANALYSIS_DATA_FLOW_HASH] == true) {
         std::string hash = compute_memory_hash(reinterpret_cast<u64>(host_cache), memory->len);
         _node_hash[op->ctx_id].emplace(hash);
       }
 
 #ifdef DEBUG_DATA_FLOW
-      std::cout << "ctx: " << op->ctx_id << ", hash: " << hash
-                << ", redundancy: " << redundancy
-                << " overwrite, " << overwrite << ", memory->len: "
-                << memory->len << std::endl;
+      std::cout << "ctx: " << op->ctx_id << ", hash: " << hash << ", redundancy: " << redundancy
+                << " overwrite, " << overwrite << ", memory->len: " << memory->len << std::endl;
 #endif
     }
   }
@@ -144,7 +145,7 @@ void DataFlow::memset_op_callback(std::shared_ptr<Memset> op) {
   memset(reinterpret_cast<void *>(op->start), op->value, op->len);
   u64 host = reinterpret_cast<u64>(memory->value.get());
 
-  if (_hash) {
+  if (_configs[REDSHOW_ANALYSIS_DATA_FLOW_HASH] == true) {
     std::string hash = compute_memory_hash(host, memory->len);
     _node_hash[op->ctx_id].emplace(hash);
   }
@@ -179,7 +180,8 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
                     DATA_FLOW_EDGE_READ);
 
   // Update host
-  memory_copy(reinterpret_cast<void *>(op->dst_start), reinterpret_cast<void *>(op->src_start), op->len);
+  memory_copy(reinterpret_cast<void *>(op->dst_start), reinterpret_cast<void *>(op->src_start),
+              op->len);
   u64 host = 0;
   if (op->dst_memory_op_id == REDSHOW_MEMORY_HOST || op->dst_memory_op_id == REDSHOW_MEMORY_UVM) {
     host = op->dst_start;
@@ -187,7 +189,7 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
     host = reinterpret_cast<u64>(dst_memory->value.get());
   }
 
-  if (_hash) {
+  if (_configs[REDSHOW_ANALYSIS_DATA_FLOW_HASH] == true) {
     std::string hash = compute_memory_hash(host, dst_len);
     _node_hash[op->ctx_id].emplace(hash);
   }
@@ -216,7 +218,8 @@ void DataFlow::op_callback(OperationPtr op) {
   unlock();
 }
 
-void DataFlow::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id, GPUPatchType type) {
+void DataFlow::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id,
+                              GPUPatchType type) {
   assert(type == GPU_PATCH_TYPE_ADDRESS_PATCH || type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS);
 
   lock();
@@ -283,7 +286,7 @@ void DataFlow::merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &m
         riter = memory.erase(riter);
       }
     }
- }
+  }
 
   while (range_delete) {
     range_delete = false;
@@ -319,12 +322,12 @@ void DataFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const Acces
 
   auto &memory_range = memory.memory_range;
   if (flags & GPU_PATCH_READ) {
-    if (_trace_read) {
+    if (_configs[REDSHOW_ANALYSIS_READ_TRACE_IGNORE] == false) {
       merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
     } else if (_trace->read_memory[memory.op_id].empty()) {
       _trace->read_memory[memory.op_id].insert(memory_range);
     }
-  } 
+  }
   if (flags & GPU_PATCH_WRITE) {
     merge_memory_range(_trace->write_memory[memory.op_id], memory_range);
   }

@@ -109,7 +109,7 @@ void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
 
   unlock();
   std::ofstream out(output_dir + "value_pattern_t" + std::to_string(cpu_thread) + ".csv");
-  do_summary_analysis = false;
+  bool do_summary_analysis = false;
   // for all kernels
   ValueDist r_value_dist_sum;
   ValueDist w_value_dist_sum;

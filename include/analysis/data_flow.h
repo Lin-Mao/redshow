@@ -21,13 +21,14 @@ namespace redshow {
 
 class DataFlow final : public Analysis {
  public:
-  DataFlow(bool hash = false) : Analysis(REDSHOW_ANALYSIS_DATA_FLOW), _hash(hash) { init(); }
+  DataFlow() : Analysis(REDSHOW_ANALYSIS_DATA_FLOW) { init(); }
 
   // Coarse-grained
   virtual void op_callback(OperationPtr operation);
 
   // Fine-grained
-  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mode_id, GPUPatchType type);
+  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mode_id,
+                              GPUPatchType type);
 
   virtual void analysis_end(u32 cpu_thread, i32 kernel_id);
 
@@ -36,7 +37,8 @@ class DataFlow final : public Analysis {
   virtual void block_exit(const ThreadId &thread_id);
 
   virtual void unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
-                           const Memory &memory, u64 pc, u64 value, u64 addr, u32 index, GPUPatchFlags flags);
+                           const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
+                           GPUPatchFlags flags);
 
   virtual void flush_thread(u32 cpu_thread, const std::string &output_dir,
                             const LockableMap<u32, Cubin> &cubins,
@@ -44,10 +46,6 @@ class DataFlow final : public Analysis {
 
   virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback);
-
-  void hash_on() { _hash = true; }
-
-  void hash_off() { _hash = false; }
 
   ~DataFlow() {}
 
@@ -155,8 +153,6 @@ class DataFlow final : public Analysis {
   Map<i32, Set<std::string>> _node_hash;
   Map<i32, u64> _node_count;
   Map<u64, std::shared_ptr<Memory>> _memories;
-
-  bool _hash;
 };
 
 }  // namespace redshow

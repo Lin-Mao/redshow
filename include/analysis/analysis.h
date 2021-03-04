@@ -37,15 +37,16 @@ class Analysis {
     }
   }
 
-  virtual void trace_read_on() { this->_trace_read = true; }
-
-  virtual void trace_read_off() { this->_trace_read = false; }
+  virtual void config(redshow_analysis_config_type_t config, bool enable) {
+    this->_configs[config] = enable;
+  }
 
   // Coarse-grained
   virtual void op_callback(OperationPtr operation) = 0;
 
   // Fine-grained
-  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id, GPUPatchType type) = 0;
+  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id,
+                              GPUPatchType type) = 0;
 
   virtual void analysis_end(u32 cpu_thread, i32 kernel_id) = 0;
 
@@ -82,12 +83,10 @@ class Analysis {
 
  protected:
   Map<u32, Map<i32, std::shared_ptr<Trace>>> _kernel_trace;
-  bool do_summary_analysis;
+  Map<redshow_analysis_config_type_t, bool> _configs;
   redshow_tool_dtoh_func _dtoh;
   redshow_analysis_type_t _type;
   std::mutex _lock;
-
-  bool _trace_read = true;
 };
 
 struct CompareView {
