@@ -87,20 +87,32 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
       u64 host_cache = reinterpret_cast<u64>(memory->value_cache.get());
       u64 device = memory->memory_range.start;
 
-      bool fragmented = false;
-      if ((static_cast<double>(overwrite) / memory->len) < _FRAGMENT_RATIO_LIMIT &&
-        memory->len > _FRAGMENT_SIZE_LIMIT) {
-        fragmented = true;
+      CopyType copy_type = CopyType::DEFAULT;
+
+      auto device_start_min = mem_iter.second.begin()->start;
+      auto device_end_max = std::prev(mem_iter.second.end())->end;
+      auto device_range_len = device_end_max - device_start_min;
+      auto overwrite_ratio = static_cast<double>(overwrite) / memory->len;
+      auto device_range_ratio = static_cast<double>(device_range_len) / memory->len;
+      if (device_range_ratio < _FRAGMENT_RATIO_LIMIT && memory->len > _FRAGMENT_SIZE_LIMIT) {
+        dtoh(host_cache + device_start_min - device, device, device_range_len);
+        copy_type = CopyType::MIN_MAX_FRAGMENT;
+      } else if (overwrite_ratio < _FRAGMENT_RATIO_LIMIT && memory->len > _FRAGMENT_SIZE_LIMIT) {
+        copy_type = CopyType::NON_CONTINOUS_FRAGMENT;
       } else {
         dtoh(host_cache, device, memory->len);
       }
+
+      ////Reserve for debugging
+      //std::cout << " ratio: " << overwrite_ratio << ", min_max_ratio: " << device_range_ratio
+      //  << ", len: " << memory->len << ", pieces: " << mem_iter.second.size() << std::endl;
 
       auto redundancy = 0;
       for (auto &range_iter : mem_iter.second) {
         auto host_cache_start = host_cache + range_iter.start - device;
         auto host_start = host + range_iter.start - device;
         auto range_len = range_iter.end - range_iter.start;
-        if (fragmented) {
+        if (copy_type == CopyType::NON_CONTINOUS_FRAGMENT) {
           dtoh(host_cache_start, range_iter.start, range_len);
         }
         redundancy += compute_memcpy_redundancy(host_cache_start, host_start, range_len);

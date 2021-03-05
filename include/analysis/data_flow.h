@@ -143,6 +143,13 @@ class DataFlow final : public Analysis {
   void dump(const std::string &output_dir, const Map<i32, Map<i32, bool>> &duplicate);
 
   void merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &memory_range);
+ 
+ private:
+  enum class CopyType {
+    DEFAULT = 0,
+    MIN_MAX_FRAGMENT = 1,
+    NON_CONTINOUS_FRAGMENT = 2
+  };
 
  private:
   // Multi-threading is not allowable for data flow profiling
@@ -155,8 +162,8 @@ class DataFlow final : public Analysis {
   Map<u64, std::shared_ptr<Memory>> _memories;
 
   const double _FRAGMENT_RATIO_LIMIT = 0.1;
-  // 256MB
-  const size_t _FRAGMENT_SIZE_LIMIT = 256 * 1024 * 1024;
+  // 128MB
+  const size_t _FRAGMENT_SIZE_LIMIT = 128 * 1024 * 1024;
 };
 
 }  // namespace redshow
