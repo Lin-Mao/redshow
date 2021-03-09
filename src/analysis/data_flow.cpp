@@ -103,9 +103,11 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
         dtoh(host_cache, device, memory->len);
       }
 
-      ////Reserve for debugging
-      //std::cout << " ratio: " << overwrite_ratio << ", min_max_ratio: " << device_range_ratio
-      //  << ", len: " << memory->len << ", pieces: " << mem_iter.second.size() << std::endl;
+#ifdef DEBUG_DATA_FLOW
+      //Reserve for debugging
+      std::cout << " ratio: " << overwrite_ratio << ", min_max_ratio: " << device_range_ratio
+        << ", len: " << memory->len << ", pieces: " << mem_iter.second.size() << std::endl;
+#endif
 
       auto redundancy = 0;
       for (auto &range_iter : mem_iter.second) {
