@@ -103,11 +103,16 @@ void ValuePattern::unit_access(i32 kernel_id, const ThreadId &thread_id,
 void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
                                 const LockableMap<u32, Cubin> &cubins,
                                 redshow_record_data_callback_func record_data_callback) {
+  if (!this->_kernel_trace.has(cpu_thread)) {
+    return;
+  }
+
   lock();
 
   auto &thread_kernel_trace = this->_kernel_trace.at(cpu_thread);
 
   unlock();
+
   std::ofstream out(output_dir + "value_pattern_t" + std::to_string(cpu_thread) + ".csv");
   bool do_summary_analysis = false;
   // for all kernels
