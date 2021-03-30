@@ -129,8 +129,9 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
                         memory->len);
       update_op_node(memory->op_id, op->ctx_id);
 
+      std::string hash;
       if (_configs[REDSHOW_ANALYSIS_DATA_FLOW_HASH] == true) {
-        std::string hash = compute_memory_hash(reinterpret_cast<u64>(host_cache), memory->len);
+        hash = compute_memory_hash(reinterpret_cast<u64>(host_cache), memory->len);
         _node_hash[op->ctx_id].emplace(hash);
       }
 
