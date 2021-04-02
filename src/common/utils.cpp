@@ -27,6 +27,7 @@ void memory_copy(void *dst, void *src, size_t len) {
   auto *dst_ptr = reinterpret_cast<unsigned char *>(dst);
   auto *src_ptr = reinterpret_cast<unsigned char *>(src);
 
+// neseted parallelism is fine
   if (len > OMP_SEQ_LEN) {
 #pragma omp parallel for simd
     for (size_t i = 0; i < len; ++i) {

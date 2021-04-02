@@ -22,7 +22,13 @@ LIB := $(LIB_DIR)lib$(PROJECT).so
 ifdef DEBUG
 OFLAGS += -g -DDEBUG
 else
-OFLAGS += -O3 -march=native
+OFLAGS += -g -O3
+endif
+
+ifdef AVX
+OFLAGS += -m$(AVX)
+else
+OFLAGS += -march=native
 endif
 
 CFLAGS := -fPIC -std=c++17 $(OFLAGS)

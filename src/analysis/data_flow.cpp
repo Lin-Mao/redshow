@@ -79,6 +79,7 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
     auto memory = _memories.at(mem_iter.first);
     if (memory->op_id > REDSHOW_MEMORY_HOST) {
       auto overwrite = 0;
+
       for (auto &range_iter : mem_iter.second) {
         overwrite += range_iter.end - range_iter.start;
       }
@@ -94,22 +95,25 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
       auto device_range_len = device_end_max - device_start_min;
       auto overwrite_ratio = static_cast<double>(overwrite) / memory->len;
       auto device_range_ratio = static_cast<double>(device_range_len) / memory->len;
-      if (device_range_ratio < _FRAGMENT_RATIO_LIMIT && memory->len > _FRAGMENT_SIZE_LIMIT) {
-        dtoh(host_cache + device_start_min - device, device, device_range_len);
-        copy_type = CopyType::MIN_MAX_FRAGMENT;
-      } else if (overwrite_ratio < _FRAGMENT_RATIO_LIMIT && memory->len > _FRAGMENT_SIZE_LIMIT) {
+      auto range_size = mem_iter.second.size();
+      // TODO(Keren): derive a cost model based switch
+      if (overwrite_ratio < _FRAGMENT_RATIO_LIMIT && memory->len > _FRAGMENT_SIZE_LIMIT &&
+        range_size < _FRAGMENT_LEN_LIMIT) {
         copy_type = CopyType::NON_CONTINOUS_FRAGMENT;
       } else {
-        dtoh(host_cache, device, memory->len);
+        dtoh(host_cache + device_start_min - device, device, device_range_len);
+        copy_type = CopyType::MIN_MAX_FRAGMENT;
       }
 
 #ifdef DEBUG_DATA_FLOW
       //Reserve for debugging
       std::cout << " ratio: " << overwrite_ratio << ", min_max_ratio: " << device_range_ratio
-        << ", len: " << memory->len << ", pieces: " << mem_iter.second.size() << std::endl;
+        << ", len: " << memory->len << ", pieces: " << mem_iter.second.size()
+        << ", policy: " << static_cast<int>(copy_type) << std::endl;
 #endif
 
-      auto redundancy = 0;
+      // Update host now
+      uint64_t redundancy = 0;
       for (auto &range_iter : mem_iter.second) {
         auto host_cache_start = host_cache + range_iter.start - device;
         auto host_start = host + range_iter.start - device;
@@ -117,10 +121,8 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
         if (copy_type == CopyType::NON_CONTINOUS_FRAGMENT) {
           dtoh(host_cache_start, range_iter.start, range_len);
         }
-        redundancy += compute_memcpy_redundancy(host_cache_start, host_start, range_len);
-        // Update host
-        memory_copy(reinterpret_cast<void *>(host_start),
-                    reinterpret_cast<void *>(host_cache_start), range_len);
+        // Compute redundancy and update host
+        redundancy += compute_memcpy_redundancy<true>(host_cache_start, host_start, range_len);
       }
 
       // Point the operation to the calling context
@@ -182,7 +184,7 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
   auto src_len = src_memory->len == 0 ? op->len : src_memory->len;
   auto dst_len = dst_memory->len == 0 ? op->len : dst_memory->len;
 
-  u64 redundancy = compute_memcpy_redundancy(op->dst_start, op->src_start, op->len);
+  u64 redundancy = compute_memcpy_redundancy<false>(op->dst_start, op->src_start, op->len);
 
   if (op->dst_memory_op_id == REDSHOW_MEMORY_HOST || op->dst_memory_op_id == REDSHOW_MEMORY_UVM) {
     // sink edge

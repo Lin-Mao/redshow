@@ -164,6 +164,8 @@ class DataFlow final : public Analysis {
   const double _FRAGMENT_RATIO_LIMIT = 0.1;
   // 128MB
   const size_t _FRAGMENT_SIZE_LIMIT = 128 * 1024 * 1024;
+  // 
+  const size_t _FRAGMENT_LEN_LIMIT = 10000;
 };
 
 }  // namespace redshow
