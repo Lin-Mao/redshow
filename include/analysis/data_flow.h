@@ -9,6 +9,7 @@
 #include "common/graph.h"
 #include "common/map.h"
 #include "common/set.h"
+#include "common/path.h"
 #include "common/utils.h"
 #include "operation/kernel.h"
 #include "operation/memcpy.h"
@@ -160,6 +161,8 @@ class DataFlow final : public Analysis {
   Map<i32, Set<std::string>> _node_hash;
   Map<i32, u64> _node_count;
   Map<u64, std::shared_ptr<Memory>> _memories;
+
+  Path<MemoryRange> _ranges;
 
   const double _FRAGMENT_RATIO_LIMIT = 0.1;
   // 128MB

@@ -80,8 +80,10 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
     if (memory->op_id > REDSHOW_MEMORY_HOST) {
       auto overwrite = 0;
 
+      _ranges.reset();
       for (auto &range_iter : mem_iter.second) {
         overwrite += range_iter.end - range_iter.start;
+        _ranges.push_back(std::move(MemoryRange(range_iter.start, range_iter.end)));
       }
 
       u64 host = reinterpret_cast<u64>(memory->value.get());
@@ -112,16 +114,26 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
         << ", policy: " << static_cast<int>(copy_type) << std::endl;
 #endif
 
-      // Update host now
-      uint64_t redundancy = 0;
-      for (auto &range_iter : mem_iter.second) {
-        auto host_cache_start = host_cache + range_iter.start - device;
-        auto host_start = host + range_iter.start - device;
-        auto range_len = range_iter.end - range_iter.start;
-        if (copy_type == CopyType::NON_CONTINOUS_FRAGMENT) {
+      // Update host, cannot be multi-threading because spawned threads do not have context
+      if (copy_type == CopyType::NON_CONTINOUS_FRAGMENT) {
+        for (auto &range_iter : mem_iter.second) {
+          auto host_cache_start = host_cache + range_iter.start - device;
+          auto host_start = host + range_iter.start - device;
+          auto range_len = range_iter.end - range_iter.start;
           dtoh(host_cache_start, range_iter.start, range_len);
         }
-        // Compute redundancy and update host
+      }
+      
+      // Compute redundancy and update host
+      auto redundancy = 0;
+#ifdef OPENMP
+#pragma omp parallel for if (_ranges.size() > OMP_SEQ_LEN) reduction(+:redundancy)
+#endif
+      for (size_t i = 0; i < _ranges.size(); ++i) {
+        auto &range = _ranges[i];
+        auto host_cache_start = host_cache + range.start - device;
+        auto host_start = host + range.start - device;
+        auto range_len = range.end - range.start;
         redundancy += compute_memcpy_redundancy<true>(host_cache_start, host_start, range_len);
       }
 
