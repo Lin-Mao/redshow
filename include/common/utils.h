@@ -4,7 +4,12 @@
 #define MIN2(x, y) (x > y ? y : x)
 #define MAX2(x, y) (x > y ? x : y)
 
+#include <cstddef>
 #include <cstdint>
+#include <cassert>
+#ifdef OPENMP
+#include <omp.h>
+#endif
 
 namespace redshow {
 
@@ -50,6 +55,8 @@ const int LOCAL_MEMORY_CTX_ID    = (1 << 30) + 4;
 const int PC_VIEWS_LIMIT = 10;
 const int MEM_VIEWS_LIMIT = 10;
 
+const int OMP_SEQ_LEN = 100000;
+
 struct ThreadId {
   u32 flat_block_id;
   u32 flat_thread_id;
@@ -81,6 +88,9 @@ u64 value_to_float(u64 value, int decimal_degree_f32);
  * @return u64
  */
 u64 value_to_double(u64 value, int decimal_degree_f64);
+
+
+void memory_copy(void *dst, void *src, size_t len);
 
 }  // namespace redshow
 

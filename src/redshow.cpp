@@ -49,6 +49,7 @@ typedef Map<MemoryRange, std::shared_ptr<Memory>> MemoryMap;
 static LockableMap<uint64_t, MemoryMap> memory_snapshot;
 
 // Init analysis instance
+// TODO(Keren): Separate address and full analysis modes
 static Map<redshow_analysis_type_t, std::shared_ptr<Analysis>> analysis_enabled;
 
 static Map<redshow_analysis_type_t, std::string> output_dir;
@@ -68,7 +69,7 @@ static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
 static redshow_data_type_t default_data_type = REDSHOW_DATA_UNKNOWN;
 
 static redshow_result_t analyze_cubin(const char *path, SymbolVector &symbols,
-  InstructionGraph &inst_graph) {
+                                      InstructionGraph &inst_graph) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
   std::string cubin_path = std::string(path);
@@ -101,9 +102,280 @@ static redshow_result_t analyze_cubin(const char *path, SymbolVector &symbols,
   return result;
 }
 
+static redshow_result_t trace_analyze_address_patch(int32_t kernel_id, MemoryMap *memory_map,
+                                                    gpu_patch_buffer_t *trace_data) {
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  size_t size = trace_data->head_index;
+  gpu_patch_record_address_t *records =
+      reinterpret_cast<gpu_patch_record_address_t *>(trace_data->records);
+
+  // Dummy entries
+  AccessKind access_kind;
+  ThreadId thread_id{0, 0};
+
+  for (size_t i = 0; i < size; ++i) {
+    // Iterate over each record
+    gpu_patch_record_address_t *record = records + i;
+
+    for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+      if ((record->active & (0x1u << j)) == 0) {
+        continue;
+      }
+
+      // <start, end>
+      MemoryRange memory_range(record->address[j], record->address[j] + record->size);
+
+      auto iter = memory_map->prev(memory_range);
+      uint64_t memory_op_id = 0;
+      int32_t memory_id = 0;
+      uint64_t memory_size = 0;
+      uint64_t memory_addr = 0;
+      if (iter != memory_map->end()) {
+        if (record->address[j] >= iter->second->memory_range.start &&
+            record->address[j] + record->size <= iter->second->memory_range.end) {
+          memory_op_id = iter->second->op_id;
+          memory_id = iter->second->ctx_id;
+          memory_size = record->size;
+          memory_addr = memory_range.start;
+        } else {
+          // TODO(Keren): Investigate what are the causes
+          // Prevent out of bound memory accesses
+          continue;
+        }
+      }
+
+      if (memory_op_id == 0) {
+        // Unknown memory object
+        continue;
+      }
+
+      Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
+      // XXX(Keren): Need to separate address analysis with value analysis
+      for (auto aiter : analysis_enabled) {
+        aiter.second->unit_access(kernel_id, thread_id, access_kind, memory, 0, 0, 0, 0,
+                                  static_cast<GPUPatchFlags>(record->flags));
+      }
+    }
+  }
+  return result;
+}
+
+static redshow_result_t trace_analyze_address_analysis(int32_t kernel_id, MemoryMap *memory_map,
+                                                       gpu_patch_buffer_t *trace_data) {
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  size_t size = trace_data->head_index;
+  gpu_patch_analysis_address_t *records =
+      reinterpret_cast<gpu_patch_analysis_address_t *>(trace_data->records);
+
+  // Dummy entries
+  AccessKind access_kind;
+  ThreadId thread_id{0, 0};
+
+  for (size_t i = 0; i < size; ++i) {
+    // Iterate over each record
+    gpu_patch_analysis_address_t *record = records + i;
+
+    // <start, end>
+    MemoryRange memory_range(record->start, record->end);
+    uint64_t addr_start = record->start;
+    uint64_t addr_end = addr_start;
+
+    // Separate memories from a continous address region
+    while (addr_end < memory_range.end) {
+      MemoryRange cur_memory_range(addr_start, addr_start);
+      auto iter = memory_map->prev(cur_memory_range);
+
+      uint64_t memory_op_id = 0;
+      int32_t memory_id = 0;
+      uint64_t memory_size = 0;
+      uint64_t memory_addr = 0;
+      if (iter != memory_map->end()) {
+        if (iter->first.start <= addr_start && iter->first.end > addr_start) {
+          addr_end = MIN2(memory_range.end, iter->first.end);
+          memory_op_id = iter->second->op_id;
+          memory_id = iter->second->ctx_id;
+          memory_size = addr_end - addr_start;
+          memory_addr = addr_start;
+          addr_start = iter->first.end;
+        } else {
+          // TODO(Keren): Investigate what are the causes
+          // Prevent out of bound memory accesses
+          break;
+        }
+      }
+
+      if (memory_op_id == 0) {
+        // Unknown memory object
+        break;
+      }
+
+      Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
+      // XXX(Keren): Need to separate address analysis with value analysis
+      for (auto aiter : analysis_enabled) {
+        aiter.second->unit_access(kernel_id, thread_id, access_kind, memory, 0, 0, 0, 0,
+                                  static_cast<GPUPatchFlags>(trace_data->flags));
+      }
+    }
+  }
+
+  return result;
+}
+
+static redshow_result_t trace_analyze_default(int32_t kernel_id, InstructionGraph *inst_graph,
+                                              SymbolVector *symbols, MemoryMap *memory_map,
+                                              gpu_patch_buffer_t *trace_data) {
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  size_t size = trace_data->head_index;
+  gpu_patch_record_t *records = reinterpret_cast<gpu_patch_record_t *>(trace_data->records);
+
+  for (size_t i = 0; i < size; ++i) {
+    // Iterate over each record
+    gpu_patch_record_t *record = records + i;
+
+    if (record->size == 0) {
+      // Fast path, no thread active
+      continue;
+    }
+
+    if (record->flags & GPU_PATCH_BLOCK_ENTER_FLAG) {
+      // Skip analysis
+    } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
+      // Remove temporal records
+      for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+        if (record->active & (0x1u << j)) {
+          uint32_t flat_thread_id =
+              record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
+          ThreadId thread_id{record->flat_block_id, flat_thread_id};
+          for (auto aiter : analysis_enabled) {
+            aiter.second->block_exit(thread_id);
+          }
+        }
+      }
+    } else {
+      RealPC real_pc;
+
+      auto ret = symbols->transform_pc(record->pc);
+      if (ret.has_value()) {
+        real_pc = ret.value();
+      } else {
+        result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
+        return result;
+      }
+
+      // record->size * 8, byte to bits
+      AccessKind access_kind;
+
+      if (inst_graph->size() != 0) {
+        // Accurate mode, when we have instruction information
+        auto &inst = inst_graph->node(real_pc.cubin_offset);
+        if (inst.access_kind.get() != NULL) {
+          access_kind = *inst.access_kind;
+        }
+        // Fall back to default mode if failed
+      }
+
+      if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
+        // Default mode, we identify every data as 64 bits unit size, 64 bits vec size, float type
+        access_kind.data_type = default_data_type;
+        if (access_kind.vec_size == 0) {
+          access_kind.vec_size = record->size * 8;
+          access_kind.unit_size = MIN2(32, access_kind.vec_size);
+        }
+      }
+
+      // Reserved for debugging
+      // std::cout << "function_index: " << real_pc.function_index << ", pc_offset: " <<
+      //  real_pc.pc_offset << ", " << access_kind.to_string() << std::endl;
+      // TODO: accelerate by handling all threads in a warp together
+      for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+        if ((record->active & (0x1u << j)) == 0) {
+          continue;
+        }
+
+        uint32_t flat_thread_id =
+            record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
+        ThreadId thread_id{record->flat_block_id, flat_thread_id};
+
+        MemoryRange memory_range(record->address[j], record->address[j]);
+        auto iter = memory_map->prev(memory_range);
+        uint64_t memory_op_id = 0;
+        int32_t memory_id = 0;
+        uint64_t memory_size = 0;
+        uint64_t memory_addr = 0;
+        if (iter != memory_map->end()) {
+          if (record->address[j] >= iter->second->memory_range.start &&
+              record->address[j] + record->size <= iter->second->memory_range.end) {
+            memory_op_id = iter->second->op_id;
+            memory_id = iter->second->ctx_id;
+            memory_size = iter->second->len;
+            memory_addr = iter->second->memory_range.start;
+          } else {
+            // TODO(Keren): Investigate what are the causes
+            // Prevent out of bound memory accesses
+            continue;
+          }
+        }
+
+        uint32_t stride = GLOBAL_MEMORY_OFFSET;
+        if (memory_op_id == 0) {
+          // XXX(Keren): memory_op_id == 1 ?
+          // Memory object not found, it means the memory is local, shared, or allocated in an
+          // unknown way
+          if (record->flags & GPU_PATCH_LOCAL) {
+            memory_op_id = REDSHOW_MEMORY_LOCAL;
+            memory_id = LOCAL_MEMORY_CTX_ID;
+            stride = LOCAL_MEMORY_OFFSET;
+          } else if (record->flags & GPU_PATCH_SHARED) {
+            memory_op_id = REDSHOW_MEMORY_SHARED;
+            memory_id = SHARED_MEMORY_CTX_ID;
+            stride = SHARED_MEMORY_OFFSET;
+          } else {
+            // Unknown allocation
+          }
+        }
+
+        if (memory_op_id == 0) {
+          // Unknown memory object
+          continue;
+        }
+
+        Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
+        auto num_units = access_kind.vec_size / access_kind.unit_size;
+        AccessKind unit_access_kind = access_kind;
+        // We iterate through all the units such that every unit's vec_size = unit_size
+        unit_access_kind.vec_size = unit_access_kind.unit_size;
+
+        for (size_t m = 0; m < num_units; m++) {
+          uint64_t value = 0;
+          uint32_t byte_size = unit_access_kind.unit_size >> 3u;
+          memcpy(&value, &record->value[j][m * byte_size], byte_size);
+          // The 7th digit in float number's decimal part is partial valid, so we set the deault
+          // approx level to REDSHOW_APPROX_MIN.
+          value =
+              unit_access_kind.value_to_basic_type(value, decimal_degree_f32, decimal_degree_f64);
+
+          // Reserved for debug
+          // std::cout << "thread: " << j << ", value: " << value << std::endl;
+
+          for (auto aiter : analysis_enabled) {
+            aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory, record->pc,
+                                      value, record->address[j], m,
+                                      static_cast<GPUPatchFlags>(record->flags));
+          }
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
 static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_t mod_id,
-  int32_t kernel_id, uint64_t host_op_id,
-  gpu_patch_buffer_t *trace_data) {
+                                      int32_t kernel_id, uint64_t host_op_id,
+                                      gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
   SymbolVector *symbols = NULL;
@@ -188,149 +460,16 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
   }
 
   for (auto aiter : analysis_enabled) {
-    aiter.second->analysis_begin(cpu_thread, kernel_id, cubin_id, mod_id);
+    aiter.second->analysis_begin(cpu_thread, kernel_id, cubin_id, mod_id,
+                                 static_cast<GPUPatchType>(trace_data->type));
   }
 
-  size_t size = trace_data->head_index;
-  gpu_patch_record_t *records = reinterpret_cast<gpu_patch_record_t *>(trace_data->records);
-
-  for (size_t i = 0; i < size; ++i) {
-    // Iterate over each record
-    gpu_patch_record_t *record = records + i;
-
-    if (record->size == 0) {
-      // Fast path, no thread active
-      continue;
-    }
-
-    if (record->flags & GPU_PATCH_BLOCK_ENTER_FLAG) {
-      // Skip analysis
-    } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
-      // Remove temporal records
-      for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
-        if (record->active & (0x1u << j)) {
-          uint32_t flat_thread_id =
-            record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
-          ThreadId thread_id{record->flat_block_id, flat_thread_id};
-          for (auto aiter : analysis_enabled) {
-            aiter.second->block_exit(thread_id);
-          }
-        }
-      }
-    } else {
-      RealPC real_pc;
-
-      auto ret = symbols->transform_pc(record->pc);
-      if (ret.has_value()) {
-        real_pc = ret.value();
-      } else {
-        result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
-        return result;
-      }
-
-      // record->size * 8, byte to bits
-      AccessKind access_kind;
-
-      if (inst_graph->size() != 0) {
-        // Accurate mode, when we have instruction information
-        auto &inst = inst_graph->node(real_pc.cubin_offset);
-        if (inst.access_kind.get() != NULL) {
-          access_kind = *inst.access_kind;
-        }
-        // Fall back to default mode if failed
-      }
-
-      if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
-        // Default mode, we identify every data as 64 bits unit size, 64 bits vec size, float type
-        access_kind.data_type = default_data_type;
-        if (access_kind.vec_size == 0) {
-          access_kind.vec_size = record->size * 8;
-          access_kind.unit_size = MIN2(32, access_kind.vec_size);
-        }
-      }
-
-      // Reserved for debugging
-      //std::cout << "function_index: " << real_pc.function_index << ", pc_offset: " <<
-      //  real_pc.pc_offset << ", " << access_kind.to_string() << std::endl;
-      // TODO: accelerate by handling all threads in a warp together
-      for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
-        if ((record->active & (0x1u << j)) == 0) {
-          continue;
-        }
-
-        uint32_t flat_thread_id =
-          record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
-        ThreadId thread_id{record->flat_block_id, flat_thread_id};
-
-        MemoryRange memory_range(record->address[j], record->address[j]);
-        auto iter = memory_map->prev(memory_range);
-        uint64_t memory_op_id = 0;
-        int32_t memory_id = 0;
-        uint64_t memory_size = 0;
-        uint64_t memory_addr = 0;
-        if (iter != memory_map->end()) {
-          if (record->address[j] >= iter->second->memory_range.start &&
-            record->address[j] < iter->second->memory_range.end) {
-            memory_op_id = iter->second->op_id;
-            memory_id = iter->second->ctx_id;
-            memory_size = iter->second->len;
-            memory_addr = iter->second->memory_range.start;
-          } else {
-            // TODO(Keren): Investigate what are the causes
-            // Prevent out of bound memory accesses
-            continue;
-          }
-        }
-
-        uint32_t stride = GLOBAL_MEMORY_OFFSET;
-        if (memory_op_id == 0) {
-          // XXX(Keren): memory_op_id == 1 ?
-          // Memory object not found, it means the memory is local, shared, or allocated in an
-          // unknown way
-          if (record->flags & GPU_PATCH_LOCAL) {
-            memory_op_id = REDSHOW_MEMORY_LOCAL;
-            memory_id = LOCAL_MEMORY_CTX_ID;
-            stride = LOCAL_MEMORY_OFFSET;
-          } else if (record->flags & GPU_PATCH_SHARED) {
-            memory_op_id = REDSHOW_MEMORY_SHARED;
-            memory_id = SHARED_MEMORY_CTX_ID;
-            stride = SHARED_MEMORY_OFFSET;
-          } else {
-            // Unknown allocation
-          }
-        }
-
-        if (memory_op_id == 0) {
-          // Unknown memory object
-          continue;
-        }
-
-        Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
-        auto num_units = access_kind.vec_size / access_kind.unit_size;
-        AccessKind unit_access_kind = access_kind;
-        // We iterate through all the units such that every unit's vec_size = unit_size
-        unit_access_kind.vec_size = unit_access_kind.unit_size;
-
-        bool read = (record->flags & GPU_PATCH_WRITE) ? false : true;
-
-        for (size_t m = 0; m < num_units; m++) {
-          uint64_t value = 0;
-          uint32_t byte_size = unit_access_kind.unit_size >> 3u;
-          memcpy(&value, &record->value[j][m * byte_size], byte_size);
-          // The 7th digit in float number's decimal part is partial valid, so we set the deault approx level to REDSHOW_APPROX_MIN.
-          value =
-            unit_access_kind.value_to_basic_type(value, decimal_degree_f32, decimal_degree_f64);
-
-          // Reserved for debug
-          //std::cout << "thread: " << j << ", value: " << value << std::endl;
-
-          for (auto aiter : analysis_enabled) {
-            aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory, record->pc,
-              value, record->address[j], m, read);
-          }
-        }
-      }
-    }
+  if (trace_data->type == GPU_PATCH_TYPE_DEFAULT) {
+    result = trace_analyze_default(kernel_id, inst_graph, symbols, memory_map, trace_data);
+  } else if (trace_data->type == GPU_PATCH_TYPE_ADDRESS_PATCH) {
+    result = trace_analyze_address_patch(kernel_id, memory_map, trace_data);
+  } else if (trace_data->type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS) {
+    result = trace_analyze_address_analysis(kernel_id, memory_map, trace_data);
   }
 
   for (auto aiter : analysis_enabled) {
@@ -345,7 +484,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
  */
 
 redshow_result_t redshow_output_dir_config(redshow_analysis_type_t analysis, const char *dir) {
-  PRINT("\nredshow->Enter redshow_output_dir_config\nanalysis: %u\ndir: %s\n", analysis, dir);
+  PRINT("\nredshow-> Enter redshow_output_dir_config\nanalysis: %u\ndir: %s\n", analysis, dir);
 
   if (dir) {
     output_dir[analysis] = std::string(dir);
@@ -355,7 +494,7 @@ redshow_result_t redshow_output_dir_config(redshow_analysis_type_t analysis, con
 }
 
 redshow_result_t redshow_data_type_config(redshow_data_type_t data_type) {
-  PRINT("\nredshow->Enter redshow_data_type_config\ndata_type: %u\n", data_type);
+  PRINT("\nredshow-> Enter redshow_data_type_config\ndata_type: %u\n", data_type);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -426,18 +565,18 @@ redshow_result_t redshow_approx_get(int *degree_f32, int *degree_f64) {
 }
 
 redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) {
-  PRINT("\nredshow->Enter redshow_analysis_enable\nanalysis_type: %u\n", analysis_type);
+  PRINT("\nredshow-> Enter redshow_analysis_enable\nanalysis_type: %u\n", analysis_type);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
   switch (analysis_type) {
     case REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY,
-        std::make_shared<SpatialRedundancy>());
+                               std::make_shared<SpatialRedundancy>());
       break;
     case REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY,
-        std::make_shared<TemporalRedundancy>());
+                               std::make_shared<TemporalRedundancy>());
       break;
     case REDSHOW_ANALYSIS_DATA_FLOW:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_DATA_FLOW, std::make_shared<DataFlow>());
@@ -453,18 +592,43 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
   return result;
 }
 
+redshow_result_t redshow_analysis_enabled(redshow_analysis_type_t analysis_type) {
+  PRINT("\nredshow-> Enter redshow_analysis_enabled\nanalysis_type: %u\n", analysis_type);
+
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  if (!analysis_enabled.has(analysis_type)) {
+    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+  }
+
+  return result;
+}
+
 redshow_result_t redshow_analysis_disable(redshow_analysis_type_t analysis_type) {
-  PRINT("\nredshow->Enter redshow_analysis_disable\nanalysis_type: %u\n", analysis_type);
+  PRINT("\nredshow-> Enter redshow_analysis_disable\nanalysis_type: %u\n", analysis_type);
 
   analysis_enabled.erase(analysis_type);
 
   return REDSHOW_SUCCESS;
 }
 
+redshow_result_t redshow_analysis_config(redshow_analysis_type_t analysis_type,
+                                         redshow_analysis_config_type_t config_type, bool enable) {
+  PRINT(
+      "\nredshow-> Enter redshow_analysis_config\nanalysis_type: %u, config_type: %u, enable: %u\n",
+      analysis_type, config_type, enable);
+
+  if (analysis_enabled.has(analysis_type)) {
+    analysis_enabled[analysis_type]->config(config_type, enable);
+  }
+
+  return REDSHOW_SUCCESS;
+}
+
 redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols,
-  const uint64_t *symbol_pcs, const char *path) {
-  PRINT("\nredshow->Enter redshow_cubin_register\ncubin_id: %u\nmode_id: %u\npath: %s\n", cubin_id,
-    mod_id, path);
+                                        const uint64_t *symbol_pcs, const char *path) {
+  PRINT("\nredshow-> Enter redshow_cubin_register\ncubin_id: %u\nmode_id: %u\npath: %s\n", cubin_id,
+        mod_id, path);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -505,9 +669,9 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id, uint
 }
 
 redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols,
-  uint64_t *symbol_pcs, const char *path) {
-  PRINT("\nredshow->Enter redshow_cubin_cache_register\ncubin_id: %u\nmod_id: %u\npath: %s\n",
-    cubin_id, mod_id, path);
+                                              uint64_t *symbol_pcs, const char *path) {
+  PRINT("\nredshow-> Enter redshow_cubin_cache_register\ncubin_id: %u\nmod_id: %u\npath: %s\n",
+        cubin_id, mod_id, path);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -520,7 +684,7 @@ redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id
     cubin_cache.nsymbols = nsymbols;
     result = REDSHOW_SUCCESS;
   } else if (cubin_cache_map[cubin_id].symbol_pcs.find(mod_id) ==
-    cubin_cache_map[cubin_id].symbol_pcs.end()) {
+             cubin_cache_map[cubin_id].symbol_pcs.end()) {
     result = REDSHOW_SUCCESS;
   } else {
     result = REDSHOW_ERROR_DUPLICATE_ENTRY;
@@ -539,7 +703,7 @@ redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id
 }
 
 redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mod_id) {
-  PRINT("\nredshow->Enter redshow_cubin_unregister\ncubin_id: %u\n", cubin_id);
+  PRINT("\nredshow-> Enter redshow_cubin_unregister\ncubin_id: %u\n", cubin_id);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -559,11 +723,11 @@ redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mod_id) {
 }
 
 redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id, uint64_t start,
-  uint64_t end) {
+                                         uint64_t end) {
   PRINT(
-    "\nredshow->Enter redshow_memory_register\nmemory_id: %d\nhost_op_id: %llu\nstart: %p\nend: "
-    "%p\n",
-    memory_id, host_op_id, start, end);
+      "\nredshow-> Enter redshow_memory_register\nmemory_id: %d\nhost_op_id: %llu\nstart: %p\nend: "
+      "%p\n",
+      memory_id, host_op_id, start, end);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -607,8 +771,8 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
 }
 
 redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t start, uint64_t end) {
-  PRINT("\nredshow->Enter redshow_memory_unregister\nhost_op_id: %llu\nstart: %p\nend: %p\n",
-    host_op_id, start, end);
+  PRINT("\nredshow-> Enter redshow_memory_unregister\nhost_op_id: %llu\nstart: %p\nend: %p\n",
+        host_op_id, start, end);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -637,9 +801,9 @@ redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t start, 
 }
 
 redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32_t *memory_id,
-  uint64_t *memory_op_id, uint64_t *shadow_start,
-  uint64_t *len) {
-  PRINT("\nredshow->Enter redshow_memory_query\nhost_op_id: %lu\nstart: %p\n", host_op_id, start);
+                                      uint64_t *memory_op_id, uint64_t *shadow_start,
+                                      uint64_t *len) {
+  PRINT("\nredshow-> Enter redshow_memory_query\nhost_op_id: %lu\nstart: %p\n", host_op_id, start);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -658,7 +822,7 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
       *shadow_start = reinterpret_cast<uint64_t>(memory_map_iter->second->value.get()) + offset;
       *len = memory_map_iter->second->len;
       PRINT("memory_id: %d\nmemory_op_id: %llu\noffset %llu\nshadow: %p\nlen: %llu\n", *memory_id,
-        *memory_op_id, offset, *shadow_start, *len);
+            *memory_op_id, offset, *shadow_start, *len);
       result = REDSHOW_SUCCESS;
     } else {
       result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
@@ -671,14 +835,46 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
   return result;
 }
 
+EXTERNC redshow_result_t redshow_memory_ranges_get(uint64_t host_op_id, uint64_t limit,
+                                                   gpu_patch_analysis_address *start_end,
+                                                   uint32_t *len) {
+  PRINT("\nredshow-> Enter redshow_memory_ranges_get\nhost_op_id: %lu\nlimit: %lu\n", host_op_id,
+        limit);
+
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  *len = 0;
+  memory_snapshot.lock();
+  auto snapshot_iter = memory_snapshot.prev(host_op_id);
+  if (snapshot_iter != memory_snapshot.end()) {
+    auto &memory_map = snapshot_iter->second;
+    if (memory_map.size() != 0) {
+      auto memory_map_iter = memory_map.begin();
+      while (memory_map_iter != memory_map.end()) {
+        start_end[(*len)].start = memory_map_iter->first.start;
+        start_end[(*len)].end = memory_map_iter->first.end;
+        ++(*len);
+        ++memory_map_iter;
+      }
+    } else {
+      result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+    }
+  } else {
+    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+  }
+  memory_snapshot.unlock();
+
+  return result;
+}
+
 redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id, bool src_host,
-  uint64_t src_start, bool dst_host, uint64_t dst_start,
-  uint64_t len) {
+                                         uint64_t src_start, bool dst_host, uint64_t dst_start,
+                                         uint64_t len) {
   PRINT(
-    "\nredshow->Enter redshow_memcpy_register\nmemcpy_id: %d\nhost_op_id: "
-    "%llu\nsrc_host: %d\nsrc_start: %llu\ndst_host: %d\ndst_start: "
-    "%llu\nlen: %llu\n",
-    memcpy_id, host_op_id, src_host, src_start, dst_host, dst_start, len);
+      "\nredshow-> Enter redshow_memcpy_register\nmemcpy_id: %d\nhost_op_id: "
+      "%llu\nsrc_host: %d\nsrc_start: %llu\ndst_host: %d\ndst_start: "
+      "%llu\nlen: %llu\n",
+      memcpy_id, host_op_id, src_host, src_start, dst_host, dst_start, len);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -697,7 +893,7 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
     src_mem_op_id = REDSHOW_MEMORY_HOST;
   } else {
     redshow_memory_query(host_op_id, src_start, &src_mem_id, &src_mem_op_id, &src_mem_addr,
-      &src_size);
+                         &src_size);
   }
 
   if (dst_host) {
@@ -706,13 +902,13 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
     dst_mem_op_id = REDSHOW_MEMORY_HOST;
   } else {
     redshow_memory_query(host_op_id, dst_start, &dst_mem_id, &dst_mem_op_id, &dst_mem_addr,
-      &dst_size);
+                         &dst_size);
   }
 
-  if (dst_mem_addr != 0) {
+  if (dst_mem_addr != 0 && src_mem_addr != 0) {
     // Avoid memcpy to symbol without allocation
     auto memcpy = std::make_shared<Memcpy>(host_op_id, memcpy_id, src_mem_op_id, src_mem_addr,
-      dst_mem_op_id, dst_mem_addr, len);
+                                           dst_mem_op_id, dst_mem_addr, len);
 
     for (auto aiter : analysis_enabled) {
       aiter.second->op_callback(memcpy);
@@ -723,11 +919,11 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
 }
 
 redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id, uint64_t start,
-  uint32_t value, uint64_t len) {
+                                         uint32_t value, uint64_t len) {
   PRINT(
-    "\nredshow->Enter redshow_memset_register\nmemset_id: %d\nhost_op_id: %llu\nstart: "
-    "%llu\nvalue: %u\nlen: %llu\n",
-    memset_id, host_op_id, start, value, len);
+      "\nredshow-> Enter redshow_memset_register\nmemset_id: %d\nhost_op_id: %llu\nstart: "
+      "%llu\nvalue: %u\nlen: %llu\n",
+      memset_id, host_op_id, start, value, len);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -740,8 +936,10 @@ redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
 
   auto memset = std::make_shared<Memset>(host_op_id, memset_id, mem_op_id, addr, value, len);
 
-  for (auto aiter : analysis_enabled) {
-    aiter.second->op_callback(memset);
+  if (addr != 0) {
+    for (auto aiter : analysis_enabled) {
+      aiter.second->op_callback(memset);
+    }
   }
 
   return result;
@@ -754,7 +952,7 @@ redshow_result_t redshow_log_data_callback_register(redshow_log_data_callback_fu
 }
 
 redshow_result_t redshow_record_data_callback_register(redshow_record_data_callback_func func,
-  uint32_t pc_views, uint32_t mem_views) {
+                                                       uint32_t pc_views, uint32_t mem_views) {
   record_data_callback = func;
   pc_views_limit = pc_views;
   mem_views_limit = mem_views;
@@ -787,6 +985,9 @@ redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id, ui
 }
 
 redshow_result_t redshow_kernel_end(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id) {
+  PRINT("\nredshow-> Enter redshow_kernel_end\ncpu_thread: %u\nkernel_id: %d\nhost_op_id: %llu\n",
+        cpu_thread, kernel_id, host_op_id);
+
   // propose changes
   // read_memory_op_ids, write_memory_op_ids
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -801,12 +1002,12 @@ redshow_result_t redshow_kernel_end(uint32_t cpu_thread, int32_t kernel_id, uint
 }
 
 redshow_result_t redshow_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_t mod_id,
-  int32_t kernel_id, uint64_t host_op_id,
-  gpu_patch_buffer_t *trace_data) {
+                                 int32_t kernel_id, uint64_t host_op_id,
+                                 gpu_patch_buffer_t *trace_data) {
   PRINT(
-    "\nredshow->Enter redshow_analyze\ncpu_thread: %u\ncubin_id: %u\nmod_id: %u\n"
-    "kernel_id: %d\nhost_op_id: %llu\ntrace_data: %p\n",
-    cpu_thread, cubin_id, mod_id, kernel_id, host_op_id, trace_data);
+      "\nredshow-> Enter redshow_analyze\ncpu_thread: %u\ncubin_id: %u\nmod_id: %u\n"
+      "kernel_id: %d\nhost_op_id: %llu\ntrace_data: %p\n",
+      cpu_thread, cubin_id, mod_id, kernel_id, host_op_id, trace_data);
 
   redshow_result_t result;
 
@@ -826,14 +1027,14 @@ redshow_result_t redshow_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_
       result = REDSHOW_ERROR_NOT_REGISTER_CALLBACK;
     }
   } else {
-    PRINT("\nredshow->Fail redshow_analyze result %d\n", result);
+    PRINT("\nredshow-> Fail redshow_analyze result %d\n", result);
   }
 
   return result;
 }
 
 redshow_result_t redshow_analysis_begin() {
-  PRINT("\nredshow->Enter redshow_analysis_begin\n");
+  PRINT("\nredshow-> Enter redshow_analysis_begin\n");
 
   mini_host_op_id = 0;
 
@@ -841,7 +1042,7 @@ redshow_result_t redshow_analysis_begin() {
 }
 
 redshow_result_t redshow_analysis_end() {
-  PRINT("\nredshow->Enter redshow_analysis_end\n");
+  PRINT("\nredshow-> Enter redshow_analysis_end\n");
 
   redshow_result_t result;
 
@@ -875,18 +1076,18 @@ redshow_result_t redshow_analysis_end() {
 }
 
 redshow_result_t redshow_flush_thread(uint32_t cpu_thread) {
-  PRINT("\nredshow->Enter redshow_flush cpu_thread %u\n", cpu_thread);
+  PRINT("\nredshow-> Enter redshow_flush cpu_thread %u\n", cpu_thread);
 
   for (auto aiter : analysis_enabled) {
     aiter.second->flush_thread(cpu_thread, output_dir[aiter.first], cubin_map,
-      record_data_callback);
+                               record_data_callback);
   }
 
   return REDSHOW_SUCCESS;
 }
 
 redshow_result_t redshow_flush() {
-  PRINT("\nredshow->Enter redshow_flush\n");
+  PRINT("\nredshow-> Enter redshow_flush\n");
 
   for (auto aiter : analysis_enabled) {
     aiter.second->flush(output_dir[aiter.first], cubin_map, record_data_callback);

@@ -22,11 +22,22 @@ LIB := $(LIB_DIR)lib$(PROJECT).so
 ifdef DEBUG
 OFLAGS += -g -DDEBUG
 else
-OFLAGS += -O3
+OFLAGS += -g -O3
+endif
+
+ifdef AVX
+OFLAGS += -m$(AVX)
+else
+OFLAGS += -march=native
 endif
 
 CFLAGS := -fPIC -std=c++17 $(OFLAGS)
 LDFLAGS := -fPIC -shared -L$(BOOST_DIR)/lib -lboost_graph -lboost_regex
+
+ifdef OPENMP
+CFLAGS += -DOPENMP -fopenmp
+LDFLAGS += -fopenmp
+endif
 
 ifdef STATIC_CPP
 LDFLAGS += -static-libstdc++

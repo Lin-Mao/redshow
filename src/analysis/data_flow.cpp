@@ -61,8 +61,12 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
     if (memory->op_id > REDSHOW_MEMORY_HOST) {
       auto node_id = _op_node.at(memory->op_id);
       auto len = 0;
-      for (auto &range_iter : mem_iter.second) {
-        len += range_iter.end - range_iter.start;
+      if (_configs[REDSHOW_ANALYSIS_READ_TRACE_IGNORE] == false) {
+        for (auto &range_iter : mem_iter.second) {
+          len += range_iter.end - range_iter.start;
+        }
+      } else {
+        len = memory->len;
       }
       // Link a pure read edge between two calling contexts
       link_ctx_node(node_id, op->ctx_id, memory->ctx_id, DATA_FLOW_EDGE_READ);
@@ -74,22 +78,63 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
   for (auto &mem_iter : _trace->write_memory) {
     auto memory = _memories.at(mem_iter.first);
     if (memory->op_id > REDSHOW_MEMORY_HOST) {
-      auto len = 0;
+      auto overwrite = 0;
+
+      _ranges.reset();
       for (auto &range_iter : mem_iter.second) {
-        len += range_iter.end - range_iter.start;
+        overwrite += range_iter.end - range_iter.start;
+        _ranges.push_back(std::move(MemoryRange(range_iter.start, range_iter.end)));
       }
-      u64 overwrite = len;
+
       u64 host = reinterpret_cast<u64>(memory->value.get());
       u64 host_cache = reinterpret_cast<u64>(memory->value_cache.get());
       u64 device = memory->memory_range.start;
-      dtoh(host_cache, device, memory->len);
 
+      CopyType copy_type = CopyType::DEFAULT;
+
+      auto device_start_min = mem_iter.second.begin()->start;
+      auto device_end_max = std::prev(mem_iter.second.end())->end;
+      auto device_range_len = device_end_max - device_start_min;
+      auto overwrite_ratio = static_cast<double>(overwrite) / memory->len;
+      auto device_range_ratio = static_cast<double>(device_range_len) / memory->len;
+      auto range_size = mem_iter.second.size();
+      // TODO(Keren): derive a cost model based switch
+      if (overwrite_ratio < _FRAGMENT_RATIO_LIMIT && memory->len > _FRAGMENT_SIZE_LIMIT &&
+        range_size < _FRAGMENT_LEN_LIMIT) {
+        copy_type = CopyType::NON_CONTINOUS_FRAGMENT;
+      } else {
+        dtoh(host_cache + device_start_min - device, device, device_range_len);
+        copy_type = CopyType::MIN_MAX_FRAGMENT;
+      }
+
+#ifdef DEBUG_DATA_FLOW
+      //Reserve for debugging
+      std::cout << " ratio: " << overwrite_ratio << ", min_max_ratio: " << device_range_ratio
+        << ", len: " << memory->len << ", pieces: " << mem_iter.second.size()
+        << ", policy: " << static_cast<int>(copy_type) << std::endl;
+#endif
+
+      // Update host, cannot be multi-threading because spawned threads do not have context
+      if (copy_type == CopyType::NON_CONTINOUS_FRAGMENT) {
+        for (auto &range_iter : mem_iter.second) {
+          auto host_cache_start = host_cache + range_iter.start - device;
+          auto host_start = host + range_iter.start - device;
+          auto range_len = range_iter.end - range_iter.start;
+          dtoh(host_cache_start, range_iter.start, range_len);
+        }
+      }
+      
+      // Compute redundancy and update host
       auto redundancy = 0;
-      for (auto &range_iter : mem_iter.second) {
-        auto host_cache_start = host_cache + range_iter.start - device;
-        auto host_start = host + range_iter.start - device;
-        redundancy += compute_memcpy_redundancy(host_cache_start, host_start,
-                                                range_iter.end - range_iter.start);
+#ifdef OPENMP
+#pragma omp parallel for if (_ranges.size() > OMP_SEQ_LEN) reduction(+:redundancy)
+#endif
+      for (size_t i = 0; i < _ranges.size(); ++i) {
+        auto &range = _ranges[i];
+        auto host_cache_start = host_cache + range.start - device;
+        auto host_start = host + range.start - device;
+        auto range_len = range.end - range.start;
+        redundancy += compute_memcpy_redundancy<true>(host_cache_start, host_start, range_len);
       }
 
       // Point the operation to the calling context
@@ -98,18 +143,16 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
                         memory->len);
       update_op_node(memory->op_id, op->ctx_id);
 
-      std::string hash = compute_memory_hash(reinterpret_cast<u64>(host_cache), memory->len);
-      _node_hash[op->ctx_id].emplace(hash);
+      std::string hash;
+      if (_configs[REDSHOW_ANALYSIS_DATA_FLOW_HASH] == true) {
+        hash = compute_memory_hash(reinterpret_cast<u64>(host_cache), memory->len);
+        _node_hash[op->ctx_id].emplace(hash);
+      }
 
 #ifdef DEBUG_DATA_FLOW
-      std::cout << "ctx: " << op->ctx_id << ", hash: " << hash
-                << ", redundancy: " << redundancy
-                << " overwrite, " << overwrite << ", memory->len: "
-                << memory->len << std::endl;
+      std::cout << "ctx: " << op->ctx_id << ", hash: " << hash << ", redundancy: " << redundancy
+                << " overwrite, " << overwrite << ", memory->len: " << memory->len << std::endl;
 #endif
-
-      // Update host
-      memcpy(reinterpret_cast<void *>(host), reinterpret_cast<void *>(host_cache), memory->len);
     }
   }
 
@@ -139,8 +182,11 @@ void DataFlow::memset_op_callback(std::shared_ptr<Memset> op) {
   // Update host
   memset(reinterpret_cast<void *>(op->start), op->value, op->len);
   u64 host = reinterpret_cast<u64>(memory->value.get());
-  std::string hash = compute_memory_hash(host, memory->len);
-  _node_hash[op->ctx_id].emplace(hash);
+
+  if (_configs[REDSHOW_ANALYSIS_DATA_FLOW_HASH] == true) {
+    std::string hash = compute_memory_hash(host, memory->len);
+    _node_hash[op->ctx_id].emplace(hash);
+  }
 }
 
 void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
@@ -150,7 +196,7 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
   auto src_len = src_memory->len == 0 ? op->len : src_memory->len;
   auto dst_len = dst_memory->len == 0 ? op->len : dst_memory->len;
 
-  u64 redundancy = compute_memcpy_redundancy(op->dst_start, op->src_start, op->len);
+  u64 redundancy = compute_memcpy_redundancy<false>(op->dst_start, op->src_start, op->len);
 
   if (op->dst_memory_op_id == REDSHOW_MEMORY_HOST || op->dst_memory_op_id == REDSHOW_MEMORY_UVM) {
     // sink edge
@@ -172,15 +218,19 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
                     DATA_FLOW_EDGE_READ);
 
   // Update host
-  memcpy(reinterpret_cast<void *>(op->dst_start), reinterpret_cast<void *>(op->src_start), op->len);
+  memory_copy(reinterpret_cast<void *>(op->dst_start), reinterpret_cast<void *>(op->src_start),
+              op->len);
   u64 host = 0;
   if (op->dst_memory_op_id == REDSHOW_MEMORY_HOST || op->dst_memory_op_id == REDSHOW_MEMORY_UVM) {
     host = op->dst_start;
   } else {
     host = reinterpret_cast<u64>(dst_memory->value.get());
   }
-  std::string hash = compute_memory_hash(host, dst_len);
-  _node_hash[op->ctx_id].emplace(hash);
+
+  if (_configs[REDSHOW_ANALYSIS_DATA_FLOW_HASH] == true) {
+    std::string hash = compute_memory_hash(host, dst_len);
+    _node_hash[op->ctx_id].emplace(hash);
+  }
 }
 
 void DataFlow::op_callback(OperationPtr op) {
@@ -206,7 +256,10 @@ void DataFlow::op_callback(OperationPtr op) {
   unlock();
 }
 
-void DataFlow::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id) {
+void DataFlow::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id,
+                              GPUPatchType type) {
+  assert(type == GPU_PATCH_TYPE_ADDRESS_PATCH || type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS);
+
   lock();
 
   if (!this->_kernel_trace[cpu_thread].has(kernel_id)) {
@@ -233,62 +286,89 @@ void DataFlow::block_exit(const ThreadId &thread_id) {
 }
 
 void DataFlow::merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &memory_range) {
-  bool delete_left = false;
-  bool delete_right = false;
+  auto start = memory_range.start;
+  auto end = memory_range.end;
 
   auto liter = memory.prev(memory_range);
   if (liter != memory.end()) {
     if (liter->end >= memory_range.start) {
       if (liter->end < memory_range.end) {
         // overlap and not covered
-        delete_left = true;
+        start = liter->start;
+        liter = memory.erase(liter);
       } else {
+        // Fully covered
         return;
       }
+    } else {
+      liter++;
     }
   }
 
-  auto riter = memory.lower_bound(memory_range);
+  bool range_delete = false;
+  auto riter = liter;
   if (riter != memory.end()) {
     if (riter->start <= memory_range.end) {
-      if (riter->start > memory_range.start) {
+      if (riter->end < memory_range.end) {
         // overlap and not covered
-        delete_right = true;
-      } else {
+        range_delete = true;
+        riter = memory.erase(riter);
+      } else if (riter->start == memory_range.start) {
+        // riter->end >= memory_range.end
+        // Fully covered
         return;
+      } else {
+        // riter->end >= memory_range.end
+        // Partial covered
+        end = riter->end;
+        riter = memory.erase(riter);
       }
     }
   }
 
-  auto start = memory_range.start;
-  auto end = memory_range.end;
-  if (delete_left) {
-    start = liter->start;
-    memory.erase(liter);
+  while (range_delete) {
+    range_delete = false;
+    if (riter != memory.end()) {
+      if (riter->start <= memory_range.end) {
+        if (riter->end < memory_range.end) {
+          // overlap and not covered
+          range_delete = true;
+        } else {
+          // Partial covered
+          end = riter->end;
+        }
+        riter = memory.erase(riter);
+      }
+    }
   }
-  if (delete_right) {
-    end = riter->end;
-    memory.erase(riter);
+
+  if (riter != memory.end()) {
+    // Hint for constant time insert: emplace(h, p) if p is before h
+    memory.emplace_hint(riter, start, end);
+  } else {
+    memory.emplace(start, end);
   }
-  memory.insert(MemoryRange(start, end));
 }
 
 void DataFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
-                           bool read) {
+                           GPUPatchFlags flags) {
   // TODO(Keren): handle other memories
   if (memory.op_id <= REDSHOW_MEMORY_HOST) {
     return;
   }
 
-  auto byte_size = access_kind.unit_size / 8;
-  auto memory_range = MemoryRange(addr + index * byte_size, addr + (index + 1) * byte_size);
-  if (read) {
-    merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
-  } else {
+  auto &memory_range = memory.memory_range;
+  if (flags & GPU_PATCH_READ) {
+    if (_configs[REDSHOW_ANALYSIS_READ_TRACE_IGNORE] == false) {
+      merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
+    } else if (_trace->read_memory[memory.op_id].empty()) {
+      _trace->read_memory[memory.op_id].insert(memory_range);
+    }
+  }
+  if (flags & GPU_PATCH_WRITE) {
     merge_memory_range(_trace->write_memory[memory.op_id], memory_range);
   }
-  //std::cout << std::hex << "[" << memory_range.start << "," << memory_range.end << "]" << std::dec << std::endl;
 }
 
 void DataFlow::flush_thread(u32 cpu_thread, const std::string &output_dir,

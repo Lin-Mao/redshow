@@ -11,7 +11,9 @@ void TemporalRedundancy::op_callback(OperationPtr op) {
   // Nothing
 }
 
-void TemporalRedundancy::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id) {
+void TemporalRedundancy::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id, GPUPatchType type) {
+  assert(type == GPU_PATCH_TYPE_DEFAULT);
+
   lock();
 
   if (!this->_kernel_trace[cpu_thread].has(kernel_id)) {
@@ -41,14 +43,17 @@ void TemporalRedundancy::block_exit(const ThreadId &thread_id) {
 
 void TemporalRedundancy::unit_access(i32 kernel_id, const ThreadId &thread_id,
                                      const AccessKind &access_kind, const Memory &memory, u64 pc,
-                                     u64 value, u64 addr, u32 index, bool read) {
+                                     u64 value, u64 addr, u32 index, GPUPatchFlags flags) {
   addr += index * access_kind.unit_size / 8;
-  if (read) {
+
+  if (flags & GPU_PATCH_READ) {
     auto &pc_pairs = _trace->read_pc_pairs;
     auto &temporal_trace = _trace->read_temporal_trace;
     update_temporal_trace(pc, thread_id, addr, value, access_kind, temporal_trace, pc_pairs);
     _trace->read_pc_count[pc]++;
-  } else {
+  }
+  
+  if (flags & GPU_PATCH_WRITE) {
     auto &pc_pairs = _trace->write_pc_pairs;
     auto &temporal_trace = _trace->write_temporal_trace;
     update_temporal_trace(pc, thread_id, addr, value, access_kind, temporal_trace, pc_pairs);

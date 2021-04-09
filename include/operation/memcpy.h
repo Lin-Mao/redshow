@@ -32,11 +32,13 @@ struct Memcpy : public Operation {
 /**
  * @brief compute a redundancy for a memcpy operation
  *
+ * @param update if host is updated while computing redundancy
  * @param dst_start
  * @param src_start
  * @param len
  * @return double
  */
+template<bool update>
 u64 compute_memcpy_redundancy(u64 dst_start, u64 src_start, u64 len);
 
 }  // namespace redshow

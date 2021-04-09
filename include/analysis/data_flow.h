@@ -9,6 +9,7 @@
 #include "common/graph.h"
 #include "common/map.h"
 #include "common/set.h"
+#include "common/path.h"
 #include "common/utils.h"
 #include "operation/kernel.h"
 #include "operation/memcpy.h"
@@ -27,7 +28,8 @@ class DataFlow final : public Analysis {
   virtual void op_callback(OperationPtr operation);
 
   // Fine-grained
-  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mode_id);
+  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mode_id,
+                              GPUPatchType type);
 
   virtual void analysis_end(u32 cpu_thread, i32 kernel_id);
 
@@ -36,7 +38,8 @@ class DataFlow final : public Analysis {
   virtual void block_exit(const ThreadId &thread_id);
 
   virtual void unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
-                           const Memory &memory, u64 pc, u64 value, u64 addr, u32 index, bool read);
+                           const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
+                           GPUPatchFlags flags);
 
   virtual void flush_thread(u32 cpu_thread, const std::string &output_dir,
                             const LockableMap<u32, Cubin> &cubins,
@@ -141,15 +144,31 @@ class DataFlow final : public Analysis {
   void dump(const std::string &output_dir, const Map<i32, Map<i32, bool>> &duplicate);
 
   void merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &memory_range);
+ 
+ private:
+  enum class CopyType {
+    DEFAULT = 0,
+    MIN_MAX_FRAGMENT = 1,
+    NON_CONTINOUS_FRAGMENT = 2
+  };
 
  private:
-  static inline thread_local std::shared_ptr<DataFlowTrace> _trace;
+  // Multi-threading is not allowable for data flow profiling
+  std::shared_ptr<DataFlowTrace> _trace;
 
   DataFlowGraph _graph;
   Map<u64, i32> _op_node;
   Map<i32, Set<std::string>> _node_hash;
   Map<i32, u64> _node_count;
   Map<u64, std::shared_ptr<Memory>> _memories;
+
+  Path<MemoryRange> _ranges;
+
+  const double _FRAGMENT_RATIO_LIMIT = 0.1;
+  // 128MB
+  const size_t _FRAGMENT_SIZE_LIMIT = 128 * 1024 * 1024;
+  // 
+  const size_t _FRAGMENT_LEN_LIMIT = 10000;
 };
 
 }  // namespace redshow

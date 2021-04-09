@@ -37,11 +37,16 @@ class Analysis {
     }
   }
 
+  virtual void config(redshow_analysis_config_type_t config, bool enable) {
+    this->_configs[config] = enable;
+  }
+
   // Coarse-grained
   virtual void op_callback(OperationPtr operation) = 0;
 
   // Fine-grained
-  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id) = 0;
+  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id,
+                              GPUPatchType type) = 0;
 
   virtual void analysis_end(u32 cpu_thread, i32 kernel_id) = 0;
 
@@ -64,7 +69,7 @@ class Analysis {
    */
   virtual void unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
-                           bool read) = 0;
+                           GPUPatchFlags flags) = 0;
 
   // Flush
   virtual void flush_thread(u32 cpu_thread, const std::string &output_dir,
@@ -78,7 +83,7 @@ class Analysis {
 
  protected:
   Map<u32, Map<i32, std::shared_ptr<Trace>>> _kernel_trace;
-  bool do_summary_analysis;
+  Map<redshow_analysis_config_type_t, bool> _configs;
   redshow_tool_dtoh_func _dtoh;
   redshow_analysis_type_t _type;
   std::mutex _lock;
