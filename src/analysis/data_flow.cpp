@@ -134,7 +134,7 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
         auto host_cache_start = host_cache + range.start - device;
         auto host_start = host + range.start - device;
         auto range_len = range.end - range.start;
-        redundancy += compute_memcpy_redundancy<true>(host_cache_start, host_start, range_len);
+        redundancy += compute_memcpy_redundancy<true>(host_start, host_cache_start, range_len);
       }
 
       // Point the operation to the calling context
@@ -151,7 +151,8 @@ void DataFlow::kernel_op_callback(std::shared_ptr<Kernel> op) {
 
 #ifdef DEBUG_DATA_FLOW
       std::cout << "ctx: " << op->ctx_id << ", hash: " << hash << ", redundancy: " << redundancy
-                << " overwrite, " << overwrite << ", memory->len: " << memory->len << std::endl;
+                << " overwrite, " << overwrite << ", memory->id: " << memory->ctx_id 
+                << ", memory->len: " << memory->len << std::endl;
 #endif
     }
   }
@@ -186,6 +187,11 @@ void DataFlow::memset_op_callback(std::shared_ptr<Memset> op) {
   if (_configs[REDSHOW_ANALYSIS_DATA_FLOW_HASH] == true) {
     std::string hash = compute_memory_hash(host, memory->len);
     _node_hash[op->ctx_id].emplace(hash);
+    
+#ifdef DEBUG_DATA_FLOW
+    std::cout << "ctx: " << op->ctx_id << ", hash: " << hash << ", redundancy: " << redundancy
+      << " overwrite, " << overwrite << ", memory->len: " << memory->len << std::endl;
+#endif
   }
 }
 
@@ -230,6 +236,11 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
   if (_configs[REDSHOW_ANALYSIS_DATA_FLOW_HASH] == true) {
     std::string hash = compute_memory_hash(host, dst_len);
     _node_hash[op->ctx_id].emplace(hash);
+
+#ifdef DEBUG_DATA_FLOW
+    std::cout << "ctx: " << op->ctx_id << ", hash: " << hash << ", redundancy: " << redundancy
+      << " overwrite, " << overwrite << ", memory->len: " << dst_len << std::endl;
+#endif
   }
 }
 
