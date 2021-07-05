@@ -24,6 +24,8 @@ class DataFlow final : public Analysis {
  public:
   DataFlow() : Analysis(REDSHOW_ANALYSIS_DATA_FLOW) { init(); }
 
+  virtual ~DataFlow() = default;
+
   // Coarse-grained
   virtual void op_callback(OperationPtr operation);
 

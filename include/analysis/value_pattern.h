@@ -26,6 +26,8 @@ class ValuePattern final : public Analysis {
  public:
   ValuePattern() : Analysis(REDSHOW_ANALYSIS_VALUE_PATTERN) {}
 
+  virtual ~ValuePattern() = default;
+
   // Coarse-grained
   virtual void op_callback(OperationPtr operation);
 

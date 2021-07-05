@@ -30,6 +30,8 @@ class TemporalRedundancy final : public Analysis {
  public:
   TemporalRedundancy() : Analysis(REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY) {}
 
+  virtual ~TemporalRedundancy() = default;
+
   // Coarse-grained
   virtual void op_callback(OperationPtr operation);
 

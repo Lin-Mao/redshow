@@ -25,6 +25,8 @@ class Analysis {
  public:
   Analysis(redshow_analysis_type_t type) : _type(type), _dtoh(NULL) {}
 
+  virtual ~Analysis() = default;
+
   virtual void lock() { this->_lock.lock(); }
 
   virtual void unlock() { this->_lock.unlock(); }
@@ -78,8 +80,6 @@ class Analysis {
 
   virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback) = 0;
-
-  virtual ~Analysis() {}
 
  protected:
   Map<u32, Map<i32, std::shared_ptr<Trace>>> _kernel_trace;

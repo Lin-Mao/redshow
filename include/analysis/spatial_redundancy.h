@@ -26,6 +26,8 @@ class SpatialRedundancy final : public Analysis {
  public:
   SpatialRedundancy() : Analysis(REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY) {}
 
+  virtual ~SpatialRedundancy() = default;
+
   // Coarse-grained
   virtual void op_callback(OperationPtr operation);
 
