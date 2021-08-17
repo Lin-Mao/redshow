@@ -53,8 +53,6 @@ class ValuePattern final : public Analysis {
   virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback);
 
-  ~ValuePattern() {}
-
  private:
   struct ValueDistMemoryComp {
     bool operator()(const Memory &l, const Memory &r) const { return l.op_id < r.op_id; }
