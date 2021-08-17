@@ -50,8 +50,6 @@ class DataFlow final : public Analysis {
   virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback);
 
-  ~DataFlow() {}
-
  private:
   typedef i32 Index;
 
