@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "analysis/data_flow.h"
+#include "analysis/memory_page.h"
 #include "analysis/spatial_redundancy.h"
 #include "analysis/temporal_redundancy.h"
 #include "analysis/value_pattern.h"
@@ -583,6 +584,9 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
       break;
     case REDSHOW_ANALYSIS_VALUE_PATTERN:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_VALUE_PATTERN, std::make_shared<ValuePattern>());
+      break;
+    case REDSHOW_ANALYSIS_MEMORY_PAGE:
+      analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_PAGE, std::make_shared<MemoryPage>());
       break;
     default:
       result = REDSHOW_ERROR_NO_SUCH_ANALYSIS;

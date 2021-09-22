@@ -146,3 +146,5 @@ dkms.conf
 # Main binary
 main
 build/
+.cache/
+redshow_parser
