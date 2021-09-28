@@ -5,21 +5,16 @@
 #include <string>
 
 #include "binutils/cubin.h"
+#include "trace.h"
 #include "common/map.h"
-#include "operation/kernel.h"
+// #include "operation/kernel.h"
 #include "operation/memory.h"
 #include "operation/operation.h"
 #include "redshow.h"
 
 namespace redshow {
 
-struct Trace {
-  Kernel kernel;
 
-  Trace() = default;
-
-  virtual ~Trace() = 0;
-};
 
 class Analysis {
  public:

@@ -148,3 +148,4 @@ main
 build/
 .cache/
 redshow_parser
+.vscode/

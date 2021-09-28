@@ -79,8 +79,7 @@ namespace redshow
 
       virtual ~MmeoryPageTrace() {}
     };
-  private:
-    void get_kernel_trace(Map<u32, Map<i32, std::shared_ptr<Trace>>> &kernel_trace_p);
+    // void get_kernel_trace(Map<u32, Map<i32, std::shared_ptr<Trace>>> &kernel_trace_p);
 
   private:
     static inline thread_local std::shared_ptr<MmeoryPageTrace> _trace;

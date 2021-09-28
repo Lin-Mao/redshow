@@ -15,7 +15,15 @@
 #include "operation/kernel.h"
 #include "redshow.h"
 
+void get_kernel_trace(redshow::Map<redshow::u32, redshow::Map<redshow::i32, std::shared_ptr<redshow::Trace>>> &kernel_trace_p)
+{
+  //  An empty function for drcctprof to capture.
+}
+
+
+
 namespace redshow {
+
 
 void MemoryPage::op_callback(OperationPtr operation) {
   // Do nothing
@@ -60,9 +68,7 @@ void MemoryPage::unit_access(i32 kernel_id, const ThreadId &thread_id,
   auto &memory_page_count = _trace->memory_page_count;
   memory_page_count[memory][page_index] += 1;
 }
-void MemoryPage::get_kernel_trace(Map<u32, Map<i32, std::shared_ptr<Trace>>> &kernel_trace_p) {
-  //  An empty function for drcctprof to capture.
-}
+
 
 void MemoryPage::flush_thread(u32 cpu_thread, const std::string &output_dir,
                               const LockableMap<u32, Cubin> &cubins,
@@ -74,7 +80,7 @@ void MemoryPage::flush_thread(u32 cpu_thread, const std::string &output_dir,
   lock();
 
   auto &thread_kernel_trace = this->_kernel_trace.at(cpu_thread);
-
+  std::cout<<"here test by findhao"<<std::endl;
   unlock();
   get_kernel_trace(this->_kernel_trace);
 }
