@@ -47,7 +47,7 @@ namespace redshow
                              const AccessKind &access_kind, const Memory &memory,
                              u64 pc, u64 value, u64 addr, u32 index,
                              GPUPatchFlags flags);
-
+    virtual void set_memory_map(MemoryMap * memory_map);
     // Flush
     virtual void
     flush_thread(u32 cpu_thread, const std::string &output_dir,
@@ -58,7 +58,8 @@ namespace redshow
                        const LockableMap<u32, Cubin> &cubins,
                        redshow_record_data_callback_func record_data_callback);
 
-  private:
+  public:
+    // private:
     struct ValueDistMemoryComp
     {
       bool operator()(const Memory &l, const Memory &r) const { return l.op_id < r.op_id; }
@@ -66,23 +67,18 @@ namespace redshow
     // <page_id, count>
     typedef Map<u64, u64> PageCount;
     typedef std::map<Memory, PageCount, ValueDistMemoryComp> MemoryPageCount;
-    // @findhao: add conflicts count here?
-
+    MemoryMap * current_memory_map;
     const int PAGE_SIZE = 4 * 1024;
     const int PAGE_SIZE_BITS = 12;
-
-    struct MmeoryPageTrace final : public Trace
-    {
+    struct MemoryPageTrace final : public Trace {
       MemoryPageCount memory_page_count;
 
-      MmeoryPageTrace() = default;
+      MemoryPageTrace() = default;
 
-      virtual ~MmeoryPageTrace() {}
+      virtual ~MemoryPageTrace() {}
     };
-    // void get_kernel_trace(Map<u32, Map<i32, std::shared_ptr<Trace>>> &kernel_trace_p);
-
-  private:
-    static inline thread_local std::shared_ptr<MmeoryPageTrace> _trace;
+    // private:
+    static inline thread_local std::shared_ptr<MemoryPageTrace> _trace;
   };
 
 } // namespace redshow

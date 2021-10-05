@@ -1,7 +1,3 @@
-//
-// Created by find on 19-7-1.
-//
-
 #include "analysis/value_pattern.h"
 
 #include <algorithm>

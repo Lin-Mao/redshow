@@ -48,10 +48,11 @@ static LockableMap<uint32_t, CubinCache> cubin_cache_map;
 
 typedef Map<MemoryRange, std::shared_ptr<Memory>> MemoryMap;
 static LockableMap<uint64_t, MemoryMap> memory_snapshot;
-
+static MemoryMap* current_memory_map;
 // Init analysis instance
 // TODO(Keren): Separate address and full analysis modes
-static Map<redshow_analysis_type_t, std::shared_ptr<Analysis>> analysis_enabled;
+static Map<redshow_analysis_type_t, std::shared_ptr<Analysis>>
+    analysis_enabled;
 
 static Map<redshow_analysis_type_t, std::string> output_dir;
 
@@ -454,7 +455,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
     memory_map = &(snapshot_iter->second);
   }
   memory_snapshot.unlock();
-
+  current_memory_map = memory_map;
   // Memory snapshot not found
   if (result != REDSHOW_SUCCESS) {
     return result;
