@@ -450,4 +450,5 @@ EXTERNC redshow_result_t redshow_flush_thread(uint32_t cpu_thread);
  */
 EXTERNC redshow_result_t redshow_flush();
 
+
 #endif  // REDSHOW_H

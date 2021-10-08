@@ -11,11 +11,11 @@
 #include "operation/kernel.h"
 #include "redshow.h"
 
+using redshow::LockableMap;
 using redshow::Map;
-typedef Map<redshow::MemoryRange, std::shared_ptr<redshow::Memory>> MemoryMap;
-
+using redshow::MemoryMap;
 //  An empty function for drcctprof to capture.
-void get_kernel_trace(Map<redshow::u32, Map<redshow::i32, std::shared_ptr<redshow::Trace>>> &kernel_trace_p) {
+void get_kernel_trace(Map<redshow::u32, Map<redshow::i32, std::shared_ptr<redshow::Trace>>> &kernel_trace_p, LockableMap<uint64_t, MemoryMap> &memory_snapshot_p) {
 }
 //  An empty function for drcctprof to capture.
 void get_memory_map(MemoryMap *memory_map) {
@@ -56,8 +56,8 @@ void MemoryPage::block_enter(const ThreadId &thread_id) {
 void MemoryPage::block_exit(const ThreadId &thread_id) {
   // Do nothing
 }
-void MemoryPage::set_memory_map(MemoryMap *memory_map) {
-  current_memory_map = memory_map;
+void MemoryPage::set_memory_snapshot_p(LockableMap<uint64_t, MemoryMap> *a_memory_snapshot_p) {
+  memory_snapshot_p = a_memory_snapshot_p;
 }
 
 void MemoryPage::unit_access(i32 kernel_id, const ThreadId &thread_id,
@@ -83,7 +83,7 @@ void MemoryPage::flush_thread(u32 cpu_thread, const std::string &output_dir,
 
   auto &thread_kernel_trace = this->_kernel_trace.at(cpu_thread);
   unlock();
-  get_kernel_trace(this->_kernel_trace);
+  get_kernel_trace(this->_kernel_trace, *(this->memory_snapshot_p));
   // for (auto item : this->_kernel_trace) {
   //   cout << "cpu thread id " << item.first << endl;
   //   for (auto item2 : item.second) {

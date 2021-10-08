@@ -20,67 +20,64 @@
 #include "common/vector.h"
 #include "redshow.h"
 
-namespace redshow
-{
+namespace redshow {
+typedef Map<redshow::MemoryRange, std::shared_ptr<redshow::Memory>> MemoryMap;
+class MemoryPage final : public Analysis {
+ public:
+  MemoryPage() : Analysis(REDSHOW_ANALYSIS_MEMORY_PAGE) {}
 
-  class MemoryPage final : public Analysis
-  {
-  public:
-    MemoryPage() : Analysis(REDSHOW_ANALYSIS_MEMORY_PAGE) {}
+  virtual ~MemoryPage() = default;
 
-    virtual ~MemoryPage() = default;
-
-    // Coarse-grained
-    virtual void op_callback(OperationPtr operation);
-
-    // Fine-grained
-    virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id,
-                                u32 mod_id, GPUPatchType type);
-
-    virtual void analysis_end(u32 cpu_thread, i32 kernel_id);
-
-    virtual void block_enter(const ThreadId &thread_id);
-
-    virtual void block_exit(const ThreadId &thread_id);
-    //  Since we don't use value, the value here will always be 0.
-    virtual void unit_access(i32 kernel_id, const ThreadId &thread_id,
-                             const AccessKind &access_kind, const Memory &memory,
-                             u64 pc, u64 value, u64 addr, u32 index,
-                             GPUPatchFlags flags);
-    virtual void set_memory_map(MemoryMap * memory_map);
-    // Flush
-    virtual void
-    flush_thread(u32 cpu_thread, const std::string &output_dir,
-                 const LockableMap<u32, Cubin> &cubins,
-                 redshow_record_data_callback_func record_data_callback);
-
-    virtual void flush(const std::string &output_dir,
-                       const LockableMap<u32, Cubin> &cubins,
-                       redshow_record_data_callback_func record_data_callback);
-
-  public:
-    // private:
-    struct ValueDistMemoryComp
-    {
-      bool operator()(const Memory &l, const Memory &r) const { return l.op_id < r.op_id; }
-    };
-    // <page_id, count>
-    typedef Map<u64, u64> PageCount;
-    typedef std::map<Memory, PageCount, ValueDistMemoryComp> MemoryPageCount;
-    MemoryMap * current_memory_map;
-    const int PAGE_SIZE = 4 * 1024;
-    const int PAGE_SIZE_BITS = 12;
-    struct MemoryPageTrace final : public Trace {
-      MemoryPageCount memory_page_count;
-
-      MemoryPageTrace() = default;
-
-      virtual ~MemoryPageTrace() {}
-    };
-    // private:
-    static inline thread_local std::shared_ptr<MemoryPageTrace> _trace;
+ public:
+  // private:
+  struct ValueDistMemoryComp {
+    bool operator()(const Memory &l, const Memory &r) const { return l.op_id < r.op_id; }
   };
+  // <page_id, count>
+  typedef Map<u64, u64> PageCount;
+  typedef std::map<Memory, PageCount, ValueDistMemoryComp> MemoryPageCount;
 
-} // namespace redshow
+  LockableMap<uint64_t, MemoryMap> *memory_snapshot_p;
+  const int PAGE_SIZE = 4 * 1024;
+  const int PAGE_SIZE_BITS = 12;
+  struct MemoryPageTrace final : public Trace {
+    MemoryPageCount memory_page_count;
 
-#endif // REDSHOW_ANALYSIS_MEMORY_PAGE_H
+    MemoryPageTrace() = default;
+
+    virtual ~MemoryPageTrace() {}
+  };
+  // private:
+  static inline thread_local std::shared_ptr<MemoryPageTrace> _trace;
+  // Coarse-grained
+  virtual void op_callback(OperationPtr operation);
+
+  // Fine-grained
+  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id,
+                              u32 mod_id, GPUPatchType type);
+
+  virtual void analysis_end(u32 cpu_thread, i32 kernel_id);
+
+  virtual void block_enter(const ThreadId &thread_id);
+
+  virtual void block_exit(const ThreadId &thread_id);
+  //  Since we don't use value, the value here will always be 0.
+  virtual void unit_access(i32 kernel_id, const ThreadId &thread_id,
+                           const AccessKind &access_kind, const Memory &memory,
+                           u64 pc, u64 value, u64 addr, u32 index,
+                           GPUPatchFlags flags);
+  virtual void set_memory_snapshot_p(LockableMap<uint64_t, MemoryMap> *memory_snapshot_p);
+  // Flush
+  virtual void
+  flush_thread(u32 cpu_thread, const std::string &output_dir,
+               const LockableMap<u32, Cubin> &cubins,
+               redshow_record_data_callback_func record_data_callback);
+
+  virtual void flush(const std::string &output_dir,
+                     const LockableMap<u32, Cubin> &cubins,
+                     redshow_record_data_callback_func record_data_callback);
+};
+
+}  // namespace redshow
+
+#endif  // REDSHOW_ANALYSIS_MEMORY_PAGE_H

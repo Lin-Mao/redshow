@@ -48,7 +48,6 @@ static LockableMap<uint32_t, CubinCache> cubin_cache_map;
 
 typedef Map<MemoryRange, std::shared_ptr<Memory>> MemoryMap;
 static LockableMap<uint64_t, MemoryMap> memory_snapshot;
-static MemoryMap* current_memory_map;
 // Init analysis instance
 // TODO(Keren): Separate address and full analysis modes
 static Map<redshow_analysis_type_t, std::shared_ptr<Analysis>>
@@ -455,7 +454,6 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
     memory_map = &(snapshot_iter->second);
   }
   memory_snapshot.unlock();
-  current_memory_map = memory_map;
   // Memory snapshot not found
   if (result != REDSHOW_SUCCESS) {
     return result;
@@ -565,7 +563,10 @@ redshow_result_t redshow_approx_get(int *degree_f32, int *degree_f64) {
 
   return result;
 }
-
+// get memory_snapshot
+redshow_result_t redshow_get_mss(LockableMap<uint64_t, MemoryMap> *a_memory_snapshot_p) {
+  return REDSHOW_SUCCESS;
+}
 redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) {
   PRINT("\nredshow-> Enter redshow_analysis_enable\nanalysis_type: %u\n", analysis_type);
 
@@ -587,6 +588,9 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
       analysis_enabled.emplace(REDSHOW_ANALYSIS_VALUE_PATTERN, std::make_shared<ValuePattern>());
       break;
     case REDSHOW_ANALYSIS_MEMORY_PAGE:
+      // auto memory_page = std::make_shared<MemoryPage>();
+      // memory_page->set_memory_snapshot_p(&memory_snapshot);
+      redshow_get_mss(&memory_snapshot);
       analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_PAGE, std::make_shared<MemoryPage>());
       break;
     default:
@@ -1084,6 +1088,9 @@ redshow_result_t redshow_flush_thread(uint32_t cpu_thread) {
   PRINT("\nredshow-> Enter redshow_flush cpu_thread %u\n", cpu_thread);
 
   for (auto aiter : analysis_enabled) {
+    // if (aiter.first == REDSHOW_ANALYSIS_MEMORY_PAGE){
+    //   std::dynamic_pointer_cast<MemoryPage>(aiter.second)->set_memory_snapshot_p(&memory_snapshot);
+    // }
     aiter.second->flush_thread(cpu_thread, output_dir[aiter.first], cubin_map,
                                record_data_callback);
   }
