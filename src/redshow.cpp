@@ -563,10 +563,14 @@ redshow_result_t redshow_approx_get(int *degree_f32, int *degree_f64) {
 
   return result;
 }
-// get memory_snapshot
-redshow_result_t redshow_get_mss(LockableMap<uint64_t, MemoryMap> *a_memory_snapshot_p) {
-  return REDSHOW_SUCCESS;
-}
+//*********************
+// Empty functions for gpupunk
+// get memory snapshot
+redshow_result_t rdGetmss(LockableMap<uint64_t, MemoryMap> *a_memory_snapshot_p) { return REDSHOW_SUCCESS; }
+redshow_result_t rdGetMemMap(MemoryMap *memory_map) { return REDSHOW_SUCCESS; }
+
+//*********************
+
 redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) {
   PRINT("\nredshow-> Enter redshow_analysis_enable\nanalysis_type: %u\n", analysis_type);
 
@@ -590,7 +594,7 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
     case REDSHOW_ANALYSIS_MEMORY_PAGE:
       // auto memory_page = std::make_shared<MemoryPage>();
       // memory_page->set_memory_snapshot_p(&memory_snapshot);
-      redshow_get_mss(&memory_snapshot);
+      rdGetmss(&memory_snapshot);
       analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_PAGE, std::make_shared<MemoryPage>());
       break;
     default:
@@ -771,6 +775,7 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
   memory_snapshot.unlock();
 
   if (result == REDSHOW_SUCCESS) {
+    // rdGetMemMap(&memory_map);
     for (auto aiter : analysis_enabled) {
       aiter.second->op_callback(memory);
     }
