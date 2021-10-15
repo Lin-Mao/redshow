@@ -15,7 +15,7 @@ using redshow::LockableMap;
 using redshow::Map;
 using redshow::MemoryMap;
 //  An empty function for drcctprof to capture.
-void get_kernel_trace(Map<redshow::u32, Map<redshow::i32, std::shared_ptr<redshow::Trace>>> &kernel_trace_p, LockableMap<uint64_t, MemoryMap> &memory_snapshot_p) {
+void get_kernel_trace(redshow::u32 cpu_thread, Map<redshow::i32, std::shared_ptr<redshow::Trace>> &kernel_trace_p, LockableMap<uint64_t, MemoryMap> &memory_snapshot_p) {
 }
 //  An empty function for drcctprof to capture.
 void get_memory_map(MemoryMap *memory_map) {
@@ -65,7 +65,7 @@ void MemoryPage::unit_access(i32 kernel_id, const ThreadId &thread_id,
                              u64 value, u64 addr, u32 index, GPUPatchFlags flags) {
   addr += index * access_kind.unit_size / 8;
   // @todo: gpu memory page size is various.
-  u64 page_index = (addr - memory.memory_range.start) >> PAGE_SIZE_BITS;
+  u64 page_index = addr >> PAGE_SIZE_BITS;
   auto &memory_page_count = _trace->memory_page_count;
   memory_page_count[memory][page_index] += 1;
 }
@@ -81,9 +81,9 @@ void MemoryPage::flush_thread(u32 cpu_thread, const std::string &output_dir,
 
   lock();
 
-  auto &thread_kernel_trace = this->_kernel_trace.at(cpu_thread);
+  auto thread_kernel_trace = this->_kernel_trace.at(cpu_thread);
   unlock();
-  get_kernel_trace(this->_kernel_trace, *(this->memory_snapshot_p));
+  get_kernel_trace(cpu_thread, this->_kernel_trace.at(cpu_thread), *(this->memory_snapshot_p));
   // for (auto item : this->_kernel_trace) {
   //   cout << "cpu thread id " << item.first << endl;
   //   for (auto item2 : item.second) {
