@@ -44,13 +44,13 @@ void SpatialRedundancy::unit_access(i32 kernel_id, const ThreadId &thread_id,
                                     const AccessKind &access_kind, const Memory &memory, u64 pc,
                                     u64 value, u64 addr, u32 index, GPUPatchFlags flags) {
   addr += index * access_kind.unit_size / 8;
-  
+
   if (flags & GPU_PATCH_READ) {
     auto &spatial_trace = _trace->read_spatial_trace;
     update_spatial_trace(pc, value, memory.op_id, access_kind, spatial_trace);
     _trace->read_pc_count[pc]++;
   }
-  
+
   if (flags & GPU_PATCH_WRITE) {
     auto &spatial_trace = _trace->write_spatial_trace;
     update_spatial_trace(pc, value, memory.op_id, access_kind, spatial_trace);
@@ -169,7 +169,7 @@ void SpatialRedundancy::flush_thread(u32 cpu_thread, const std::string &output_d
   // Release data
   delete[] record_data.views;
 }
-
+void SpatialRedundancy::flush_now(u32 cpu_thread, const std::string &output_dir, const LockableMap<u32, Cubin> &cubins, redshow_record_data_callback_func record_data_callback) {}
 void SpatialRedundancy::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                               redshow_record_data_callback_func record_data_callback) {}
 

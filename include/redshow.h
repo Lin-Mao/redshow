@@ -450,5 +450,14 @@ EXTERNC redshow_result_t redshow_flush_thread(uint32_t cpu_thread);
  */
 EXTERNC redshow_result_t redshow_flush();
 
+/**
+ * @brief Flush back current result. This function is supposed to be called when there are sync points defined by users.
+ *
+ * @param cpu_thread
+ * @return reshow_result_t
+ *
+ * @thread-safe YES
+ */
+EXTERNC redshow_result_t redshow_flush_now(uint32_t cpu_thread);
 
 #endif  // REDSHOW_H

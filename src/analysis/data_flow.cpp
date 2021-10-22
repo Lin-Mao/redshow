@@ -385,7 +385,8 @@ void DataFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const Acces
 void DataFlow::flush_thread(u32 cpu_thread, const std::string &output_dir,
                             const LockableMap<u32, Cubin> &cubins,
                             redshow_record_data_callback_func record_data_callback) {}
-
+void DataFlow::flush_now(u32 cpu_thread, const std::string &output_dir,const LockableMap<u32, Cubin> &cubins,
+                         redshow_record_data_callback_func record_data_callback){}
 void DataFlow::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback) {
   Map<i32, Map<i32, bool>> duplicate;

@@ -1103,6 +1103,16 @@ redshow_result_t redshow_flush_thread(uint32_t cpu_thread) {
   return REDSHOW_SUCCESS;
 }
 
+redshow_result_t redshow_flush_now(uint32_t cpu_thread) {
+  PRINT("\nredshow-> Enter redshow_flush_now for cpu_thread %u\n", cpu_thread);
+
+  for (auto aiter : analysis_enabled) {
+    aiter.second->flush_now(cpu_thread, output_dir[aiter.first], cubin_map,
+                            record_data_callback);
+  }
+  return REDSHOW_SUCCESS;
+}
+
 redshow_result_t redshow_flush() {
   PRINT("\nredshow-> Enter redshow_flush\n");
 

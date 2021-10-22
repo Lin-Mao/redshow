@@ -52,7 +52,7 @@ void TemporalRedundancy::unit_access(i32 kernel_id, const ThreadId &thread_id,
     update_temporal_trace(pc, thread_id, addr, value, access_kind, temporal_trace, pc_pairs);
     _trace->read_pc_count[pc]++;
   }
-  
+
   if (flags & GPU_PATCH_WRITE) {
     auto &pc_pairs = _trace->write_pc_pairs;
     auto &temporal_trace = _trace->write_temporal_trace;
@@ -166,7 +166,7 @@ void TemporalRedundancy::flush_thread(u32 cpu_thread, const std::string &output_
   // Release data
   delete[] record_data.views;
 }
-
+void TemporalRedundancy::flush_now(u32 cpu_thread, const std::string &output_dir, const LockableMap<u32, Cubin> &cubins, redshow_record_data_callback_func record_data_callback) {}
 void TemporalRedundancy::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                                redshow_record_data_callback_func record_data_callback) {}
 

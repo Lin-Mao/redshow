@@ -95,7 +95,7 @@ void ValuePattern::unit_access(i32 kernel_id, const ThreadId &thread_id,
     w_value_dist[memory][access_kind][offset][value] += 1;
   }
 }
-
+void ValuePattern::flush_now(u32 cpu_thread, const std::string &output_dir, const LockableMap<u32, Cubin> &cubins, redshow_record_data_callback_func record_data_callback) {}
 void ValuePattern::flush_thread(u32 cpu_thread, const std::string &output_dir,
                                 const LockableMap<u32, Cubin> &cubins,
                                 redshow_record_data_callback_func record_data_callback) {

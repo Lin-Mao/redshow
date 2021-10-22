@@ -72,7 +72,10 @@ class Analysis {
   virtual void flush_thread(u32 cpu_thread, const std::string &output_dir,
                             const LockableMap<u32, Cubin> &cubins,
                             redshow_record_data_callback_func record_data_callback) = 0;
-
+  // Flush
+  virtual void flush_now(u32 cpu_thread, const std::string &output_dir,
+                            const LockableMap<u32, Cubin> &cubins,
+                            redshow_record_data_callback_func record_data_callback) = 0;
   virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback) = 0;
 
