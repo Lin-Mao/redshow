@@ -71,7 +71,7 @@ void MemoryPage::unit_access(i32 kernel_id, const ThreadId &thread_id,
   addr += index * access_kind.unit_size / 8;
   // @todo: gpu memory page size is various.
   u64 page_index = addr >> PAGE_SIZE_BITS;
-  PRINT("_trace %p", &_trace);
+  // PRINT("_trace %p", &_trace);
   auto &memory_page_count = _trace->memory_page_count;
   memory_page_count[memory][page_index] += 1;
 }
