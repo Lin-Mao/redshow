@@ -22,11 +22,11 @@
 
 namespace redshow {
 typedef Map<redshow::MemoryRange, std::shared_ptr<redshow::Memory>> MemoryMap;
-class MemoryPage final : public Analysis {
+class MemoryAccess final : public Analysis {
  public:
-  MemoryPage() : Analysis(REDSHOW_ANALYSIS_MEMORY_PAGE) {}
+  MemoryAccess() : Analysis(REDSHOW_ANALYSIS_MEMORY_PAGE) {}
 
-  virtual ~MemoryPage() = default;
+  virtual ~MemoryAccess() = default;
 
  public:
   // private:
@@ -34,21 +34,21 @@ class MemoryPage final : public Analysis {
     bool operator()(const Memory &l, const Memory &r) const { return l.op_id < r.op_id; }
   };
   // <page_id, count>
-  typedef Map<u64, u64> PageCount;
-  typedef std::map<Memory, PageCount, ValueDistMemoryComp> MemoryPageCount;
+  typedef Map<u64, u64> AccessCount;
+  typedef std::map<Memory, AccessCount, ValueDistMemoryComp> MemoryAccessCount;
 
   LockableMap<uint64_t, MemoryMap> *memory_snapshot_p;
   const int PAGE_SIZE = 4 * 1024;
   const int PAGE_SIZE_BITS = 12;
-  struct MemoryPageTrace final : public Trace {
-    MemoryPageCount memory_page_count;
+  struct MemoryAccessTrace final : public Trace {
+    MemoryAccessCount memory_access_count;
 
-    MemoryPageTrace() = default;
+    MemoryAccessTrace() = default;
 
-    virtual ~MemoryPageTrace() {}
+    virtual ~MemoryAccessTrace() {}
   };
   // private:
-  static inline thread_local std::shared_ptr<MemoryPageTrace> _trace;
+  static inline thread_local std::shared_ptr<MemoryAccessTrace> _trace;
   // Coarse-grained
   virtual void op_callback(OperationPtr operation);
 

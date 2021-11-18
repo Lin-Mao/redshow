@@ -87,8 +87,9 @@ install:
 	mkdir -p $(PREFIX)/$(INC_DIR)
 	mkdir -p $(PREFIX)/$(BIN_DIR)
 	cp -rf $(LIB_DIR) $(PREFIX)
-	cp -rf $(INC_DIR)$(PROJECT).h $(PREFIX)/$(INC_DIR)
-	cp -rf $(INC_DIR)$(PROJECT_GRAPHVIZ).h $(PREFIX)/$(INC_DIR)
+	# cp -rf $(INC_DIR)$(PROJECT).h $(PREFIX)/$(INC_DIR)
+	# cp -rf $(INC_DIR)$(PROJECT_GRAPHVIZ).h $(PREFIX)/$(INC_DIR)
+	cp -rf $(INC_DIR)/* $(PREFIX)/$(INC_DIR)/
 	cp -rf $(BINS) $(PREFIX)/$(BIN_DIR)
 endif
 
