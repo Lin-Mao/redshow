@@ -85,6 +85,29 @@ class MemoryProfile final : public Analysis {
 
   std::shared_ptr<MemoryProfileTrace> _trace;
 
+// <op_id, ctx_id>
+Map<u64, i32> _op_node;
+
+// <op_id, memory>   used to log all allocated memory
+Map<u64, std::shared_ptr<Memory>> _memories;
+
+/**
+ * @brief <kernel_op_id, <memory_op_id, set<memory_range>>.  
+ * Define this Map to store all the blank chunks of all objects for all kernel. 
+ */
+Map<i32, Map<u64, Set<MemoryRange>>> _blank_chunks;
+
+
+/**
+ * @brief Map<memory_op_id, kernel_id> accessed_op_id which is processed in _blank_chunks
+ * 
+ */
+Map<u64, i32> _accessed_memories;
+
+/**
+ * @brief Map<memory_op_id, largest_chunk>
+ */
+Map<u64, size_t> larget_chunk_with_memories;
 // functions
 private:
 
@@ -96,6 +119,47 @@ private:
  */
 void merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &memory_range);
 
+
+/**
+ * @brief Kernel callback function
+ * 
+ * @param op 
+ */
+void kernel_op_callback(std::shared_ptr<Kernel> op);
+
+/**
+ * @brief Memory register callback function
+ * 
+ * @param op 
+ */
+void memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory = false);
+
+/**
+ * @brief Update the op_id table.
+ * 
+ * @param op_id 
+ * @param ctx_id 
+ */
+void update_op_node(u64 op_id, i32 ctx_id);
+
+/**
+ * @brief Update the '_blank_chunks' which is to store the unused memory range in every object
+ * 
+ * @param op_id 
+ * @param kernel_id 
+ * @param range_iter 
+ */
+void update_blank_chunks(i32 kernel_id, u64 memory_op_id, MemoryRange range_iter);
+
+
+/**
+ * @brief Update the framentation map. Called after each kernel was finished.
+ * 
+ * @param cpu_thread 
+ * @param kernel_id 
+ * @param op_id 
+ */
+void update_object_fragmentation_in_kernel(u32 cpu_thread, i32 kernel_id);
 
 
 

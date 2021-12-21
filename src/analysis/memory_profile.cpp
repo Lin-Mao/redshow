@@ -13,8 +13,113 @@
 
 namespace redshow {
 
+
+void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
+  if (_trace.get() == NULL) {
+    // If the kernel is sampled
+    return;
+  }
+
+  Map<u64, Set<MemoryRange>> initail_unuse_memory_map;
+  _blank_chunks.emplace(_trace->kernel.ctx_id, initail_unuse_memory_map);
+  
+  auto &unuse_memory_map_per_kernel = _blank_chunks[_trace->kernel.ctx_id];
+
+// for read access trace
+  for (auto &mem_iter : _trace->read_memory) {
+    auto memory = _memories.at(mem_iter.first);
+    
+    if (_accessed_memories.find(mem_iter.first) != _accessed_memories.end()) {
+      auto kid = _accessed_memories.at(mem_iter.first);
+      auto mem_unuse_set = _blank_chunks.at(kid).at(mem_iter.first);
+      unuse_memory_map_per_kernel.emplace(mem_iter.first, mem_unuse_set);
+      // ensure the lastest mem_unuse_set
+      _accessed_memories[mem_iter.first] = _trace->kernel.ctx_id;
+    } else {
+      _accessed_memories.emplace(mem_iter.first, _trace->kernel.ctx_id);
+      Set<MemoryRange> mem_unuse_set;
+      mem_unuse_set.insert(memory->memory_range);
+      unuse_memory_map_per_kernel.emplace(mem_iter.first, mem_unuse_set);
+    }
+
+    if (memory->op_id > REDSHOW_MEMORY_HOST) {
+      // get op_id and ctx_id
+      auto node_id = _op_node.at(memory->op_id);
+      // auto len = 0;
+       if (_configs[REDSHOW_ANALYSIS_READ_TRACE_IGNORE] == false) {
+
+      int r_count = 0; // for debug count
+      // mem_iter.second is a Set<MemRange>
+      for (auto &range_iter : mem_iter.second) {
+
+        // len += range_iter.end - range_iter.start;
+        update_blank_chunks(_trace->kernel.ctx_id, mem_iter.first, range_iter);
+      }  
+        
+      } else {
+        // len = memory->len;
+        (void) 0;
+      }
+    }  
+  }
+
+// for write access trace
+  for (auto &mem_iter : _trace->write_memory) {
+    auto memory = _memories.at(mem_iter.first);
+
+    if (_accessed_memories.find(mem_iter.first) != _accessed_memories.end()) {
+      auto kid = _accessed_memories.at(mem_iter.first);
+      auto mem_unuse_set = _blank_chunks.at(kid).at(mem_iter.first);
+      unuse_memory_map_per_kernel.emplace(mem_iter.first, mem_unuse_set);
+      // ensure the lastest mem_unuse_set
+      _accessed_memories[mem_iter.first] = _trace->kernel.ctx_id;
+    } else {
+      _accessed_memories.emplace(mem_iter.first, _trace->kernel.ctx_id);
+      Set<MemoryRange> mem_unuse_set;
+      mem_unuse_set.insert(memory->memory_range);
+      unuse_memory_map_per_kernel.emplace(mem_iter.first, mem_unuse_set);
+    }
+
+    if (memory->op_id > REDSHOW_MEMORY_HOST) {
+      // get op_id and ctx_id
+      auto node_id = _op_node.at(memory->op_id);
+       if (_configs[REDSHOW_ANALYSIS_READ_TRACE_IGNORE] == false) {
+         
+
+
+    int w_count = 0; // for debug count
+    // mem_iter.second is a Set<MemRange>
+    for (auto &range_iter : mem_iter.second) {
+
+        // len += range_iter.end - range_iter.start;
+        update_blank_chunks(_trace->kernel.ctx_id, mem_iter.first, range_iter);
+    }  
+      } else {
+        // len = memory->len;
+        (void) 0;
+      }
+    }
+  }
+    update_object_fragmentation_in_kernel(_trace->kernel.cpu_thread, _trace->kernel.ctx_id);
+
+  // reset _trace
+  _trace->read_memory.clear();
+  _trace->write_memory.clear();
+  _trace = NULL;
+}
+
+
 void MemoryProfile::op_callback(OperationPtr op) {
 // TODO(@Mao):
+  lock();
+  
+  if (op->type == OPERATION_TYPE_KERNEL) {
+    kernel_op_callback(std::dynamic_pointer_cast<Kernel>(op));
+  } else if (op->type == OPERATION_TYPE_MEMORY) {
+    memory_op_callback(std::dynamic_pointer_cast<Memory>(op));
+  }
+
+  unlock();
 }
 
 void MemoryProfile::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id, GPUPatchType type) {
@@ -132,7 +237,7 @@ if (memory.op_id <= REDSHOW_MEMORY_HOST) {
   if (flags & GPU_PATCH_WRITE) {
     merge_memory_range(_trace->write_memory[memory.op_id], memory_range);
   }
-  
+
 }
 
   // Flush
