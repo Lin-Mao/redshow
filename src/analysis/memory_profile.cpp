@@ -32,6 +32,88 @@ void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_subme
 }
 
 
+void MemoryProfile::update_blank_chunks(i32 kernel_id, u64 memory_op_id, MemoryRange range_iter) {
+
+  auto &memory_map = _blank_chunks.at(kernel_id);
+  auto &unuse_range_set = memory_map.at(memory_op_id);
+
+  auto start = range_iter.start;
+  auto end = range_iter.end;
+
+  // full access
+  if (unuse_range_set.size() == 0) {
+    return;
+  }
+
+  // return the iter in set when iter.start < = range_iter.start
+  auto iter = unuse_range_set.prev(range_iter); 
+
+  bool finished = false;
+
+  while(!finished) {
+    if (iter != unuse_range_set.end()) {
+      if (start == iter->start) {
+        if (end < iter->end) {
+          start = iter->end; // new end of the unuse range
+          iter = unuse_range_set.erase(iter);
+          unuse_range_set.emplace_hint(iter, end, start);
+          return;
+
+        } else { // end >= iter->end
+          iter = unuse_range_set.erase(iter);
+          if (iter == unuse_range_set.end()) {
+            return;
+          }
+
+          if (end < iter->start) {
+            return;
+
+          } else { // end >= iter->start
+            start = iter->start;
+            finished = false;
+          }
+        }
+      
+      } else { // iter->start < start
+
+        if (start < iter->end) {
+          auto temp_iter_start = iter->start;
+          auto temp_iter_end = iter->end;
+          iter = unuse_range_set.erase(iter);
+          unuse_range_set.emplace(temp_iter_start, start);
+          iter = unuse_range_set.emplace_hint(iter, start, temp_iter_end);// start == iter->start
+          finished = false;
+        } else { // start >= iter->end;
+          iter++;
+          if (iter == unuse_range_set.end()) {
+            return; // traverse all range
+          }
+          
+          if (end > iter->start) {
+            start = iter->start;
+            finished = false;
+          } else { // end <= iter->start
+            return;
+          }
+        } 
+
+      }
+
+    } else { // iter == unuse_range_set.end,
+      iter = unuse_range_set.begin();
+      if (end <= iter->start) {
+        return;
+        
+      } else { // end > unuse_range_set.begin()->start
+        start = iter->start;
+        finished = false;
+      } 
+    }
+  }
+
+}
+
+
 void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
   if (_trace.get() == NULL) {
     // If the kernel is sampled
