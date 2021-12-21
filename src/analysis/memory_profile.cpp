@@ -13,6 +13,24 @@
 
 namespace redshow {
 
+void MemoryProfile::update_op_node(u64 op_id, i32 ctx_id) {
+  if (op_id > REDSHOW_MEMORY_HOST) {
+    // Point the operation to the calling context
+    _op_node[op_id] = ctx_id;
+  }
+}
+
+
+void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory /* default = false */) {
+  update_op_node(op->op_id, op->ctx_id);
+
+  _memories.try_emplace(op->op_id, op);
+  larget_chunk_with_memories.try_emplace(op->op_id, op->len);
+
+  // TODO(@Mao): to store the _memories which is logging the allocated memory. Think about how to update it.
+
+}
+
 
 void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
   if (_trace.get() == NULL) {
@@ -28,7 +46,7 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
 // for read access trace
   for (auto &mem_iter : _trace->read_memory) {
     auto memory = _memories.at(mem_iter.first);
-    
+
     if (_accessed_memories.find(mem_iter.first) != _accessed_memories.end()) {
       auto kid = _accessed_memories.at(mem_iter.first);
       auto mem_unuse_set = _blank_chunks.at(kid).at(mem_iter.first);
