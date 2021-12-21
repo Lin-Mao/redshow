@@ -85,6 +85,18 @@ class MemoryProfile final : public Analysis {
 
   std::shared_ptr<MemoryProfileTrace> _trace;
 
+// functions
+private:
+
+/**
+ * @brief To merge access memory range in unit_access.
+ * 
+ * @param memory 
+ * @param memory_range 
+ */
+void merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &memory_range);
+
+
 
 
 

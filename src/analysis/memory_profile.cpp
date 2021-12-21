@@ -48,27 +48,91 @@ void MemoryProfile::block_exit(const ThreadId &thread_id) {
 
 }
 
+void MemoryProfile::merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &memory_range) {
+  auto start = memory_range.start;
+  auto end = memory_range.end;
+
+  auto liter = memory.prev(memory_range);
+  if (liter != memory.end()) { // @Mao: xxx.end is not the last iterator but the next of the last iterator and has no meaning
+    if (liter->end >= memory_range.start) {
+      if (liter->end < memory_range.end) {
+        // overlap and not covered
+        start = liter->start;
+        liter = memory.erase(liter);
+      } else {
+        // Fully covered
+        return;
+      }
+    } else {
+      liter++;
+    }
+  }
+
+  bool range_delete = false;
+  auto riter = liter;
+  if (riter != memory.end()) {
+    if (riter->start <= memory_range.end) {
+      if (riter->end < memory_range.end) {
+        // overlap and not covered
+        range_delete = true;
+        riter = memory.erase(riter);
+      } else if (riter->start == memory_range.start) {
+        // riter->end >= memory_range.end
+        // Fully covered
+        return;
+      } else {
+        // riter->end >= memory_range.end
+        // Partial covered
+        end = riter->end;
+        riter = memory.erase(riter);
+      }
+    }
+  }
+
+  while (range_delete) {
+    range_delete = false;
+    if (riter != memory.end()) {
+      if (riter->start <= memory_range.end) {
+        if (riter->end < memory_range.end) {
+          // overlap and not covered
+          range_delete = true;
+        } else {
+          // Partial covered
+          end = riter->end;
+        }
+        riter = memory.erase(riter);
+      }
+    }
+  }
+
+  if (riter != memory.end()) {
+    // Hint for constant time insert: emplace(h, p) if p is before h
+    memory.emplace_hint(riter, start, end);
+  } else {
+    memory.emplace(start, end);
+  }
+}
+
+// not a whole buffer, but a part buffer in a memory object
 void MemoryProfile::unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
                            GPUPatchFlags flags) {
-// TODO(@Mao): 
-    if (memory.op_id <= REDSHOW_MEMORY_HOST) {
+if (memory.op_id <= REDSHOW_MEMORY_HOST) {
     return;
   }
 
   auto &memory_range = memory.memory_range;
   if (flags & GPU_PATCH_READ) {
     if (_configs[REDSHOW_ANALYSIS_READ_TRACE_IGNORE] == false) {
-    //   merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
+      merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
     } else if (_trace->read_memory[memory.op_id].empty()) {
       _trace->read_memory[memory.op_id].insert(memory_range);
     }
   }
   if (flags & GPU_PATCH_WRITE) {
-    // merge_memory_range(_trace->write_memory[memory.op_id], memory_range);
+    merge_memory_range(_trace->write_memory[memory.op_id], memory_range);
   }
-
-
+  
 }
 
   // Flush
