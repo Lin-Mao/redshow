@@ -117,27 +117,6 @@ void MemoryProfile::update_object_fragmentation_in_kernel(u32 cpu_thread, i32 ke
   // KernelOpPair kop = KernelOpPair(kernel_id, op_id);
   auto unused_map = _blank_chunks.at(kernel_id);
 
-#ifdef DEBUG_PRINT
-  std::cout << "  <DEBUG>********************update-fragmentation********************" << std::endl;
-  std::cout << "    cpu_thread:" << cpu_thread << " kernel_id: " << kernel_id 
-  << " object number: " << unused_map.size() << std::endl;
-  for (auto &iter : unused_map) {
-    std::cout << "    memory_op_id: " << iter.first;
-    if (iter.second.size() == 0) {
-      std::cout << " Set is empty." << std::endl;
-    }
-    else {
-      std::cout << " Set is not empty." << std::endl;
-      for (auto &siter : iter.second) {
-        std::cout << "    range[" << siter.start << ", " << siter.end << "] size(" 
-        << siter.end - siter.start << " B)" << std::endl;
-      }
-    }
-  }
-  std::cout << "  ********************update-fragmentation********************<DEBUG>" << std::endl;
-#endif
-  
-
   
   for (auto &miter : unused_map) {
     size_t len = 0; // the largest blank size
@@ -172,15 +151,7 @@ void MemoryProfile::update_object_fragmentation_in_kernel(u32 cpu_thread, i32 ke
       _object_fragmentation_of_kernel_per_thread[cpu_thread][kernel_id][miter.first] = chunck_frag;
     }
 
-  }
-
-#ifdef DEBUG_PRINT
-std::cout << "  <DEBUG>********************fragmentation-outcome********************" << std::endl;
-  for (auto iter : _object_fragmentation_of_kernel_per_thread.at(cpu_thread).at(kernel_id)) {
-    std::cout << "    memory[" << iter.first << "] = " << iter.second.fragmentation << std::endl;
-  }
-std::cout << "  ********************fragmentation-outcome********************<DEBUG>" << std::endl;
-#endif  
+  }  
 
 }
 
@@ -414,11 +385,43 @@ if (memory.op_id <= REDSHOW_MEMORY_HOST) {
 void MemoryProfile::flush_thread(u32 cpu_thread, const std::string &output_dir,
                             const LockableMap<u32, Cubin> &cubins,
                             redshow_record_data_callback_func record_data_callback) {
+  // std::ofstream out(output_dir + "memory_profile_thread_flush" + std::to_string(cpu_thread) + ".csv");
 
+  // out << "This is flush thread test." << std::endl;
+  // out.close();
 }
 
 void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback) {
+
+  std::ofstream out(output_dir + "memory_profile_flush" + ".csv");
+
+  // out << "************************************************************" << std::endl;
+  // out << "******************** Fragmentation Info ********************" << std::endl;
+  // out << "************************************************************" << std::endl;
+
+  // <thread_id, <kernel_op_id, <memory_op_id, fragmentation>>>>
+  for (auto &titer : _object_fragmentation_of_kernel_per_thread) {
+    out << "Thread_id: " << titer.first << std::endl;
+    auto &kernel_map = _object_fragmentation_of_kernel_per_thread.at(titer.first);
+    for (auto &kiter : kernel_map) {
+      out << "  Kernel_id: " << kiter.first << std::endl;
+      auto &memory_map = kernel_map.at(kiter.first);
+      for (auto &miter : memory_map) {
+        auto memory = _memories.at(miter.first);
+        out << "ctx_id" << std::endl;
+        out << _op_node.at(miter.first) << std::endl;
+        out << "    Memory[" << miter.first << "] (" << memory->memory_range.end - memory->memory_range.start 
+        << " B) = " << miter.second.fragmentation << " (largest_chunk: " << miter.second.largest_chunk << " B)" << std::endl; 
+      }
+      out << std::endl;
+    }
+    out << std::endl;
+  }
+  // out << "************************************************************" << std::endl;
+  // out << "****************** Fragmentation Info END ******************" << std::endl;
+  // out << "************************************************************" << std::endl;
+  out.close();
 
 }
 
