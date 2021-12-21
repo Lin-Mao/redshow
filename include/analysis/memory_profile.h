@@ -5,6 +5,11 @@
  * @version 0.1
  * @date 2021-09-28
  * 
+ * @condition:
+ * sanitizer_gpu_patch_type = GPU_PATCH_TYPE_ADDRESS_PATCH
+ * sanitizer_gpu_analysis_type = GPU_PATCH_TYPE_ADDRESS_ANALYSIS
+ * sanitizer_gpu_analysis_blocks = 1
+ * 
  * @copyright Copyright (c) 2021
  * 
  */
@@ -13,10 +18,21 @@
 #define REDSHOW_ANALYSIS_MEMORY_PROFILE_H
 
 #include "analysis.h"
+#include "operation/operation.h"
+#include "operation/memory.h"
+#include "operation/kernel.h"
+
+#include <fstream>
+
 
 namespace redshow {
 
 class MemoryProfile final : public Analysis {
+
+/********************************************************************
+ *                  public area for redshow.cpp
+ * ******************************************************************/
+
   public:
   MemoryProfile() : Analysis(REDSHOW_ANALYSIS_VALUE_PATTERN) {}
 
