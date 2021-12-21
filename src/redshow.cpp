@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "analysis/memory_profile.h"
 #include "analysis/data_flow.h"
 #include "analysis/spatial_redundancy.h"
 #include "analysis/temporal_redundancy.h"
