@@ -113,6 +113,76 @@ void MemoryProfile::update_blank_chunks(i32 kernel_id, u64 memory_op_id, MemoryR
 
 }
 
+void MemoryProfile::update_object_fragmentation_in_kernel(u32 cpu_thread, i32 kernel_id) {
+  // KernelOpPair kop = KernelOpPair(kernel_id, op_id);
+  auto unused_map = _blank_chunks.at(kernel_id);
+
+#ifdef DEBUG_PRINT
+  std::cout << "  <DEBUG>********************update-fragmentation********************" << std::endl;
+  std::cout << "    cpu_thread:" << cpu_thread << " kernel_id: " << kernel_id 
+  << " object number: " << unused_map.size() << std::endl;
+  for (auto &iter : unused_map) {
+    std::cout << "    memory_op_id: " << iter.first;
+    if (iter.second.size() == 0) {
+      std::cout << " Set is empty." << std::endl;
+    }
+    else {
+      std::cout << " Set is not empty." << std::endl;
+      for (auto &siter : iter.second) {
+        std::cout << "    range[" << siter.start << ", " << siter.end << "] size(" 
+        << siter.end - siter.start << " B)" << std::endl;
+      }
+    }
+  }
+  std::cout << "  ********************update-fragmentation********************<DEBUG>" << std::endl;
+#endif
+  
+
+  
+  for (auto &miter : unused_map) {
+    size_t len = 0; // the largest blank size
+    size_t sum = 0; // total blank size
+    bool empty_set = true;
+
+    // miter == Map<u64, Set<MemoryRange>>
+    for (auto &siter : miter.second) {
+      empty_set = false;
+      sum += siter.end - siter.start;
+      if (len < (siter.end - siter.start)) {
+        len = siter.end - siter.start;
+      }
+    }
+
+    // repair largest chunk increase acrossing kernel
+    if (len > larget_chunk_with_memories.at(miter.first)) {
+      len = larget_chunk_with_memories.at(miter.first);
+    }
+    if (len == 0) {
+      empty_set = true;
+    }
+    larget_chunk_with_memories[miter.first] = len;
+    
+
+    if (!empty_set) {
+      float frag = 1 - (float) len / sum;
+      ChunkFragmentation chunck_frag(len, frag);
+      _object_fragmentation_of_kernel_per_thread[cpu_thread][kernel_id][miter.first] = chunck_frag;
+    } else {
+      ChunkFragmentation chunck_frag(len, 0.0);
+      _object_fragmentation_of_kernel_per_thread[cpu_thread][kernel_id][miter.first] = chunck_frag;
+    }
+
+  }
+
+#ifdef DEBUG_PRINT
+std::cout << "  <DEBUG>********************fragmentation-outcome********************" << std::endl;
+  for (auto iter : _object_fragmentation_of_kernel_per_thread.at(cpu_thread).at(kernel_id)) {
+    std::cout << "    memory[" << iter.first << "] = " << iter.second.fragmentation << std::endl;
+  }
+std::cout << "  ********************fragmentation-outcome********************<DEBUG>" << std::endl;
+#endif  
+
+}
 
 void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
   if (_trace.get() == NULL) {

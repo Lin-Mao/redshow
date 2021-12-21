@@ -108,6 +108,26 @@ Map<u64, i32> _accessed_memories;
  * @brief Map<memory_op_id, largest_chunk>
  */
 Map<u64, size_t> larget_chunk_with_memories;
+
+
+struct ChunkFragmentation {
+  size_t largest_chunk;
+  float fragmentation;
+
+  ChunkFragmentation() = default;
+
+  ChunkFragmentation(size_t chunk, float frag) : largest_chunk(chunk), fragmentation(frag) {}
+};
+
+/**
+ * @brief <thread_id, <kernel_op_id, <memory_op_id, fragmentation>>>>
+ * This Map is to log the fragmentation under which cpu_thread, in which kernel, at what op time, of which memory object.
+ */
+Map<u32, Map<u64, Map<u64, ChunkFragmentation>>> _object_fragmentation_of_kernel_per_thread;
+
+
+
+
 // functions
 private:
 
