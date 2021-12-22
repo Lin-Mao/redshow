@@ -36,6 +36,8 @@ class MemoryProfile final : public Analysis {
   public:
   MemoryProfile() : Analysis(REDSHOW_ANALYSIS_VALUE_PATTERN) {}
 
+  virtual ~MemoryProfile() = default;
+
   // Coarse-grained
   virtual void op_callback(OperationPtr operation, bool is_submemory = false);
 
@@ -61,7 +63,6 @@ class MemoryProfile final : public Analysis {
   virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback);
 
-  ~MemoryProfile() {}
 
 
 /***********************************************************************
