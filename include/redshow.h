@@ -266,6 +266,18 @@ EXTERNC redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t
                                                    uint64_t end);
 
 /**
+ * @brief This function is used to register a memory sub-alloction.
+ * 
+ * @param sub_memory_id is the same as persistent id in sanitizer-api.c.
+ * @param host_op_id is the same as correlation id in sanitizer-api.c.
+ * @param start is begin of the sub-allocation
+ * @param end is end of the sub-allocation
+ * @return EXTERNC 
+ */
+EXTERNC redshow_result_t redshow_sub_memory_register(int32_t sub_memory_id, uint64_t host_op_id,
+                                                 uint64_t start, uint64_t end);
+
+/**
  * @brief This funciton is used to query the address of a shadow memory
  *
  * @param host_op_id Unique identifier of the current timestamp

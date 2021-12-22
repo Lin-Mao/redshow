@@ -52,6 +52,9 @@ typedef Map<MemoryRange, std::shared_ptr<Memory>> MemoryMap;
 // <op_id, memory_map>
 static LockableMap<uint64_t, MemoryMap> memory_snapshot;
 
+// reuse memory structure for sub-allocation
+static LockableMap<uint64_t, MemoryMap> sub_memory_snapshot;
+
 // Init analysis instance
 // TODO(Keren): Separate address and full analysis modes
 static Map<redshow_analysis_type_t, std::shared_ptr<Analysis>> analysis_enabled;
@@ -806,6 +809,56 @@ redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t start, 
   memory_snapshot.unlock();
 
   return result;
+}
+
+redshow_result_t redshow_sub_memory_register(int32_t sub_memory_id, uint64_t host_op_id,
+                                                 uint64_t start, uint64_t end) {
+  PRINT("\nredshow-> Enter redshow_sub_memory_register\nmemory_id: %d\nhost_op_id: %llu\nstart: %p\nend: %p\n",
+  sub_memory_id, host_op_id, start, end);
+
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  MemoryMap sub_memory_map;
+  MemoryRange sub_memory_range(start, end);
+
+  auto submemory = std::make_shared<Memory>(host_op_id, sub_memory_id, sub_memory_range);
+
+  sub_memory_snapshot.lock();
+    if (sub_memory_snapshot.size() == 0) {
+        // First sub-memory snapshot
+        sub_memory_map[sub_memory_range] = submemory;
+        sub_memory_snapshot[host_op_id] = sub_memory_map;
+        result = REDSHOW_SUCCESS;
+        PRINT("Register sub-memory_id %d\n", sub_memory_id);
+    } else {
+        auto iter = sub_memory_snapshot.prev(host_op_id);
+        if (iter != sub_memory_snapshot.end()) {
+            // Take a snapshot
+            sub_memory_map = iter->second;
+            if (sub_memory_map.has(sub_memory_range)) {
+                sub_memory_map[sub_memory_range] = submemory;
+                sub_memory_snapshot[host_op_id] = sub_memory_map;
+                result = REDSHOW_SUCCESS;
+                PRINT("Register memory_id %d\n", sub_memory_id);
+            } else {
+                result = REDSHOW_ERROR_DUPLICATE_ENTRY;
+            }
+        } else {
+            result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+        }
+    }
+    sub_memory_snapshot.unlock();
+
+    bool is_submemory = true;
+    if (result == REDSHOW_SUCCESS) {
+        for (auto aiter : analysis_enabled) {
+
+            aiter.second->op_callback(submemory, is_submemory);
+        }
+    }
+
+    return result;    
+
 }
 
 redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32_t *memory_id,
