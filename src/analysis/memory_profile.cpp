@@ -11,6 +11,14 @@
 
 #include "analysis/memory_profile.h"
 
+// #define DEBUG_PRINT
+
+// #define SUB_MEMORY
+
+#ifdef DEBUG_PRINT
+#include <iostream>
+#endif
+
 namespace redshow {
 
 void MemoryProfile::update_op_node(u64 op_id, i32 ctx_id) {
@@ -24,6 +32,17 @@ void MemoryProfile::update_op_node(u64 op_id, i32 ctx_id) {
 void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory /* default = false */) {
   update_op_node(op->op_id, op->ctx_id);
   if (!is_submemory) {
+
+#ifdef DEBUG_PRINT
+    std::cout << std::endl;
+    std::cout << "  <DEBUG>---------------------memory_op_callback---------------------" << std::endl;
+    std::cout << "    memory_op_id:" << op->op_id << " range[" << op->memory_range.start << ", " 
+    << op->memory_range.end << "]" << " size(" << op->memory_range.end - op->memory_range.start 
+    << " B)" << std::endl;
+    std::cout << "  ---------------------memory_op_callback---------------------<DEBUG>" << std::endl;
+    std::cout << std::endl;
+#endif
+    
     _memories.try_emplace(op->op_id, op);
     larget_chunk_with_memories.try_emplace(op->op_id, op->len);
 
@@ -45,6 +64,24 @@ void MemoryProfile::update_blank_chunks(i32 kernel_id, u64 memory_op_id, MemoryR
 
   auto start = range_iter.start;
   auto end = range_iter.end;
+
+#ifdef DEBUG_PRINT
+  std::cout << std::endl;
+  std::cout << "  <DEBUG>====================update_blank_chunks====================" << std::endl;
+  std::cout << "    kernel_id:" << kernel_id << "  memory_op_id:" << memory_op_id << std::endl;
+  for (auto iter = unuse_range_set.begin(); iter != unuse_range_set.end(); iter++) {
+    if (iter == unuse_range_set.end()) {
+      std::cout << "    unuse_range_set is empty." << std::endl;
+      break;
+    }
+    std::cout << "    unused_range[" << iter->start << ", " << iter->end << "] size(" 
+    << iter->end - iter->start << " B)" << std::endl;
+  }
+  std::cout << "    range_iter[" << range_iter.start << ", " << range_iter.end << "] size(" 
+  << range_iter.end - range_iter.start << " B)" << std::endl;
+  std::cout << "  ====================update_blank_chunks====================<DEBUG>" << std::endl;
+  std::cout << std::endl;
+#endif
 
   // full access
   if (unuse_range_set.size() == 0) {
@@ -124,6 +161,26 @@ void MemoryProfile::update_object_fragmentation_in_kernel(u32 cpu_thread, i32 ke
   // KernelOpPair kop = KernelOpPair(kernel_id, op_id);
   auto unused_map = _blank_chunks.at(kernel_id);
 
+#ifdef DEBUG_PRINT
+  std::cout << "  <DEBUG>********************update-fragmentation********************" << std::endl;
+  std::cout << "    cpu_thread:" << cpu_thread << " kernel_id: " << kernel_id 
+  << " object number: " << unused_map.size() << std::endl;
+  for (auto &iter : unused_map) {
+    std::cout << "    memory_op_id: " << iter.first;
+    if (iter.second.size() == 0) {
+      std::cout << " Set is empty." << std::endl;
+    }
+    else {
+      std::cout << " Set is not empty." << std::endl;
+      for (auto &siter : iter.second) {
+        std::cout << "    range[" << siter.start << ", " << siter.end << "] size(" 
+        << siter.end - siter.start << " B)" << std::endl;
+      }
+    }
+  }
+  std::cout << "  ********************update-fragmentation********************<DEBUG>" << std::endl;
+#endif
+  
   
   for (auto &miter : unused_map) {
     size_t len = 0; // the largest blank size
@@ -160,6 +217,14 @@ void MemoryProfile::update_object_fragmentation_in_kernel(u32 cpu_thread, i32 ke
 
   }  
 
+#ifdef DEBUG_PRINT
+std::cout << "  <DEBUG>********************fragmentation-outcome********************" << std::endl;
+  for (auto iter : _object_fragmentation_of_kernel_per_thread.at(cpu_thread).at(kernel_id)) {
+    std::cout << "    memory[" << iter.first << "] = " << iter.second.fragmentation << std::endl;
+  }
+std::cout << "  ********************fragmentation-outcome********************<DEBUG>" << std::endl;
+#endif 
+
 }
 
 
@@ -168,6 +233,32 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
     // If the kernel is sampled
     return;
   }
+
+#ifdef DEBUG_PRINT
+  std::cout << std::endl;
+  std::cout << "  <DEBUG>********************kernel_op_callback********************" << std::endl;
+  std::cout << "  <DEBUG>********************_trace->read_memory********************" << std::endl;
+  for (auto &miter : _trace->read_memory) {
+    std::cout << "    memory id: " << miter.first << std::endl;
+    for (auto &siter : miter.second) {
+      std::cout << "    mem_range[" << siter.start << ", " << siter.end << "]: size(" 
+      << siter.end - siter.start << " B)" << std::endl;
+    }
+  }
+  std::cout << "  ********************_trace->read_memory********************<DEBUG>" << std::endl;
+
+  std::cout << "  <DEBUG>********************_trace->write_memory********************" << std::endl;
+  for (auto &miter : _trace->write_memory) {
+    std::cout << "    memory id: " << miter.first << std::endl;
+    for (auto &siter : miter.second) {
+      std::cout << "    mem_range[" << siter.start << ", " << siter.end << "]: size(" 
+      << siter.end - siter.start << " B)" << std::endl;
+    }
+  }
+  std::cout << "  ********************_trace->write_memory********************<DEBUG>" << std::endl;
+  std::cout << "  ********************kernel_op_callback********************<DEBUG>" << std::endl;
+  std::cout << std::endl;
+#endif
 
   Map<u64, Set<MemoryRange>> initail_unuse_memory_map;
   _blank_chunks.emplace(_trace->kernel.ctx_id, initail_unuse_memory_map);
@@ -207,6 +298,32 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
       int r_count = 0; // for debug count
       // mem_iter.second is a Set<MemRange>
       for (auto &range_iter : mem_iter.second) {
+
+#ifdef DEBUG_PRINT
+      std::cout << std::endl;
+      std::cout << "  <DEBUG>####################read_trace_CALL_update_chunk####################" << std::endl;
+      std::cout << "    <_blank_chunks>************************************************************" << std::endl;
+      std::cout << "    kernel_op_id: " << _trace->kernel.ctx_id << "   memory_op_id: " << mem_iter.first << std::endl;
+      std::cout << "    unuse_memory_map_per_kernel_len: " << unuse_memory_map_per_kernel.size() << std::endl; 
+      std::cout << "    _blank_chunks_len: " << _blank_chunks.size();
+      auto mem_set_map = _blank_chunks[_trace->kernel.ctx_id];
+      std::cout << "    map_len: " << mem_set_map.size();
+      auto mem_set = mem_set_map[mem_iter.first];
+      std::cout << "    set_len: " << mem_set.size() << std::endl;
+      // auto mem_set = (_blank_chunks.at(_trace->kernel.ctx_id)).at(mem_iter.first); // will segmentation fault
+      for (auto &ssiter : mem_set) {
+        std::cout << "    Range[" << ssiter.start << ", " << ssiter.end << "]  size(" 
+        << ssiter.end - ssiter.start << ")" << std::endl;
+      }
+      std::cout << "  ************************************************************<_blank_chunks>" << std::endl;
+      std::cout << "    Iter number:" << r_count << " kernel_op_id:" << _trace->kernel.ctx_id 
+      << " kernel_ctx_id(kernel id):" << _trace->kernel.ctx_id << std::endl;
+      std::cout << "    memory_op_id:" << mem_iter.first << " trace_start:[" << range_iter.start << ", " 
+      << range_iter.end << "] size(" << range_iter.end - range_iter.start << " B)" << std::endl;
+      std::cout << "  ####################read_trace_CALL_update_chunk####################<DEBUG>" << std::endl;
+      std::cout << std::endl;
+      r_count++;
+#endif
 
         // len += range_iter.end - range_iter.start;
         update_blank_chunks(_trace->kernel.ctx_id, mem_iter.first, range_iter);
@@ -253,6 +370,32 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
     int w_count = 0; // for debug count
     // mem_iter.second is a Set<MemRange>
     for (auto &range_iter : mem_iter.second) {
+      
+#ifdef DEBUG_PRINT
+      std::cout << std::endl;
+      std::cout << "  <DEBUG>####################write_trace_CALL_update_chunk####################" << std::endl;
+      std::cout << "    <_blank_chunks>************************************************************" << std::endl;
+      std::cout << "    kernel_op_id: " << _trace->kernel.ctx_id << "   memory_op_id: " << mem_iter.first << std::endl;
+      std::cout << "    unuse_memory_map_per_kernel_len: " << unuse_memory_map_per_kernel.size() << std::endl; 
+      std::cout << "    _blank_chunks_len: " << _blank_chunks.size();
+      auto mem_set_map = _blank_chunks[_trace->kernel.ctx_id];
+      std::cout << "    map_len: " << mem_set_map.size();
+      auto mem_set = mem_set_map[mem_iter.first];
+      std::cout << "    set_len: " << mem_set.size() << std::endl;
+      // auto mem_set = (_blank_chunks.at(_trace->kernel.ctx_id)).at(mem_iter.first); // will segmentation fault
+      for (auto &ssiter : mem_set) {
+        std::cout << "    Range[" << ssiter.start << ", " << ssiter.end << "]  size(" 
+        << ssiter.end - ssiter.start << ")" << std::endl;
+      }
+      std::cout << "  ************************************************************<_blank_chunks>" << std::endl;
+      std::cout << "    Iter number:" << w_count << " kernel_op_id:" << _trace->kernel.ctx_id 
+      << " kernel_ctx_id(kernel id):" << _trace->kernel.ctx_id << std::endl;
+      std::cout << "    memory_op_id:" << mem_iter.first << " trace_start:[" << range_iter.start << ", " 
+      << range_iter.end << "] size(" << range_iter.end - range_iter.start << " B)" << std::endl;
+      std::cout << "  ####################write_trace_CALL_update_chunk####################<DEBUG>" << std::endl;
+      std::cout << std::endl;
+      w_count++;    
+#endif
 
         // len += range_iter.end - range_iter.start;
         update_blank_chunks(_trace->kernel.ctx_id, mem_iter.first, range_iter);
@@ -415,15 +558,18 @@ if (memory.op_id <= REDSHOW_MEMORY_HOST) {
 void MemoryProfile::flush_thread(u32 cpu_thread, const std::string &output_dir,
                             const LockableMap<u32, Cubin> &cubins,
                             redshow_record_data_callback_func record_data_callback) {
+  
   // std::ofstream out(output_dir + "memory_profile_thread_flush" + std::to_string(cpu_thread) + ".csv");
 
   // out << "This is flush thread test." << std::endl;
   // out.close();
+
 }
+
 
 void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback) {
-
+  
   std::ofstream out(output_dir + "memory_profile_flush" + ".csv");
 
   // out << "************************************************************" << std::endl;
