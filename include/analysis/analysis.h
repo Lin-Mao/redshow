@@ -44,7 +44,7 @@ class Analysis {
   }
 
   // Coarse-grained
-  virtual void op_callback(OperationPtr operation) = 0;
+  virtual void op_callback(OperationPtr operation, bool is_submemory = false) = 0;
 
   // Fine-grained
   virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id,

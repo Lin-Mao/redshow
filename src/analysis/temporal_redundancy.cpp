@@ -7,7 +7,7 @@
 
 namespace redshow {
 
-void TemporalRedundancy::op_callback(OperationPtr op) {
+void TemporalRedundancy::op_callback(OperationPtr op, bool is_submemory /* default = false */) {
   // Nothing
 }
 

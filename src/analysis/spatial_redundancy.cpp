@@ -8,7 +8,7 @@
 
 namespace redshow {
 
-void SpatialRedundancy::op_callback(OperationPtr op) {
+void SpatialRedundancy::op_callback(OperationPtr op, bool is_submemory /* default = false */) {
   // Nothing
 }
 

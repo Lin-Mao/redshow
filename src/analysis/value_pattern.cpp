@@ -16,7 +16,7 @@
 
 namespace redshow {
 
-void ValuePattern::op_callback(OperationPtr operation) {
+void ValuePattern::op_callback(OperationPtr operation, bool is_submemory /* default = false */) {
   // Do nothing
 }
 

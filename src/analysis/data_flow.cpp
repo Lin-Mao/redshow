@@ -244,7 +244,7 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
   }
 }
 
-void DataFlow::op_callback(OperationPtr op) {
+void DataFlow::op_callback(OperationPtr op, bool is_submemory /* default = false */) {
   // Add a calling context node
   lock();
 

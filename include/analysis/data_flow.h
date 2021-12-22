@@ -27,7 +27,7 @@ class DataFlow final : public Analysis {
   virtual ~DataFlow() = default;
 
   // Coarse-grained
-  virtual void op_callback(OperationPtr operation);
+  virtual void op_callback(OperationPtr operation, bool is_submemory = false);
 
   // Fine-grained
   virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mode_id,
