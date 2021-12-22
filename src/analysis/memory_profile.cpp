@@ -113,6 +113,7 @@ void MemoryProfile::update_blank_chunks(i32 kernel_id, u64 memory_op_id, MemoryR
 
 }
 
+
 void MemoryProfile::update_object_fragmentation_in_kernel(u32 cpu_thread, i32 kernel_id) {
   // KernelOpPair kop = KernelOpPair(kernel_id, op_id);
   auto unused_map = _blank_chunks.at(kernel_id);
@@ -154,6 +155,7 @@ void MemoryProfile::update_object_fragmentation_in_kernel(u32 cpu_thread, i32 ke
   }  
 
 }
+
 
 void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
   if (_trace.get() == NULL) {
@@ -263,6 +265,7 @@ void MemoryProfile::op_callback(OperationPtr op) {
   unlock();
 }
 
+
 void MemoryProfile::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id, GPUPatchType type) {
     // Do not need to know value and need to get interval of memory
     assert(type == GPU_PATCH_TYPE_ADDRESS_PATCH || type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS);
@@ -282,17 +285,21 @@ void MemoryProfile::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, 
     unlock();
 }
 
+
 void MemoryProfile::analysis_end(u32 cpu_thread, i32 kernel_id) {
 
 }
+
 
 void MemoryProfile::block_enter(const ThreadId &thread_id) {
 
 }
 
+
 void MemoryProfile::block_exit(const ThreadId &thread_id) {
 
 }
+
 
 void MemoryProfile::merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &memory_range) {
   auto start = memory_range.start;
@@ -359,10 +366,12 @@ void MemoryProfile::merge_memory_range(Set<MemoryRange> &memory, const MemoryRan
   }
 }
 
+
 // not a whole buffer, but a part buffer in a memory object
 void MemoryProfile::unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
                            GPUPatchFlags flags) {
+
 if (memory.op_id <= REDSHOW_MEMORY_HOST) {
     return;
   }

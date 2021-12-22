@@ -46,7 +46,10 @@ static LockableMap<uint32_t, Cubin> cubin_map;
 
 static LockableMap<uint32_t, CubinCache> cubin_cache_map;
 
+
+// MemoryMap(<range, object>) is a map with current object
 typedef Map<MemoryRange, std::shared_ptr<Memory>> MemoryMap;
+// <op_id, memory_map>
 static LockableMap<uint64_t, MemoryMap> memory_snapshot;
 
 // Init analysis instance
@@ -585,6 +588,9 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
     case REDSHOW_ANALYSIS_VALUE_PATTERN:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_VALUE_PATTERN, std::make_shared<ValuePattern>());
       break;
+    case REDSHOW_ANALYSIS_MEMORY_PROFILE:
+      analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_PROFILE, std::make_shared<MemoryProfile>());
+      break;
     default:
       result = REDSHOW_ERROR_NO_SUCH_ANALYSIS;
       break;
@@ -744,6 +750,7 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
     result = REDSHOW_SUCCESS;
     PRINT("Register memory_id %d\n", memory_id);
   } else {
+    // snapshot_iter's op_id <= host_op_id
     auto iter = memory_snapshot.prev(host_op_id);
     if (iter != memory_snapshot.end()) {
       // Take a snapshot
