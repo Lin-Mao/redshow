@@ -37,7 +37,7 @@ class MemoryProfile final : public Analysis {
   MemoryProfile() : Analysis(REDSHOW_ANALYSIS_VALUE_PATTERN) {}
 
   // Coarse-grained
-  virtual void op_callback(OperationPtr operation);
+  virtual void op_callback(OperationPtr operation, bool is_submemory = false);
 
   // Fine-grained
   virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id,
@@ -90,6 +90,10 @@ Map<u64, i32> _op_node;
 
 // <op_id, memory>   used to log all allocated memory
 Map<u64, std::shared_ptr<Memory>> _memories;
+
+// <op_id, memory>  used to log all allocated sub_memory
+Map<u64, std::shared_ptr<Memory>> _sub_memories;
+
 
 /**
  * @brief <kernel_op_id, <memory_op_id, set<memory_range>>.  

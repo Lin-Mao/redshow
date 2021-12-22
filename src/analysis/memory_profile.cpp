@@ -23,12 +23,18 @@ void MemoryProfile::update_op_node(u64 op_id, i32 ctx_id) {
 
 void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory /* default = false */) {
   update_op_node(op->op_id, op->ctx_id);
+  if (!is_submemory) {
+    _memories.try_emplace(op->op_id, op);
+    larget_chunk_with_memories.try_emplace(op->op_id, op->len);
 
-  _memories.try_emplace(op->op_id, op);
-  larget_chunk_with_memories.try_emplace(op->op_id, op->len);
+    // TODO(@Mao): to store the _memories which is logging the allocated memory. Think about how to update it.
 
-  // TODO(@Mao): to store the _memories which is logging the allocated memory. Think about how to update it.
+  } else { // is_submemory == true
+    
+    _sub_memories.try_emplace(op->op_id, op);
+  }
 
+  
 }
 
 
@@ -170,7 +176,14 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
 
 // for read access trace
   for (auto &mem_iter : _trace->read_memory) {
+
+#ifdef SUB_MEMORY
+    auto memory = _sub_memories.at(mem_iter.first);
+#endif
+
+#ifndef SUB_MEMORY
     auto memory = _memories.at(mem_iter.first);
+#endif
 
     if (_accessed_memories.find(mem_iter.first) != _accessed_memories.end()) {
       auto kid = _accessed_memories.at(mem_iter.first);
@@ -208,7 +221,14 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
 
 // for write access trace
   for (auto &mem_iter : _trace->write_memory) {
+
+#ifdef SUB_MEMORY
+    auto memory = _sub_memories.at(mem_iter.first);
+#endif
+
+#ifndef SUB_MEMORY
     auto memory = _memories.at(mem_iter.first);
+#endif
 
     if (_accessed_memories.find(mem_iter.first) != _accessed_memories.end()) {
       auto kid = _accessed_memories.at(mem_iter.first);
@@ -243,6 +263,7 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
       }
     }
   }
+
     update_object_fragmentation_in_kernel(_trace->kernel.cpu_thread, _trace->kernel.ctx_id);
 
   // reset _trace
@@ -252,14 +273,14 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
 }
 
 
-void MemoryProfile::op_callback(OperationPtr op) {
+void MemoryProfile::op_callback(OperationPtr op, bool is_submemory /* default = false */) {
 // TODO(@Mao):
   lock();
   
   if (op->type == OPERATION_TYPE_KERNEL) {
     kernel_op_callback(std::dynamic_pointer_cast<Kernel>(op));
   } else if (op->type == OPERATION_TYPE_MEMORY) {
-    memory_op_callback(std::dynamic_pointer_cast<Memory>(op));
+    memory_op_callback(std::dynamic_pointer_cast<Memory>(op), is_submemory);
   }
 
   unlock();
@@ -417,7 +438,15 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
       out << "  Kernel_id: " << kiter.first << std::endl;
       auto &memory_map = kernel_map.at(kiter.first);
       for (auto &miter : memory_map) {
+
+#ifdef SUB_MEMORY
+        auto memory = _sub_memories.at(miter.first);
+#endif
+
+#ifndef SUB_MEMORY
         auto memory = _memories.at(miter.first);
+#endif 
+
         out << "ctx_id" << std::endl;
         out << _op_node.at(miter.first) << std::endl;
         out << "    Memory[" << miter.first << "] (" << memory->memory_range.end - memory->memory_range.start 
