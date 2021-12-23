@@ -13,7 +13,8 @@ enum OperationType {
   OPERATION_TYPE_MEMORY = 1,
   OPERATION_TYPE_MEMCPY = 2,
   OPERATION_TYPE_MEMSET = 3,
-  OPERATION_TYPE_COUNT = 4
+  OPERATION_TYPE_MEMFREE = 4,
+  OPERATION_TYPE_COUNT = 5
 };
 
 const std::string get_operation_type(OperationType type);
