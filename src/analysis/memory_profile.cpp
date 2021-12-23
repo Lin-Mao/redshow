@@ -607,6 +607,8 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
 
         out << "ctx_id" << std::endl;
         out << _op_node.at(miter.first) << std::endl;
+        out << "    allocated at: " << miter.first << std::endl;
+        out << "    freed at: " << _memfree_lists.at(_op_node.at(miter.first)) << std::endl;
         out << "    Memory[" << miter.first << "] (" << memory->memory_range.end - memory->memory_range.start 
         << " B) = " << miter.second.fragmentation << " (largest_chunk: " << miter.second.largest_chunk << " B)" << std::endl; 
       }
