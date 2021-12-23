@@ -52,8 +52,18 @@ void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_subme
     
     _sub_memories.try_emplace(op->op_id, op);
   }
+ 
+}
 
+void MemoryProfile::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory /* default = false */) {
   
+  if (!is_submemory) {
+    
+    _memfree_lists.try_emplace(op->ctx_id, op->op_id); 
+
+  } else {
+    // TODO(@Lin-Mao)
+  }
 }
 
 
@@ -424,6 +434,8 @@ void MemoryProfile::op_callback(OperationPtr op, bool is_submemory /* default = 
     kernel_op_callback(std::dynamic_pointer_cast<Kernel>(op));
   } else if (op->type == OPERATION_TYPE_MEMORY) {
     memory_op_callback(std::dynamic_pointer_cast<Memory>(op), is_submemory);
+  } else if (op->type == OPERATION_TYPE_MEMFREE) {
+    memfree_op_callback(std::dynamic_pointer_cast<Memfree>(op), is_submemory);
   }
 
   unlock();

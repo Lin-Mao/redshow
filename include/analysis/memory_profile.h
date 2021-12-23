@@ -19,8 +19,9 @@
 
 #include "analysis.h"
 #include "operation/operation.h"
-#include "operation/memory.h"
+// #include "operation/memory.h" // included in operation/memfree.h
 #include "operation/kernel.h"
+#include "operation/memfree.h"
 
 #include <fstream>
 
@@ -95,6 +96,9 @@ Map<u64, std::shared_ptr<Memory>> _memories;
 // <op_id, memory>  used to log all allocated sub_memory
 Map<u64, std::shared_ptr<Memory>> _sub_memories;
 
+// <ctx_id, host_op_id>, used for memory free op_callback
+Map<i32, u64> _memfree_lists;
+
 
 /**
  * @brief <kernel_op_id, <memory_op_id, set<memory_range>>.  
@@ -158,6 +162,12 @@ void kernel_op_callback(std::shared_ptr<Kernel> op);
  * @param op 
  */
 void memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory = false);
+
+/**
+ * @brief Memory unregister callback function
+ * 
+ */
+void memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory = false);
 
 /**
  * @brief Update the op_id table.
