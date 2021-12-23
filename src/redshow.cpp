@@ -29,6 +29,7 @@
 #include "operation/memcpy.h"
 #include "operation/memory.h"
 #include "operation/memset.h"
+#include "operation/memfree.h"
 
 #ifdef DEBUG
 #define PRINT(...) fprintf(stderr, __VA_ARGS__)
@@ -789,6 +790,7 @@ redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t start, 
 
   MemoryMap memory_map;
   MemoryRange memory_range(start, end);
+  auto memfree = std::make_shared<Memfree>(host_op_id, memory_range);
 
   memory_snapshot.lock();
   auto snapshot_iter = memory_snapshot.prev(host_op_id);
@@ -797,6 +799,8 @@ redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t start, 
     memory_map = snapshot_iter->second;
     auto memory_map_iter = memory_map.find(memory_range);
     if (memory_map_iter != memory_map.end()) {
+      // pass the ctx_id to memfree
+      memfree->ctx_id = memory_map_iter->second->ctx_id;
       memory_map.erase(memory_map_iter);
       memory_snapshot[host_op_id] = memory_map;
       result = REDSHOW_SUCCESS;
@@ -807,6 +811,12 @@ redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t start, 
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
   }
   memory_snapshot.unlock();
+
+  if (result == REDSHOW_SUCCESS) {
+    for (auto aiter : analysis_enabled) {
+      aiter.second->op_callback(memfree);
+    }
+  }
 
   return result;
 }
