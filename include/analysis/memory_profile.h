@@ -135,6 +135,25 @@ struct ChunkFragmentation {
 Map<u32, Map<u64, Map<u64, ChunkFragmentation>>> _object_fragmentation_of_kernel_per_thread;
 
 
+/**
+ * @brief 
+ * 
+ */
+struct HitMapMemory {
+  size_t size;
+  uint8_t *array;
+
+  HitMapMemory() = default;
+
+  HitMapMemory(size_t len) : size(len) {}
+
+};
+
+/**
+ * @brief <op_id, HitMapMemory> to log hit frequency
+ * 
+ */
+Map<u64, HitMapMemory> _hitmap_list;
 
 
 // functions
@@ -195,6 +214,12 @@ void update_blank_chunks(i32 kernel_id, u64 memory_op_id, MemoryRange range_iter
  * @param op_id 
  */
 void update_object_fragmentation_in_kernel(u32 cpu_thread, i32 kernel_id);
+
+/**
+ * @brief Update hitmap list
+ * 
+ */
+void update_hitmap_list(u64 op_id, MemoryRange memory_range);
 
 
 
