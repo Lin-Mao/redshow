@@ -49,9 +49,10 @@ void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_subme
     larget_chunk_with_memories.try_emplace(op->op_id, op->len);
     uint8_t* arr = (uint8_t*) malloc(sizeof(uint8_t) * op->len);
     memset(arr, 0, sizeof(uint8_t) * op->len);
-    HitMapMemory hitmap(op->len);
-    hitmap.array = arr;
-    _hitmap_list[op->op_id] = hitmap;
+  
+    HeatMapMemory heatmap(op->len);
+    heatmap.array = arr;
+    _heatmap_list[op->op_id] = heatmap;
 
     // TODO(@Mao): to store the _memories which is logging the allocated memory. Think about how to update it.
 
@@ -548,15 +549,16 @@ void MemoryProfile::merge_memory_range(Set<MemoryRange> &memory, const MemoryRan
   }
 }
 
-void MemoryProfile::update_hitmap_list(u64 op_id, MemoryRange memory_range) {
-  auto &hitmap = _hitmap_list[op_id];
+void MemoryProfile::update_heatmap_list(u64 op_id, MemoryRange memory_range) {
+  auto &heatmap = _heatmap_list[op_id];
 
   auto memory = _memories.at(op_id);
   auto start = memory_range.start - memory->memory_range.start;
-  auto end = memory_range.end - memory->memory_range.end;
+  auto end = memory_range.end - memory->memory_range.start;
 
   for (int i = start; i < end; i++) {
-    *(hitmap.array + i) += 1;
+    *(heatmap.array + i) += 1;
+    
   }
   
 }
@@ -574,8 +576,8 @@ if (memory.op_id <= REDSHOW_MEMORY_HOST) {
   auto &memory_range = memory.memory_range;
 
   if (flags & GPU_PATCH_READ) {
-    // add for hitmap
-    update_hitmap_list(memory.op_id, memory_range);
+    // add for heatmap
+    update_heatmap_list(memory.op_id, memory_range);
     if (_configs[REDSHOW_ANALYSIS_READ_TRACE_IGNORE] == false) {
       merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
     } else if (_trace->read_memory[memory.op_id].empty()) {
@@ -583,8 +585,8 @@ if (memory.op_id <= REDSHOW_MEMORY_HOST) {
     }
   }
   if (flags & GPU_PATCH_WRITE) {
-    // add for hitmap
-    update_hitmap_list(memory.op_id, memory_range);
+    // add for heatmap
+    update_heatmap_list(memory.op_id, memory_range);
     merge_memory_range(_trace->write_memory[memory.op_id], memory_range);
   }
 
@@ -646,6 +648,19 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
   // out << "************************************************************" << std::endl;
   // out << "****************** Fragmentation Info END ******************" << std::endl;
   // out << "************************************************************" << std::endl;
+
+  
+  for (auto iter : _heatmap_list) {
+    out << "mem_id " << _op_node.at(iter.first) << std::endl;
+    for (size_t i = 0; i < iter.second.size; i++) {
+      out << int(iter.second.array[i]) << " ";
+      if (i % 30 == 29) out << std::endl;
+    }
+    out << std::endl;
+    out << std::endl;
+  }
+
+
   out.close();
 
 }
