@@ -634,7 +634,14 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
         out << "    memory_id " << _op_node.at(miter.first) << std::endl;
         out << "    |- size " << memory->memory_range.end - memory->memory_range.start << " B" << std::endl;
         out << "    |- allocated at " << miter.first << std::endl;
-        out << "    |- freed at " << _memfree_lists.at(_op_node.at(miter.first)) << std::endl;
+
+        auto iter = _memfree_lists.find(_op_node.at(miter.first));
+        if (iter == _memfree_lists.end()) {
+          out << "    |- freed at execution finished" << std::endl;
+        } else {
+          out << "    |- freed at " << iter->second << std::endl;
+        }
+
         out << "    |- fragmentation " << miter.second.fragmentation << std::endl;
         out << "    |- largest chunk " << miter.second.largest_chunk << " B" << std::endl;
         out << "    |- unused memory " << 1 << std::endl;
