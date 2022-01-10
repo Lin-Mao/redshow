@@ -47,12 +47,14 @@ void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_subme
     
     _memories.try_emplace(op->op_id, op);
     larget_chunk_with_memories.try_emplace(op->op_id, op->len);
-    uint8_t* arr = (uint8_t*) malloc(sizeof(uint8_t) * op->len);
-    memset(arr, 0, sizeof(uint8_t) * op->len);
+
+
+    // uint8_t* arr = (uint8_t*) malloc(sizeof(uint8_t) * op->len);
+    // memset(arr, 0, sizeof(uint8_t) * op->len);
   
-    HeatMapMemory heatmap(op->len);
-    heatmap.array = arr;
-    _heatmap_list[op->op_id] = heatmap;
+    // HeatMapMemory heatmap(op->len);
+    // heatmap.array = arr;
+    // _heatmap_list[op->op_id] = heatmap;
 
     // TODO(@Mao): to store the _memories which is logging the allocated memory. Think about how to update it.
 
@@ -549,12 +551,13 @@ void MemoryProfile::merge_memory_range(Set<MemoryRange> &memory, const MemoryRan
   }
 }
 
-void MemoryProfile::update_heatmap_list(u64 op_id, MemoryRange memory_range) {
+void MemoryProfile::update_heatmap_list(u64 op_id, MemoryRange memory_range, uint32_t unit_size) {
   auto &heatmap = _heatmap_list[op_id];
+  uint32_t bytes = unit_size / 8;
 
   auto memory = _memories.at(op_id);
-  auto start = memory_range.start - memory->memory_range.start;
-  auto end = memory_range.end - memory->memory_range.start;
+  auto start = (memory_range.start - memory->memory_range.start) / bytes;
+  auto end = (memory_range.end - memory->memory_range.start) / bytes;
 
   for (int i = start; i < end; i++) {
     *(heatmap.array + i) += 1;
@@ -575,9 +578,24 @@ if (memory.op_id <= REDSHOW_MEMORY_HOST) {
 
   auto &memory_range = memory.memory_range;
 
+  auto heatmap = _heatmap_list.find(memory.op_id);
+  if (heatmap == _heatmap_list.end()) {
+    auto object = _memories.at(memory.op_id);
+    size_t len = object->len / (access_kind.unit_size / 8);
+    
+    uint8_t* arr = (uint8_t*) malloc(sizeof(uint8_t) * len);
+    memset(arr, 0, sizeof(uint8_t) * len);
+
+    HeatMapMemory heatmap(len);
+    heatmap.array = arr;
+    _heatmap_list[memory.op_id] = heatmap;
+  }
+  
+
+
   if (flags & GPU_PATCH_READ) {
     // add for heatmap
-    update_heatmap_list(memory.op_id, memory_range);
+    update_heatmap_list(memory.op_id, memory_range, access_kind.unit_size);
     if (_configs[REDSHOW_ANALYSIS_READ_TRACE_IGNORE] == false) {
       merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
     } else if (_trace->read_memory[memory.op_id].empty()) {
@@ -586,7 +604,7 @@ if (memory.op_id <= REDSHOW_MEMORY_HOST) {
   }
   if (flags & GPU_PATCH_WRITE) {
     // add for heatmap
-    update_heatmap_list(memory.op_id, memory_range);
+    update_heatmap_list(memory.op_id, memory_range, access_kind.unit_size);
     merge_memory_range(_trace->write_memory[memory.op_id], memory_range);
   }
 

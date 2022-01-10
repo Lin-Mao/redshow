@@ -219,7 +219,7 @@ void update_object_fragmentation_in_kernel(u32 cpu_thread, i32 kernel_id);
  * @brief Update heatmap list
  * 
  */
-void update_heatmap_list(u64 op_id, MemoryRange memory_range);
+void update_heatmap_list(u64 op_id, MemoryRange memory_range, uint32_t unit_size);
 
 
 
