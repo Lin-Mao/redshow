@@ -158,6 +158,9 @@ static redshow_result_t trace_analyze_address_patch(int32_t kernel_id, MemoryMap
         continue;
       }
 
+      // only for memory profile heatmap storage compression
+      access_kind.unit_size = record->size;
+
       Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
       // XXX(Keren): Need to separate address analysis with value analysis
       for (auto aiter : analysis_enabled) {

@@ -553,11 +553,10 @@ void MemoryProfile::merge_memory_range(Set<MemoryRange> &memory, const MemoryRan
 
 void MemoryProfile::update_heatmap_list(u64 op_id, MemoryRange memory_range, uint32_t unit_size) {
   auto &heatmap = _heatmap_list[op_id];
-  uint32_t bytes = unit_size / 8;
 
   auto memory = _memories.at(op_id);
-  auto start = (memory_range.start - memory->memory_range.start) / bytes;
-  auto end = (memory_range.end - memory->memory_range.start) / bytes;
+  auto start = (memory_range.start - memory->memory_range.start) / unit_size;
+  auto end = (memory_range.end - memory->memory_range.start) / unit_size;
 
   for (int i = start; i < end; i++) {
     *(heatmap.array + i) += 1;
@@ -581,7 +580,7 @@ if (memory.op_id <= REDSHOW_MEMORY_HOST) {
   auto heatmap = _heatmap_list.find(memory.op_id);
   if (heatmap == _heatmap_list.end()) {
     auto object = _memories.at(memory.op_id);
-    size_t len = object->len / (access_kind.unit_size / 8);
+    size_t len = object->len / access_kind.unit_size;
     
     uint8_t* arr = (uint8_t*) malloc(sizeof(uint8_t) * len);
     memset(arr, 0, sizeof(uint8_t) * len);
