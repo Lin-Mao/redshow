@@ -93,7 +93,7 @@ typedef struct redshow_record_data {
  * @thread-safe: No
  */
 EXTERNC redshow_result_t redshow_output_dir_config_dummy(redshow_analysis_type_t analysis,
-                                                   const char *dir){};
+                                                   const char *dir);
 
 /**
  * @brief Config default data type
@@ -103,7 +103,7 @@ EXTERNC redshow_result_t redshow_output_dir_config_dummy(redshow_analysis_type_t
  *
  * @thread-safe: No
  */
-EXTERNC redshow_result_t redshow_data_type_config_dummy(redshow_data_type_t data_type){};
+EXTERNC redshow_result_t redshow_data_type_config_dummy(redshow_data_type_t data_type);
 
 /**
  * @brief Get default data type
@@ -113,7 +113,7 @@ EXTERNC redshow_result_t redshow_data_type_config_dummy(redshow_data_type_t data
  *
  * @thread-safe: YES
  */
-EXTERNC redshow_result_t redshow_data_type_get_dummy(redshow_data_type_t *data_type){};
+EXTERNC redshow_result_t redshow_data_type_get_dummy(redshow_data_type_t *data_type);
 
 /**
  * @brief Get pc views limit
@@ -121,7 +121,7 @@ EXTERNC redshow_result_t redshow_data_type_get_dummy(redshow_data_type_t *data_t
  * @param views
  * @return EXTERNC
  */
-EXTERNC redshow_result_t redshow_pc_views_get_dummy(uint32_t *views){};
+EXTERNC redshow_result_t redshow_pc_views_get_dummy(uint32_t *views);
 
 /**
  * @brief Get mem views limit
@@ -129,7 +129,7 @@ EXTERNC redshow_result_t redshow_pc_views_get_dummy(uint32_t *views){};
  * @param views
  * @return EXTERNC
  */
-EXTERNC redshow_result_t redshow_mem_views_get_dummy(uint32_t *views){};
+EXTERNC redshow_result_t redshow_mem_views_get_dummy(uint32_t *views);
 
 /**
  * @brief Config floating point redundancy approximate level
@@ -139,7 +139,7 @@ EXTERNC redshow_result_t redshow_mem_views_get_dummy(uint32_t *views){};
  *
  * @thread-safe: No
  */
-EXTERNC redshow_result_t redshow_approx_level_config_dummy(redshow_approx_level_t level){};
+EXTERNC redshow_result_t redshow_approx_level_config_dummy(redshow_approx_level_t level);
 
 /**
  * @brief
@@ -148,7 +148,7 @@ EXTERNC redshow_result_t redshow_approx_level_config_dummy(redshow_approx_level_
  * @param degree_f64
  * @return EXTERNC
  */
-EXTERNC redshow_result_t redshow_approx_get_dummy(int *degree_f32, int *degree_f64){};
+EXTERNC redshow_result_t redshow_approx_get_dummy(int *degree_f32, int *degree_f64);
 
 /**
  * @brief This function is used to setup specific analysis types.
@@ -158,7 +158,7 @@ EXTERNC redshow_result_t redshow_approx_get_dummy(int *degree_f32, int *degree_f
  *
  * @thread-safe: No
  */
-EXTERNC redshow_result_t redshow_analysis_enable_dummy(redshow_analysis_type_t analysis_type){};
+EXTERNC redshow_result_t redshow_analysis_enable_dummy(redshow_analysis_type_t analysis_type);
 
 /**
  * @brief This function is used to check an analysis type is enabled.
@@ -168,7 +168,7 @@ EXTERNC redshow_result_t redshow_analysis_enable_dummy(redshow_analysis_type_t a
  *
  * @thread-safe: No
  */
-EXTERNC redshow_result_t redshow_analysis_enabled_dummy(redshow_analysis_type_t analysis_type){};
+EXTERNC redshow_result_t redshow_analysis_enabled_dummy(redshow_analysis_type_t analysis_type);
 
 /**
  * @brief This function is used to cancel specific analysis types.
@@ -178,7 +178,7 @@ EXTERNC redshow_result_t redshow_analysis_enabled_dummy(redshow_analysis_type_t 
  *
  * @thread-safe: NO
  */
-EXTERNC redshow_result_t redshow_analysis_disable_dummy(redshow_analysis_type_t analysis_type){};
+EXTERNC redshow_result_t redshow_analysis_disable_dummy(redshow_analysis_type_t analysis_type);
 
 /**
  * @brief This function is used to turn on/off analysis knobs
@@ -190,7 +190,7 @@ EXTERNC redshow_result_t redshow_analysis_disable_dummy(redshow_analysis_type_t 
  */
 EXTERNC redshow_result_t redshow_analysis_config_dummy(redshow_analysis_type_t analysis_type,
                                                        redshow_analysis_config_type_t config,
-                                                       bool enable){};
+                                                       bool enable);
 
 /**
  * @brief This function is used to register a cubin module. redshow analyzes a cubin module to
@@ -207,7 +207,7 @@ EXTERNC redshow_result_t redshow_analysis_config_dummy(redshow_analysis_type_t a
  */
 EXTERNC redshow_result_t redshow_cubin_register_dummy(uint32_t cubin_id, uint32_t mod_id,
                                                       uint32_t nsymbols, const uint64_t *symbol_pcs,
-                                                      const char *path){};
+                                                      const char *path);
 
 /**
  * @brief For a large-scale program that loads a large number of CUBINs, we do not analyze every of
@@ -225,7 +225,7 @@ EXTERNC redshow_result_t redshow_cubin_register_dummy(uint32_t cubin_id, uint32_
  */
 EXTERNC redshow_result_t redshow_cubin_cache_register_dummy(uint32_t cubin_id, uint32_t mod_id,
                                                             uint32_t nsymbols, uint64_t *symbol_pcs,
-                                                            const char *path){};
+                                                            const char *path);
 
 /**
  * @brief This function is used to unregister a module.
@@ -236,7 +236,7 @@ EXTERNC redshow_result_t redshow_cubin_cache_register_dummy(uint32_t cubin_id, u
  *
  * @thread-safe: YES
  */
-EXTERNC redshow_result_t redshow_cubin_unregister_dummy(uint32_t cubin_id, uint32_t mod_id){};
+EXTERNC redshow_result_t redshow_cubin_unregister_dummy(uint32_t cubin_id, uint32_t mod_id);
 
 /**
  * @brief This function is used to register a global memory region.
@@ -250,7 +250,7 @@ EXTERNC redshow_result_t redshow_cubin_unregister_dummy(uint32_t cubin_id, uint3
  * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_memory_register_dummy(int32_t memory_id, uint64_t host_op_id,
-                                                       uint64_t start, uint64_t end){};
+                                                       uint64_t start, uint64_t end);
 
 /**
  * @brief This function is used to unregister a global memory region.
@@ -263,7 +263,7 @@ EXTERNC redshow_result_t redshow_memory_register_dummy(int32_t memory_id, uint64
  * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_memory_unregister_dummy(uint64_t host_op_id, uint64_t start,
-                                                         uint64_t end){};
+                                                         uint64_t end);
 
 /**
  * @brief This funciton is used to query the address of a shadow memory
@@ -280,14 +280,14 @@ EXTERNC redshow_result_t redshow_memory_unregister_dummy(uint64_t host_op_id, ui
  */
 EXTERNC redshow_result_t redshow_memory_query_dummy(uint64_t host_op_id, uint64_t start,
                                                     int32_t *memory_id, uint64_t *memory_op_id,
-                                                    uint64_t *shadow_start, uint64_t *len){};
+                                                    uint64_t *shadow_start, uint64_t *len);
 
 /**
  * @brief This funciton is used to return the first limit memory ranges at the current snapshot
  */
 EXTERNC redshow_result_t redshow_memory_ranges_get_dummy(uint64_t host_op_id, uint64_t limit,
                                                          gpu_patch_analysis_address_t *start_end,
-                                                         uint32_t *len){};
+                                                         uint32_t *len);
 
 /**
  * @brief This funciton is used to track a memcpy operation
@@ -301,7 +301,7 @@ EXTERNC redshow_result_t redshow_memory_ranges_get_dummy(uint64_t host_op_id, ui
  */
 EXTERNC redshow_result_t redshow_memcpy_register_dummy(int32_t memcpy_id, uint64_t host_op_id,
                                                        bool src_host, uint64_t src_start, bool dst_host,
-                                                       uint64_t dst_start, uint64_t len){};
+                                                       uint64_t dst_start, uint64_t len);
 
 /**
  * @brief This funciton is used to track a memset operation
@@ -316,7 +316,7 @@ EXTERNC redshow_result_t redshow_memcpy_register_dummy(int32_t memcpy_id, uint64
  * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_memset_register_dummy(int32_t memset_id, uint64_t host_op_id,
-                                                       uint64_t start, uint32_t value, uint64_t len){};
+                                                       uint64_t start, uint32_t value, uint64_t len);
 
 /**
  * @brief Callback function prototype
@@ -333,7 +333,7 @@ typedef void (*redshow_log_data_callback_func)(int32_t kernel_id, gpu_patch_buff
  *
  * @thread-safe NO
  */
-EXTERNC redshow_result_t redshow_log_data_callback_register_dummy(redshow_log_data_callback_func func){};
+EXTERNC redshow_result_t redshow_log_data_callback_register_dummy(redshow_log_data_callback_func func);
 
 /**
  * @brief Callback function prototype
@@ -351,7 +351,7 @@ typedef void (*redshow_record_data_callback_func)(uint32_t cubin_id, int32_t ker
  * @return reshow_result_t
  */
 EXTERNC redshow_result_t redshow_record_data_callback_register_dummy(
-    redshow_record_data_callback_func func, uint32_t pc_views_limit, uint32_t mem_views_limit){};
+    redshow_record_data_callback_func func, uint32_t pc_views_limit, uint32_t mem_views_limit);
 
 /**
  * @brief Apply registered analysis to a gpu trace, analysis results are buffered.
@@ -373,7 +373,7 @@ EXTERNC redshow_result_t redshow_record_data_callback_register_dummy(
  */
 EXTERNC redshow_result_t redshow_analyze_dummy(uint32_t cpu_thread, uint32_t cubin_id, uint32_t mod_id,
                                                int32_t kernel_id, uint64_t host_op_id,
-                                               gpu_patch_buffer_t *trace_data){};
+                                               gpu_patch_buffer_t *trace_data);
 
 /**
  * @brief Callback function prototype
@@ -387,7 +387,7 @@ typedef void (*redshow_tool_dtoh_func)(uint64_t host_start, uint64_t device_star
  * @param func
  * @return EXTERNC
  */
-EXTERNC redshow_result_t redshow_tool_dtoh_register_dummy(redshow_tool_dtoh_func func){};
+EXTERNC redshow_result_t redshow_tool_dtoh_register_dummy(redshow_tool_dtoh_func func);
 
 /**
  * @brief when a kernel starts
@@ -398,7 +398,7 @@ EXTERNC redshow_result_t redshow_tool_dtoh_register_dummy(redshow_tool_dtoh_func
  * @return EXTERNC
  */
 EXTERNC redshow_result_t redshow_kernel_begin_dummy(uint32_t cpu_thread, int32_t kernel_id,
-                                                    uint64_t host_op_id){};
+                                                    uint64_t host_op_id);
 
 /**
  * @brief when a kernel ends
@@ -409,7 +409,7 @@ EXTERNC redshow_result_t redshow_kernel_begin_dummy(uint32_t cpu_thread, int32_t
  * @return EXTERNC
  */
 EXTERNC redshow_result_t redshow_kernel_end_dummy(uint32_t cpu_thread, int32_t kernel_id,
-                                                  uint64_t host_op_id){};
+                                                  uint64_t host_op_id);
 
 /**
  * @brief Mark the begin of the current analysis region
@@ -418,7 +418,7 @@ EXTERNC redshow_result_t redshow_kernel_end_dummy(uint32_t cpu_thread, int32_t k
  *
  * @thread-safe YES
  */
-EXTERNC redshow_result_t redshow_analysis_begin_dummy(){};
+EXTERNC redshow_result_t redshow_analysis_begin_dummy();
 
 /**
  * @brief Mark the end of the current analysis region
@@ -427,7 +427,7 @@ EXTERNC redshow_result_t redshow_analysis_begin_dummy(){};
  *
  * @thread-safe YES
  */
-EXTERNC redshow_result_t redshow_analysis_end_dummy(){};
+EXTERNC redshow_result_t redshow_analysis_end_dummy();
 
 /**
  * @brief Flush back all the result. This function is supposed to be called when all the analysis
@@ -438,7 +438,7 @@ EXTERNC redshow_result_t redshow_analysis_end_dummy(){};
  *
  * @thread-safe YES
  */
-EXTERNC redshow_result_t redshow_flush_thread_dummy(uint32_t cpu_thread){};
+EXTERNC redshow_result_t redshow_flush_thread_dummy(uint32_t cpu_thread);
 
 /**
  * @brief  Flush back all the result. This function is supposed to be called when all the analysis
@@ -448,7 +448,7 @@ EXTERNC redshow_result_t redshow_flush_thread_dummy(uint32_t cpu_thread){};
  *
  * @thread-safe NO
  */
-EXTERNC redshow_result_t redshow_flush_dummy(){};
+EXTERNC redshow_result_t redshow_flush_dummy();
 
 /**
  * @brief Flush back current result. This function is supposed to be called when there are sync points defined by users.
@@ -458,6 +458,6 @@ EXTERNC redshow_result_t redshow_flush_dummy(){};
  *
  * @thread-safe YES
  */
-EXTERNC redshow_result_t redshow_flush_now_dummy(uint32_t cpu_thread){};
+EXTERNC redshow_result_t redshow_flush_now_dummy(uint32_t cpu_thread);
 
 #endif  // REDSHOW_H

@@ -56,7 +56,8 @@ typedef enum redshow_result {
   REDSHOW_ERROR_FAILED_ANALYZE_TRACE = 7,
   REDSHOW_ERROR_NO_SUCH_APPROX = 8,
   REDSHOW_ERROR_NO_SUCH_DATA_TYPE = 9,
-  REDSHOW_ERROR_NO_SUCH_ANALYSIS = 10
+  REDSHOW_ERROR_NO_SUCH_ANALYSIS = 10,
+  REDSHOW_ERROR_DEEPCALL_ARGS = 11
 } redshow_result_t;
 
 typedef enum redshow_approx_level {
