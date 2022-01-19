@@ -35,7 +35,7 @@ class MemoryProfile final : public Analysis {
  * ******************************************************************/
 
   public:
-  MemoryProfile() : Analysis(REDSHOW_ANALYSIS_VALUE_PATTERN) {}
+  MemoryProfile() : Analysis(REDSHOW_ANALYSIS_MEMORY_PROFILE) {}
 
   virtual ~MemoryProfile() = default;
 
