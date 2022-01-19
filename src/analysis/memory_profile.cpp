@@ -10,7 +10,7 @@
  */
 
 #include "analysis/memory_profile.h"
-#include <cstring>
+
 
 
 // #define DEBUG_PRINT
@@ -551,20 +551,6 @@ void MemoryProfile::merge_memory_range(Set<MemoryRange> &memory, const MemoryRan
   }
 }
 
-void MemoryProfile::update_heatmap_list(u64 op_id, MemoryRange memory_range, uint32_t unit_size) {
-  auto &heatmap = _heatmap_list[op_id];
-
-  auto memory = _memories.at(op_id);
-  auto start = (memory_range.start - memory->memory_range.start) / unit_size;
-  auto end = (memory_range.end - memory->memory_range.start) / unit_size;
-
-  for (int i = start; i < end; i++) {
-    *(heatmap.array + i) += 1;
-    
-  }
-  
-}
-
 
 // not a whole buffer, but a part buffer in a memory object
 void MemoryProfile::unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
@@ -577,24 +563,11 @@ if (memory.op_id <= REDSHOW_MEMORY_HOST) {
 
   auto &memory_range = memory.memory_range;
 
-  auto heatmap = _heatmap_list.find(memory.op_id);
-  if (heatmap == _heatmap_list.end()) {
-    auto object = _memories.at(memory.op_id);
-    size_t len = object->len / access_kind.unit_size;
-    
-    uint8_t* arr = (uint8_t*) malloc(sizeof(uint8_t) * len);
-    memset(arr, 0, sizeof(uint8_t) * len);
-
-    HeatMapMemory heatmap(len);
-    heatmap.array = arr;
-    _heatmap_list[memory.op_id] = heatmap;
-  }
   
 
 
   if (flags & GPU_PATCH_READ) {
-    // add for heatmap
-    update_heatmap_list(memory.op_id, memory_range, access_kind.unit_size);
+    
     if (_configs[REDSHOW_ANALYSIS_READ_TRACE_IGNORE] == false) {
       merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
     } else if (_trace->read_memory[memory.op_id].empty()) {
@@ -602,8 +575,7 @@ if (memory.op_id <= REDSHOW_MEMORY_HOST) {
     }
   }
   if (flags & GPU_PATCH_WRITE) {
-    // add for heatmap
-    update_heatmap_list(memory.op_id, memory_range, access_kind.unit_size);
+
     merge_memory_range(_trace->write_memory[memory.op_id], memory_range);
   }
 
@@ -672,18 +644,6 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
   // out << "************************************************************" << std::endl;
   // out << "****************** Fragmentation Info END ******************" << std::endl;
   // out << "************************************************************" << std::endl;
-
-  
-  for (auto iter : _heatmap_list) {
-    out << "mem_id " << _op_node.at(iter.first) << std::endl;
-    for (size_t i = 0; i < iter.second.size; i++) {
-      out << int(iter.second.array[i]) << " ";
-      if (i % 30 == 29) out << std::endl;
-    }
-    out << std::endl;
-    out << std::endl;
-  }
-
 
   out.close();
 

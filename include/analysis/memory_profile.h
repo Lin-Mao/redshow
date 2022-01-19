@@ -135,27 +135,6 @@ struct ChunkFragmentation {
 Map<u32, Map<u64, Map<u64, ChunkFragmentation>>> _object_fragmentation_of_kernel_per_thread;
 
 
-/**
- * @brief 
- * 
- */
-struct HeatMapMemory {
-  size_t size;
-  uint8_t *array;
-
-  HeatMapMemory() = default;
-
-  HeatMapMemory(size_t len) : size(len) {}
-
-};
-
-/**
- * @brief <op_id, HeatMapMemory> to log hit frequency
- * 
- */
-Map<u64, HeatMapMemory> _heatmap_list;
-
-
 // functions
 private:
 
@@ -215,11 +194,6 @@ void update_blank_chunks(i32 kernel_id, u64 memory_op_id, MemoryRange range_iter
  */
 void update_object_fragmentation_in_kernel(u32 cpu_thread, i32 kernel_id);
 
-/**
- * @brief Update heatmap list
- * 
- */
-void update_heatmap_list(u64 op_id, MemoryRange memory_range, uint32_t unit_size);
 
 
 
