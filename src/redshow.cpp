@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "analysis/memory_heatmap.h"
 #include "analysis/memory_profile.h"
 #include "analysis/data_flow.h"
 #include "analysis/spatial_redundancy.h"
@@ -597,6 +598,9 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
       break;
     case REDSHOW_ANALYSIS_MEMORY_PROFILE:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_PROFILE, std::make_shared<MemoryProfile>());
+      break;
+    case REDSHOW_ANALYSIS_MEMORY_HEATMAP:
+      analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_HEATMAP, std::make_shared<MemoryHeatmap>());
       break;
     default:
       result = REDSHOW_ERROR_NO_SUCH_ANALYSIS;
