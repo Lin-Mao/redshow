@@ -90,6 +90,9 @@ class MemoryProfile final : public Analysis {
 // <op_id, ctx_id>
 Map<u64, i32> _op_node;
 
+// <ctx_id, op_id> maybe same overlap with _memfree_lists, can be simplifyied
+Map<i32, u64> _ctx_node;
+
 // <op_id, memory>   used to log all allocated memory
 Map<u64, std::shared_ptr<Memory>> _memories;
 
@@ -174,6 +177,8 @@ void memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory = false)
  * @param ctx_id 
  */
 void update_op_node(u64 op_id, i32 ctx_id);
+
+void update_ctx_node(i32 ctx_id, u64 op_id);
 
 /**
  * @brief Update the '_blank_chunks' which is to store the unused memory range in every object

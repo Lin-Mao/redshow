@@ -17,6 +17,7 @@
 
 // #define SUB_MEMORY
 
+// #include <iostream>
 #ifdef DEBUG_PRINT
 #include <iostream>
 #endif
@@ -28,6 +29,10 @@ void MemoryProfile::update_op_node(u64 op_id, i32 ctx_id) {
     // Point the operation to the calling context
     _op_node[op_id] = ctx_id;
   }
+}
+
+void MemoryProfile::update_ctx_node(i32 ctx_id, u64 op_id) {
+  _ctx_node[ctx_id] = op_id;
 }
 
 
@@ -249,6 +254,9 @@ std::cout << "********************fragmentation-outcome********************<DEBU
 
 
 void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
+  
+  update_ctx_node(op->ctx_id, op->op_id);
+  
   if (_trace.get() == NULL) {
     // If the kernel is sampled
     return;
@@ -608,7 +616,7 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
     out << "Thread_id " << titer.first << std::endl;
     auto &kernel_map = _object_fragmentation_of_kernel_per_thread.at(titer.first);
     for (auto &kiter : kernel_map) {
-      out << "  Kernel_id " << kiter.first << std::endl;
+      out << "  Kernel_id " << kiter.first << " launched at " << _ctx_node[kiter.first] << std::endl;
       auto &memory_map = kernel_map.at(kiter.first);
       for (auto &miter : memory_map) {
 
