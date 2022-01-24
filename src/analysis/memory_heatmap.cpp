@@ -217,22 +217,22 @@ if (memory.op_id <= REDSHOW_MEMORY_HOST) {
     _heatmap_list[memory.op_id] = heatmap;
   }
   
+  update_heatmap_list(memory.op_id, memory_range, access_kind.unit_size);
 
-
-  if (flags & GPU_PATCH_READ) {
-    // add for heatmap
-    update_heatmap_list(memory.op_id, memory_range, access_kind.unit_size);
-    // if (_configs[REDSHOW_ANALYSIS_READ_TRACE_IGNORE] == false) {
-    //   merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
-    // } else if (_trace->read_memory[memory.op_id].empty()) {
-    //   _trace->read_memory[memory.op_id].insert(memory_range);
-    // }
-  }
-  if (flags & GPU_PATCH_WRITE) {
-    // add for heatmap
-    update_heatmap_list(memory.op_id, memory_range, access_kind.unit_size);
-    // merge_memory_range(_trace->write_memory[memory.op_id], memory_range);
-  }
+  // if (flags & GPU_PATCH_READ) {
+  //   // add for heatmap
+  //   update_heatmap_list(memory.op_id, memory_range, access_kind.unit_size);
+  //   // if (_configs[REDSHOW_ANALYSIS_READ_TRACE_IGNORE] == false) {
+  //   //   merge_memory_range(_trace->read_memory[memory.op_id], memory_range);
+  //   // } else if (_trace->read_memory[memory.op_id].empty()) {
+  //   //   _trace->read_memory[memory.op_id].insert(memory_range);
+  //   // }
+  // }
+  // if (flags & GPU_PATCH_WRITE) {
+  //   // add for heatmap
+  //   update_heatmap_list(memory.op_id, memory_range, access_kind.unit_size);
+  //   // merge_memory_range(_trace->write_memory[memory.op_id], memory_range);
+  // }
 
 }
 
