@@ -563,13 +563,6 @@ redshow_result_t redshow_approx_get(int *degree_f32, int *degree_f64) {
 
   return result;
 }
-//*********************
-// Empty functions for gpupunk
-// get memory snapshot
-redshow_result_t rdGetmss(LockableMap<uint64_t, MemoryMap> *a_memory_snapshot_p) { return REDSHOW_SUCCESS; }
-redshow_result_t rdGetMemMap(MemoryMap *memory_map) { return REDSHOW_SUCCESS; }
-
-//*********************
 
 redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) {
   PRINT("\nredshow-> Enter redshow_analysis_enable\nanalysis_type: %u\n", analysis_type);
@@ -592,9 +585,7 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
       analysis_enabled.emplace(REDSHOW_ANALYSIS_VALUE_PATTERN, std::make_shared<ValuePattern>());
       break;
     case REDSHOW_ANALYSIS_MEMORY_PAGE:
-      // auto memory_page = std::make_shared<MemoryAccess>();
-      // memory_page->set_memory_snapshot_p(&memory_snapshot);
-      rdGetmss(&memory_snapshot);
+      // rdGetmss(&memory_snapshot);
       analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_PAGE, std::make_shared<MemoryAccess>());
       break;
     default:
@@ -1121,5 +1112,28 @@ redshow_result_t redshow_flush() {
     aiter.second->flush(output_dir[aiter.first], cubin_map, record_data_callback);
   }
 
+  return REDSHOW_SUCCESS;
+}
+
+// For drcctprof
+redshow_result_t redshow_get_memory_snapshot(void *&memory_snapshot_p) {
+  memory_snapshot_p = &memory_snapshot;
+  return REDSHOW_SUCCESS;
+}
+
+redshow_result_t redshow_get_kernel_trace(uint32_t cpu_thread, void *&thread_kernel_trace, void *&memory_snapshot_p) {
+  for (auto aiter : analysis_enabled) {
+    if (aiter.first == REDSHOW_ANALYSIS_MEMORY_PAGE) {
+      // aiter.second->_lock.lock();
+      aiter.second->lock();
+      if (!aiter.second->_kernel_trace.has(cpu_thread)) {
+        thread_kernel_trace = nullptr;
+      } else {
+        thread_kernel_trace = &(aiter.second->_kernel_trace.at(cpu_thread));
+      }
+      aiter.second->unlock();
+      memory_snapshot_p = &memory_snapshot;
+    }
+  }
   return REDSHOW_SUCCESS;
 }

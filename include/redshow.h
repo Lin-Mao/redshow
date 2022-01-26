@@ -461,4 +461,29 @@ EXTERNC redshow_result_t redshow_flush();
  */
 EXTERNC redshow_result_t redshow_flush_now(uint32_t cpu_thread);
 
+
+
+
+/**
+ * @brief Get kernel_trace and memory_snapshot for drcctprof.
+ *
+ * @param cpu_thread
+ * @param thread_kernel_trace
+ * @param memory_snapshot_p 
+ * @return reshow_result_t
+ *
+ * @thread-safe YES
+ */
+EXTERNC redshow_result_t redshow_get_kernel_trace(uint32_t cpu_thread, void *&thread_kernel_trace, void *&memory_snapshot_p);
+
+/**
+ * @brief Get memory_snapshot for drcctprof.
+ *
+ * @param memory_snapshot_p
+ * @return reshow_result_t
+ *
+ * @thread-safe NO
+ */
+EXTERNC redshow_result_t redshow_get_memory_snapshot(void *&memory_snapshot_p);
+
 #endif  // REDSHOW_H

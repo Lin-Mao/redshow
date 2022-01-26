@@ -79,9 +79,9 @@ class Analysis {
   virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback) = 0;
 
- protected:
 //  <cpu_thread, <kernel_id, Trace>>
   Map<u32, Map<i32, std::shared_ptr<Trace>>> _kernel_trace;
+ protected:
   Map<redshow_analysis_config_type_t, bool> _configs;
   redshow_tool_dtoh_func _dtoh;
   redshow_analysis_type_t _type;

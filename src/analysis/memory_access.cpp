@@ -14,13 +14,6 @@
 using redshow::LockableMap;
 using redshow::Map;
 using redshow::MemoryMap;
-//  An empty function for drcctprof to capture.
-void get_kernel_trace(redshow::u32 cpu_thread, Map<redshow::i32, std::shared_ptr<redshow::Trace>> &kernel_trace_p, LockableMap<uint64_t, MemoryMap> &memory_snapshot_p) {
-  std::cout << "get_kernel_trace executed" << std::endl;
-}
-//  An empty function for drcctprof to capture.
-void get_memory_map(MemoryMap *memory_map) {
-}
 
 template <typename T>
 T &create_NULL_ref() { return *static_cast<T *>(nullptr); }
@@ -88,14 +81,14 @@ void MemoryAccess::flush_thread(u32 cpu_thread, const std::string &output_dir,
                                 const LockableMap<u32, Cubin> &cubins,
                                 redshow_record_data_callback_func record_data_callback) {
   if (!this->_kernel_trace.has(cpu_thread)) {
-    get_kernel_trace(cpu_thread, create_NULL_ref<Map<redshow::i32, std::shared_ptr<redshow::Trace>>>(), create_NULL_ref<LockableMap<uint64_t, MemoryMap>>());
+    // get_kernel_trace(cpu_thread, create_NULL_ref<Map<redshow::i32, std::shared_ptr<redshow::Trace>>>(), create_NULL_ref<LockableMap<uint64_t, MemoryMap>>());
     return;
   }
 
   lock();
   auto &thread_kernel_trace = this->_kernel_trace.at(cpu_thread);
   unlock();
-  get_kernel_trace(cpu_thread, thread_kernel_trace, *(this->memory_snapshot_p));
+  // get_kernel_trace(cpu_thread, thread_kernel_trace, *(this->memory_snapshot_p));
   // @findhao: for debug
   cout << std::flush << "======flush thread start=======" << endl;
   for (auto item : this->_kernel_trace) {
@@ -120,21 +113,25 @@ void MemoryAccess::flush_now(u32 cpu_thread, const std::string &output_dir,
                              const LockableMap<u32, Cubin> &cubins,
                              redshow_record_data_callback_func record_data_callback) {
   PRINT("cpu_thread %d\n", cpu_thread);
-  if (!this->_kernel_trace.has(cpu_thread)) {
-    get_kernel_trace(cpu_thread, create_NULL_ref<Map<redshow::i32, std::shared_ptr<redshow::Trace>>>(), create_NULL_ref<LockableMap<uint64_t, MemoryMap>>());
-    return;
-  }
+  redshow::Map<redshow::i32, std::shared_ptr<redshow::Trace>> *thread_kernel_trace = nullptr;
+
   lock();
-  auto &thread_kernel_trace = this->_kernel_trace.at(cpu_thread);
+  if (this->_kernel_trace.has(cpu_thread)) {
+    thread_kernel_trace = &(this->_kernel_trace.at(cpu_thread));
+  } else {
+    thread_kernel_trace = nullptr;
+  }
   unlock();
-  get_kernel_trace(cpu_thread, thread_kernel_trace, *(this->memory_snapshot_p));
+  if (thread_kernel_trace == nullptr)
+    return;
+  // get_kernel_trace(cpu_thread, thread_kernel_trace, *(this->memory_snapshot_p));
   // clean all current data
-  for (auto &kernel_trace_it : thread_kernel_trace) {
+  for (auto &kernel_trace_it : *thread_kernel_trace) {
     auto &mpc = std::dynamic_pointer_cast<MemoryAccessTrace>(kernel_trace_it.second)->memory_access_count;
-    cout << "mpc.size " << mpc.size();
+    // cout << "mpc.size " << mpc.size();
     mpc.clear();
-    cout << "mpc.size after " << mpc.size() << endl
-         << std::flush;
+    // cout << "mpc.size after " << mpc.size() << endl
+    //  << std::flush;
   }
 }
 

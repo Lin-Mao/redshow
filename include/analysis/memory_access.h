@@ -82,6 +82,9 @@ class MemoryAccess final : public Analysis {
   virtual void flush(const std::string &output_dir,
                      const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback);
+
+  // get kernel_trace
+  // virtual Map<u32, Map<i32, std::shared_ptr<Trace>>>& get_kernel_trace(u32 cpu_thread);
 };
 
 }  // namespace redshow
