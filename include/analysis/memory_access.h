@@ -48,7 +48,7 @@ class MemoryAccess final : public Analysis {
     virtual ~MemoryAccessTrace() {}
   };
   // private:
-  static inline thread_local std::shared_ptr<MemoryAccessTrace> _trace;
+  static inline std::shared_ptr<MemoryAccessTrace> _trace;
   // Coarse-grained
   virtual void op_callback(OperationPtr operation);
 
