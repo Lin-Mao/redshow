@@ -12,7 +12,7 @@ void SpatialRedundancy::op_callback(OperationPtr op, bool is_submemory /* defaul
   // Nothing
 }
 
-void SpatialRedundancy::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id, GPUPatchType type) {
+void SpatialRedundancy::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id, GPUPatchType type) {
   assert(type == GPU_PATCH_TYPE_DEFAULT);
 
   lock();

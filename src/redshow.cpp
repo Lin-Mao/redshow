@@ -472,7 +472,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
   }
 
   for (auto aiter : analysis_enabled) {
-    aiter.second->analysis_begin(cpu_thread, kernel_id, cubin_id, mod_id,
+    aiter.second->analysis_begin(cpu_thread, kernel_id, host_op_id, cubin_id, mod_id,
                                  static_cast<GPUPatchType>(trace_data->type));
   }
 
