@@ -17,7 +17,7 @@
 
 // #define SUB_MEMORY
 
-// #include <iostream>
+#include <iostream>
 #ifdef DEBUG_PRINT
 #include <iostream>
 #endif
@@ -31,16 +31,14 @@ void MemoryProfile::update_op_node(u64 op_id, i32 ctx_id) {
   }
 }
 
-void MemoryProfile::update_ctx_node(i32 ctx_id, u64 op_id) {
-  _ctx_node[ctx_id] = op_id;
-}
-
 
 void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory /* default = false */) {
   update_op_node(op->op_id, op->ctx_id);
   if (!is_submemory) {
     
     _memories.try_emplace(op->op_id, op);
+    _addresses_map.try_emplace(op->memory_range.start, op->op_id);
+
     larget_chunk_with_memories.try_emplace(op->op_id, op->len);
 
 
@@ -61,10 +59,15 @@ void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_subme
 }
 
 void MemoryProfile::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory /* default = false */) {
+  if (op->op_id > _last_free_op_id)
+    _last_free_op_id = op->op_id;
   
   if (!is_submemory) {
     
-    _memfree_lists.try_emplace(op->ctx_id, op->op_id); 
+    // _memfree_lists.try_emplace(op->ctx_id, op->op_id);
+    auto address = op->memory_range.start;
+    auto malloc_op_id = _addresses_map.at(address);
+    _liveness_map.emplace(malloc_op_id, op->op_id);
 
   } else {
     // TODO(@Lin-Mao)
@@ -72,9 +75,9 @@ void MemoryProfile::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_sub
 }
 
 
-void MemoryProfile::update_blank_chunks(i32 kernel_id, u64 memory_op_id, MemoryRange range_iter) {
+void MemoryProfile::update_blank_chunks(u64 kernel_op_id, u64 memory_op_id, MemoryRange range_iter) {
 
-  auto &memory_map = _blank_chunks.at(kernel_id);
+  auto &memory_map = _blank_chunks.at(kernel_op_id);
   auto &unuse_range_set = memory_map.at(memory_op_id);
 
   auto start = range_iter.start;
@@ -155,9 +158,9 @@ void MemoryProfile::update_blank_chunks(i32 kernel_id, u64 memory_op_id, MemoryR
 }
 
 
-void MemoryProfile::update_object_fragmentation_in_kernel(u32 cpu_thread, i32 kernel_id) {
+void MemoryProfile::update_object_fragmentation_in_kernel(u32 cpu_thread, u64 kernel_op_id) {
   // KernelOpPair kop = KernelOpPair(kernel_id, op_id);
-  auto unused_map = _blank_chunks.at(kernel_id);
+  auto unused_map = _blank_chunks.at(kernel_op_id);
 
   
   
@@ -184,14 +187,13 @@ void MemoryProfile::update_object_fragmentation_in_kernel(u32 cpu_thread, i32 ke
     }
     larget_chunk_with_memories[miter.first] = len;
     
-
     if (!empty_set) {
       float frag = 1 - (float) len / sum;
       ChunkFragmentation chunck_frag(len, frag);
-      _object_fragmentation_of_kernel_per_thread[cpu_thread][kernel_id][miter.first] = chunck_frag;
+      _object_fragmentation_of_kernel_per_thread[cpu_thread][kernel_op_id][miter.first] = chunck_frag;
     } else {
       ChunkFragmentation chunck_frag(len, 0.0);
-      _object_fragmentation_of_kernel_per_thread[cpu_thread][kernel_id][miter.first] = chunck_frag;
+      _object_fragmentation_of_kernel_per_thread[cpu_thread][kernel_op_id][miter.first] = chunck_frag;
     }
 
   }  
@@ -201,18 +203,20 @@ void MemoryProfile::update_object_fragmentation_in_kernel(u32 cpu_thread, i32 ke
 
 void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
   
-  update_ctx_node(op->ctx_id, op->op_id);
+  update_op_node(op->op_id, op->ctx_id);
   
   if (_trace.get() == NULL) {
     // If the kernel is sampled
     return;
   }
 
+  std::cout << "_trace->kernel.op_id = " << _trace->kernel.op_id << std::endl;
+  std::cout << "_trace->kernel.ctx_id = " << _trace->kernel.ctx_id << std::endl;
 
   Map<u64, Set<MemoryRange>> initail_unuse_memory_map;
-  _blank_chunks.emplace(_trace->kernel.ctx_id, initail_unuse_memory_map);
+  _blank_chunks.emplace(_trace->kernel.op_id, initail_unuse_memory_map);
   
-  auto &unuse_memory_map_per_kernel = _blank_chunks[_trace->kernel.ctx_id];
+  auto &unuse_memory_map_in_kernel = _blank_chunks[_trace->kernel.op_id];
 
 // for read access trace
   for (auto &mem_iter : _trace->read_memory) {
@@ -224,18 +228,22 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
 #ifndef SUB_MEMORY
     auto memory = _memories.at(mem_iter.first);
 #endif
+    // Set<MemoryRange> mem_unuse_set;
+    // mem_unuse_set.insert(memory->memory_range);
+    // unuse_memory_map_per_kernel.emplace(mem_iter.first, mem_unuse_set);
+
 
     if (_accessed_memories.find(mem_iter.first) != _accessed_memories.end()) {
       auto kid = _accessed_memories.at(mem_iter.first);
       auto mem_unuse_set = _blank_chunks.at(kid).at(mem_iter.first);
-      unuse_memory_map_per_kernel.emplace(mem_iter.first, mem_unuse_set);
+      unuse_memory_map_in_kernel.emplace(mem_iter.first, mem_unuse_set);
       // ensure the lastest mem_unuse_set
-      _accessed_memories[mem_iter.first] = _trace->kernel.ctx_id;
+      _accessed_memories[mem_iter.first] = _trace->kernel.op_id;
     } else {
-      _accessed_memories.emplace(mem_iter.first, _trace->kernel.ctx_id);
+      _accessed_memories.emplace(mem_iter.first, _trace->kernel.op_id);
       Set<MemoryRange> mem_unuse_set;
       mem_unuse_set.insert(memory->memory_range);
-      unuse_memory_map_per_kernel.emplace(mem_iter.first, mem_unuse_set);
+      unuse_memory_map_in_kernel.emplace(mem_iter.first, mem_unuse_set);
     }
 
     if (memory->op_id > REDSHOW_MEMORY_HOST) {
@@ -250,7 +258,7 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
 
 
         // len += range_iter.end - range_iter.start;
-        update_blank_chunks(_trace->kernel.ctx_id, mem_iter.first, range_iter);
+        update_blank_chunks(_trace->kernel.op_id, mem_iter.first, range_iter);
       }  
         
       } else {
@@ -274,14 +282,14 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
     if (_accessed_memories.find(mem_iter.first) != _accessed_memories.end()) {
       auto kid = _accessed_memories.at(mem_iter.first);
       auto mem_unuse_set = _blank_chunks.at(kid).at(mem_iter.first);
-      unuse_memory_map_per_kernel.emplace(mem_iter.first, mem_unuse_set);
+      unuse_memory_map_in_kernel.emplace(mem_iter.first, mem_unuse_set);
       // ensure the lastest mem_unuse_set
-      _accessed_memories[mem_iter.first] = _trace->kernel.ctx_id;
+      _accessed_memories[mem_iter.first] = _trace->kernel.op_id;
     } else {
-      _accessed_memories.emplace(mem_iter.first, _trace->kernel.ctx_id);
+      _accessed_memories.emplace(mem_iter.first, _trace->kernel.op_id);
       Set<MemoryRange> mem_unuse_set;
       mem_unuse_set.insert(memory->memory_range);
-      unuse_memory_map_per_kernel.emplace(mem_iter.first, mem_unuse_set);
+      unuse_memory_map_in_kernel.emplace(mem_iter.first, mem_unuse_set);
     }
 
     if (memory->op_id > REDSHOW_MEMORY_HOST) {
@@ -297,7 +305,7 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
       
 
         // len += range_iter.end - range_iter.start;
-        update_blank_chunks(_trace->kernel.ctx_id, mem_iter.first, range_iter);
+        update_blank_chunks(_trace->kernel.op_id, mem_iter.first, range_iter);
     }  
       } else {
         // len = memory->len;
@@ -306,7 +314,7 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
     }
   }
 
-    update_object_fragmentation_in_kernel(_trace->kernel.cpu_thread, _trace->kernel.ctx_id);
+    update_object_fragmentation_in_kernel(_trace->kernel.cpu_thread, _trace->kernel.op_id);
 
   // reset _trace
   _trace->read_memory.clear();
@@ -331,7 +339,7 @@ void MemoryProfile::op_callback(OperationPtr op, bool is_submemory /* default = 
 }
 
 
-void MemoryProfile::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id, GPUPatchType type) {
+void MemoryProfile::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id, GPUPatchType type) {
     // Do not need to know value and need to get interval of memory
     assert(type == GPU_PATCH_TYPE_ADDRESS_PATCH || type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS);
 
@@ -342,6 +350,7 @@ void MemoryProfile::analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, 
     trace->kernel.ctx_id = kernel_id;
     trace->kernel.cubin_id = cubin_id;
     trace->kernel.mod_id = mod_id;
+    trace->kernel.op_id = host_op_id;
     this->_kernel_trace[cpu_thread][kernel_id] = trace;
     }
 
@@ -483,12 +492,14 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
   // out << "******************** Fragmentation Info ********************" << std::endl;
   // out << "************************************************************" << std::endl;
 
+  out << "small op id: " << _memories.begin()->first << " large ""op id: " << _last_free_op_id << std::endl;
+
   // <thread_id, <kernel_op_id, <memory_op_id, fragmentation>>>>
   for (auto &titer : _object_fragmentation_of_kernel_per_thread) {
     out << "Thread_id " << titer.first << std::endl;
     auto &kernel_map = _object_fragmentation_of_kernel_per_thread.at(titer.first);
     for (auto &kiter : kernel_map) {
-      out << "  Kernel_id " << kiter.first << " launched at " << _ctx_node[kiter.first] << std::endl;
+      out << "  Kernel launched at " << kiter.first << " kernel_id " << _op_node[kiter.first] << std::endl;
       auto &memory_map = kernel_map.at(kiter.first);
       for (auto &miter : memory_map) {
 
@@ -505,9 +516,9 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
         out << "    |- size " << memory->memory_range.end - memory->memory_range.start << " B" << std::endl;
         out << "    |- allocated at " << miter.first << std::endl;
 
-        auto iter = _memfree_lists.find(_op_node.at(miter.first));
-        if (iter == _memfree_lists.end()) {
-          out << "    |- freed at execution finished" << std::endl;
+        auto iter = _liveness_map.find(miter.first);
+        if (iter == _liveness_map.end()) {
+          out << "    |- freed at execution finished " << _last_free_op_id << std::endl;
         } else {
           out << "    |- freed at " << iter->second << std::endl;
         }

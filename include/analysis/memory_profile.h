@@ -43,7 +43,7 @@ class MemoryProfile final : public Analysis {
   virtual void op_callback(OperationPtr operation, bool is_submemory = false);
 
   // Fine-grained
-  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u32 cubin_id, u32 mod_id,
+  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id,
                               GPUPatchType type);
 
   virtual void analysis_end(u32 cpu_thread, i32 kernel_id);
@@ -87,34 +87,38 @@ class MemoryProfile final : public Analysis {
 
   std::shared_ptr<MemoryProfileTrace> _trace;
 
-// <op_id, ctx_id>
+// <op_id, ctx_id> to store objects and kernels
 Map<u64, i32> _op_node;
 
-// <ctx_id, op_id> maybe same overlap with _memfree_lists, can be simplifyied
-Map<i32, u64> _ctx_node;
 
 // <op_id, memory>   used to log all allocated memory
 Map<u64, std::shared_ptr<Memory>> _memories;
 
+// <address, memory_op_id> used to map cudaFree later
+std::unordered_map <u64, u64> _addresses_map;
+
 // <op_id, memory>  used to log all allocated sub_memory
 Map<u64, std::shared_ptr<Memory>> _sub_memories;
 
-// <ctx_id, host_op_id>, used for memory free op_callback
-Map<i32, u64> _memfree_lists;
+// <cudaMalloc, cudaFree>, used for liveness
+Map<u64, u64> _liveness_map;
+
+// last free
+u64 _last_free_op_id = 0;
 
 
 /**
  * @brief <kernel_op_id, <memory_op_id, set<memory_range>>.  
  * Define this Map to store all the blank chunks of all objects for all kernel. 
  */
-Map<i32, Map<u64, Set<MemoryRange>>> _blank_chunks;
+Map<u64, Map<u64, Set<MemoryRange>>> _blank_chunks;
 
 
 /**
- * @brief Map<memory_op_id, kernel_id> accessed_op_id which is processed in _blank_chunks
- * 
+ * @brief Map<memory_op_id, kernel_op_id> accessed_op_id which is processed in _blank_chunks
+ *  can be opted out
  */
-Map<u64, i32> _accessed_memories;
+Map<u64, u64> _accessed_memories;
 
 /**
  * @brief Map<memory_op_id, largest_chunk>
@@ -178,7 +182,6 @@ void memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory = false)
  */
 void update_op_node(u64 op_id, i32 ctx_id);
 
-void update_ctx_node(i32 ctx_id, u64 op_id);
 
 /**
  * @brief Update the '_blank_chunks' which is to store the unused memory range in every object
@@ -187,7 +190,7 @@ void update_ctx_node(i32 ctx_id, u64 op_id);
  * @param kernel_id 
  * @param range_iter 
  */
-void update_blank_chunks(i32 kernel_id, u64 memory_op_id, MemoryRange range_iter);
+void update_blank_chunks(u64 kernel_op_id, u64 memory_op_id, MemoryRange range_iter);
 
 
 /**
@@ -197,7 +200,7 @@ void update_blank_chunks(i32 kernel_id, u64 memory_op_id, MemoryRange range_iter
  * @param kernel_id 
  * @param op_id 
  */
-void update_object_fragmentation_in_kernel(u32 cpu_thread, i32 kernel_id);
+void update_object_fragmentation_in_kernel(u32 cpu_thread, u64 kernel_op_id);
 
 
 
