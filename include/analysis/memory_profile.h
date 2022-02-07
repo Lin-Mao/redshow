@@ -71,6 +71,8 @@ class MemoryProfile final : public Analysis {
  * ********************************************************************/
 
   private:
+  // redefine 
+  Map<u32, Map<u64, std::shared_ptr<Trace>>> _kernel_trace;
 
   struct MemoryProfileTrace final : public Trace {
     // only need to know memory access, don't care read or write

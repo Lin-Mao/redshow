@@ -351,10 +351,10 @@ void MemoryProfile::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id
     trace->kernel.cubin_id = cubin_id;
     trace->kernel.mod_id = mod_id;
     trace->kernel.op_id = host_op_id;
-    this->_kernel_trace[cpu_thread][kernel_id] = trace;
+    this->_kernel_trace[cpu_thread][host_op_id] = trace;
     }
 
-    _trace = std::dynamic_pointer_cast<MemoryProfileTrace>(this->_kernel_trace[cpu_thread][kernel_id]);
+    _trace = std::dynamic_pointer_cast<MemoryProfileTrace>(this->_kernel_trace[cpu_thread][host_op_id]);
 
     unlock();
 }
@@ -492,7 +492,7 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
   // out << "******************** Fragmentation Info ********************" << std::endl;
   // out << "************************************************************" << std::endl;
 
-  out << "small op id: " << _memories.begin()->first << " large ""op id: " << _last_free_op_id << std::endl;
+  out << "small op id: " << _memories.begin()->first << " large op id: " << _last_free_op_id << std::endl;
 
   // <thread_id, <kernel_op_id, <memory_op_id, fragmentation>>>>
   for (auto &titer : _object_fragmentation_of_kernel_per_thread) {
@@ -511,8 +511,8 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
         auto memory = _memories.at(miter.first);
 #endif 
 
-        out << "    memory_id " << miter.first << std::endl;
-        out << "    mem_ctx " << _op_node.at(miter.first) << std::endl;
+        out << "    memory_op_id " << miter.first << std::endl;
+        out << "    memory_id " << _op_node.at(miter.first) << std::endl;
         out << "    |- size " << memory->memory_range.end - memory->memory_range.start << " B" << std::endl;
         out << "    |- allocated at " << miter.first << std::endl;
 
