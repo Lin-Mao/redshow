@@ -43,6 +43,7 @@ struct Memfree : public Operation {
   Memfree(u64 op_id, i32 ctx_id, u64 start, size_t len)
       : Operation(op_id, ctx_id, OPERATION_TYPE_MEMFREE), memory_range(start, start + len), len(len) {}
 
+  // used for memory profile free with context
   Memfree(u64 op_id, i32 ctx_id, MemoryRange &memory_range)
       : Operation(op_id, ctx_id, OPERATION_TYPE_MEMFREE),
         memory_range(memory_range),

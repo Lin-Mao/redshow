@@ -59,6 +59,8 @@ void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_subme
 }
 
 void MemoryProfile::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory /* default = false */) {
+  update_op_node(op->op_id, op->ctx_id);
+  
   if (op->op_id > _last_free_op_id)
     _last_free_op_id = op->op_id;
   
@@ -209,9 +211,6 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
     // If the kernel is sampled
     return;
   }
-
-  std::cout << "_trace->kernel.op_id = " << _trace->kernel.op_id << std::endl;
-  std::cout << "_trace->kernel.ctx_id = " << _trace->kernel.ctx_id << std::endl;
 
   Map<u64, Set<MemoryRange>> initail_unuse_memory_map;
   _blank_chunks.emplace(_trace->kernel.op_id, initail_unuse_memory_map);
@@ -520,7 +519,7 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
         if (iter == _liveness_map.end()) {
           out << "    |- freed at execution finished " << _last_free_op_id << std::endl;
         } else {
-          out << "    |- freed at " << iter->second << std::endl;
+          out << "    |- freed at " << iter->second << " free_id " << _op_node.at(iter->second) << std::endl;
         }
 
         out << "    |- fragmentation " << miter.second.fragmentation << std::endl;

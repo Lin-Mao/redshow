@@ -264,8 +264,8 @@ EXTERNC redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t hos
  *
  * @thread-safe: YES
  */
-EXTERNC redshow_result_t redshow_memory_unregister(uint64_t host_op_id, uint64_t start,
-                                                   uint64_t end);
+EXTERNC redshow_result_t redshow_memory_unregister(int32_t memory_id, uint64_t host_op_id, 
+                                                   uint64_t start, uint64_t end);
 
 /**
  * @brief This function is used to register a memory sub-alloction.
