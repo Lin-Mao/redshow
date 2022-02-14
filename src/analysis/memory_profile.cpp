@@ -34,9 +34,14 @@ void MemoryProfile::update_op_node(u64 op_id, i32 ctx_id) {
 
 void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory /* default = false */) {
   update_op_node(op->op_id, op->ctx_id);
+
+  if (op->op_id < _first_free_op_id)
+    _first_free_op_id = op->op_id;
+
   if (!is_submemory) {
     
     _memories.try_emplace(op->op_id, op);
+    _up_to_date_memories.try_emplace(op->op_id, op);
     _addresses_map.try_emplace(op->memory_range.start, op->op_id);
 
     larget_chunk_with_memories.try_emplace(op->op_id, op->len);
@@ -65,10 +70,10 @@ void MemoryProfile::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_sub
     _last_free_op_id = op->op_id;
   
   if (!is_submemory) {
-    
-    // _memfree_lists.try_emplace(op->ctx_id, op->op_id);
+
     auto address = op->memory_range.start;
-    auto malloc_op_id = _addresses_map.at(address);
+    auto malloc_op_id = _addresses_map.at(address); 
+    _up_to_date_memories.erase(malloc_op_id);
     _liveness_map.emplace(malloc_op_id, op->op_id);
 
   } else {
@@ -206,6 +211,12 @@ void MemoryProfile::update_object_fragmentation_in_kernel(u32 cpu_thread, u64 ke
 void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
   
   update_op_node(op->op_id, op->ctx_id);
+
+  size_t size = 0;
+  for (auto iter : _up_to_date_memories) {
+    size += iter.second->len;
+  }
+  _kernel_memory_size.emplace(op->op_id, size);
   
   if (_trace.get() == NULL) {
     // If the kernel is sampled
@@ -487,11 +498,14 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
   
   std::ofstream out(output_dir + "memory_profile_flush" + ".csv");
 
-  // out << "************************************************************" << std::endl;
-  // out << "******************** Fragmentation Info ********************" << std::endl;
-  // out << "************************************************************" << std::endl;
-
-  out << "small op id: " << _memories.begin()->first << " large op id: " << _last_free_op_id << std::endl;
+  out << "small op id: " << _first_free_op_id << " large op id: " << _last_free_op_id << std::endl;
+  size_t sum = 0; 
+  for (auto iter : _kernel_memory_size) {
+    sum += iter.second;
+  }
+  out << "Launch " << _kernel_memory_size.size() << " kernels, " \
+      << "average memory usage in each kernel launch: " << sum / _kernel_memory_size.size() 
+      << " B" << std::endl;
 
   // <thread_id, <kernel_op_id, <memory_op_id, fragmentation>>>>
   for (auto &titer : _object_fragmentation_of_kernel_per_thread) {
@@ -499,6 +513,7 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
     auto &kernel_map = _object_fragmentation_of_kernel_per_thread.at(titer.first);
     for (auto &kiter : kernel_map) {
       out << "  Kernel launched at " << kiter.first << " kernel_id " << _op_node[kiter.first] << std::endl;
+      out << "  mem_peak: " << _kernel_memory_size.at(kiter.first) << " B" << std::endl;
       auto &memory_map = kernel_map.at(kiter.first);
       for (auto &miter : memory_map) {
 
@@ -532,9 +547,6 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
     }
     out << std::endl;
   }
-  // out << "************************************************************" << std::endl;
-  // out << "****************** Fragmentation Info END ******************" << std::endl;
-  // out << "************************************************************" << std::endl;
 
   out.close();
 

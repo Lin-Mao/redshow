@@ -95,6 +95,7 @@ Map<u64, i32> _op_node;
 
 // <op_id, memory>   used to log all allocated memory
 Map<u64, std::shared_ptr<Memory>> _memories;
+Map<u64, std::shared_ptr<Memory>> _up_to_date_memories;
 
 // <address, memory_op_id> used to map cudaFree later
 std::unordered_map <u64, u64> _addresses_map;
@@ -106,8 +107,11 @@ Map<u64, std::shared_ptr<Memory>> _sub_memories;
 Map<u64, u64> _liveness_map;
 
 // last free
+u64 _first_free_op_id = 18446744073709551615; // 2^64
 u64 _last_free_op_id = 0;
 
+// <op_id, size> in kernel launch
+Map<u64, size_t> _kernel_memory_size;
 
 /**
  * @brief <kernel_op_id, <memory_op_id, set<memory_range>>.  
