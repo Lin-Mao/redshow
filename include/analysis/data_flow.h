@@ -8,8 +8,8 @@
 #include "binutils/cubin.h"
 #include "common/graph.h"
 #include "common/map.h"
-#include "common/set.h"
 #include "common/path.h"
+#include "common/set.h"
 #include "common/utils.h"
 #include "operation/kernel.h"
 #include "operation/memcpy.h"
@@ -39,6 +39,10 @@ class DataFlow final : public Analysis {
 
   virtual void block_exit(const ThreadId &thread_id);
 
+  virtual void function_call(const ThreadId &thread_id, u64 pc, u64 target_pc);
+
+  virtual void function_return(const ThreadId &thread_id, u64 pc, u64 target_pc);
+
   virtual void unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
                            GPUPatchFlags flags);
@@ -46,9 +50,11 @@ class DataFlow final : public Analysis {
   virtual void flush_thread(u32 cpu_thread, const std::string &output_dir,
                             const LockableMap<u32, Cubin> &cubins,
                             redshow_record_data_callback_func record_data_callback);
+
   virtual void flush_now(u32 cpu_thread, const std::string &output_dir,
                          const LockableMap<u32, Cubin> &cubins,
                          redshow_record_data_callback_func record_data_callback);
+                         
   virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback);
 
@@ -64,7 +70,9 @@ class DataFlow final : public Analysis {
     Node() : Node(0, OPERATION_TYPE_KERNEL) {}
   };
 
-  enum EdgeType { DATA_FLOW_EDGE_ORDER, DATA_FLOW_EDGE_READ, DATA_FLOW_EDGE_SINK };
+  enum EdgeType { DATA_FLOW_EDGE_ORDER,
+                  DATA_FLOW_EDGE_READ,
+                  DATA_FLOW_EDGE_SINK };
 
   std::string get_data_flow_edge_type(EdgeType type);
 
@@ -146,7 +154,7 @@ class DataFlow final : public Analysis {
   void dump(const std::string &output_dir, const Map<i32, Map<i32, bool>> &duplicate);
 
   void merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &memory_range);
- 
+
  private:
   enum class CopyType {
     DEFAULT = 0,
@@ -169,7 +177,7 @@ class DataFlow final : public Analysis {
   const double _FRAGMENT_RATIO_LIMIT = 0.1;
   // 128MB
   const size_t _FRAGMENT_SIZE_LIMIT = 128 * 1024 * 1024;
-  // 
+  //
   const size_t _FRAGMENT_LEN_LIMIT = 10000;
 };
 

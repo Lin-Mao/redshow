@@ -374,6 +374,161 @@ static redshow_result_t trace_analyze_default(int32_t kernel_id, InstructionGrap
   return result;
 }
 
+static redshow_result_t trace_analyze_address_cct(int32_t kernel_id, InstructionGraph *inst_graph,
+                                                  SymbolVector *symbols, MemoryMap *memory_map,
+                                                  gpu_patch_buffer_t *trace_data) {
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  size_t size = trace_data->head_index;
+  gpu_patch_record_addr_cct_t *records = reinterpret_cast<gpu_patch_record_addr_cct_t *>(trace_data->records);
+
+  for (size_t i = 0; i < size; ++i) {
+    // Iterate over each record
+    gpu_patch_record_addr_cct_t *record = records + i;
+    if (record->size == 0) {
+      // Fast path, no thread active
+      continue;
+    }
+    if (record->flags & GPU_PATCH_BLOCK_ENTER_FLAG) {
+      // Skip analysis
+    } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
+      // Remove temporal records
+      for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+        if (record->active & (0x1u << j)) {
+          uint32_t flat_thread_id =
+              record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
+          ThreadId thread_id{record->flat_block_id, flat_thread_id};
+          for (auto aiter : analysis_enabled) {
+            aiter.second->block_exit(thread_id);
+          }
+        }
+      }
+    } else if (record->flags & GPU_PATCH_FUNCTION_CALL) {
+      for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+        if (record->active & (0x1u << j)) {
+          uint32_t flat_thread_id =
+              record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
+          ThreadId thread_id{record->flat_block_id, flat_thread_id};
+          for (auto aiter : analysis_enabled) {
+            aiter.second->function_call(thread_id, record->pc, record->target_pc);
+          }
+        }
+      }
+    } else if (record->flags & GPU_PATCH_FUNCTION_RET) {
+      for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+        if (record->active & (0x1u << j)) {
+          uint32_t flat_thread_id =
+              record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
+          ThreadId thread_id{record->flat_block_id, flat_thread_id};
+          for (auto aiter : analysis_enabled) {
+            aiter.second->function_return(thread_id, record->pc, record->target_pc);
+          }
+        }
+      }
+    } else {
+      RealPC real_pc;
+      auto ret = symbols->transform_pc(record->pc);
+      if (ret.has_value()) {
+        real_pc = ret.value();
+      } else {
+        result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
+        return result;
+      }
+      // record->size * 8, byte to bits
+      AccessKind access_kind;
+      if (inst_graph->size() != 0) {
+        // Accurate mode, when we have instruction information
+        auto &inst = inst_graph->node(real_pc.cubin_offset);
+        if (inst.access_kind.get() != NULL) {
+          access_kind = *inst.access_kind;
+        }
+        // Fall back to default mode if failed
+      }
+
+      if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
+        // Default mode, we identify every data as 64 bits unit size, 64 bits vec size, float type
+        access_kind.data_type = default_data_type;
+        if (access_kind.vec_size == 0) {
+          access_kind.vec_size = record->size * 8;
+          access_kind.unit_size = MIN2(32, access_kind.vec_size);
+        }
+      }
+
+      // Reserved for debugging
+      // std::cout << "function_index: " << real_pc.function_index << ", pc_offset: " <<
+      //  real_pc.pc_offset << ", " << access_kind.to_string() << std::endl;
+      // TODO: accelerate by handling all threads in a warp together
+      for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+        if ((record->active & (0x1u << j)) == 0) {
+          continue;
+        }
+
+        uint32_t flat_thread_id =
+            record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
+        ThreadId thread_id{record->flat_block_id, flat_thread_id};
+
+        MemoryRange memory_range(record->address[j], record->address[j]);
+        auto iter = memory_map->prev(memory_range);
+        uint64_t memory_op_id = 0;
+        int32_t memory_id = 0;
+        uint64_t memory_size = 0;
+        uint64_t memory_addr = 0;
+        if (iter != memory_map->end()) {
+          if (record->address[j] >= iter->second->memory_range.start &&
+              record->address[j] + record->size <= iter->second->memory_range.end) {
+            memory_op_id = iter->second->op_id;
+            memory_id = iter->second->ctx_id;
+            memory_size = iter->second->len;
+            memory_addr = iter->second->memory_range.start;
+          } else {
+            // TODO(Keren): Investigate what are the causes
+            // Prevent out of bound memory accesses
+            continue;
+          }
+        }
+
+        uint32_t stride = GLOBAL_MEMORY_OFFSET;
+        if (memory_op_id == 0) {
+          // XXX(Keren): memory_op_id == 1 ?
+          // Memory object not found, it means the memory is local, shared, or allocated in an
+          // unknown way
+          if (record->flags & GPU_PATCH_LOCAL) {
+            memory_op_id = REDSHOW_MEMORY_LOCAL;
+            memory_id = LOCAL_MEMORY_CTX_ID;
+            stride = LOCAL_MEMORY_OFFSET;
+          } else if (record->flags & GPU_PATCH_SHARED) {
+            memory_op_id = REDSHOW_MEMORY_SHARED;
+            memory_id = SHARED_MEMORY_CTX_ID;
+            stride = SHARED_MEMORY_OFFSET;
+          } else {
+            // Unknown allocation
+          }
+        }
+
+        if (memory_op_id == 0) {
+          // Unknown memory object
+          continue;
+        }
+
+        Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
+        auto num_units = access_kind.vec_size / access_kind.unit_size;
+        AccessKind unit_access_kind = access_kind;
+        // We iterate through all the units such that every unit's vec_size = unit_size
+        unit_access_kind.vec_size = unit_access_kind.unit_size;
+
+        for (size_t m = 0; m < num_units; m++) {
+          for (auto aiter : analysis_enabled) {
+            aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory, record->pc, 0,
+                                      record->address[j], m, static_cast<GPUPatchFlags>(record->flags));
+          }
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
 static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_t mod_id,
                                       int32_t kernel_id, uint64_t host_op_id,
                                       gpu_patch_buffer_t *trace_data) {
@@ -470,6 +625,8 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
     result = trace_analyze_address_patch(kernel_id, memory_map, trace_data);
   } else if (trace_data->type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS) {
     result = trace_analyze_address_analysis(kernel_id, memory_map, trace_data);
+  } else if (trace_data->type == GPU_PATCH_TYPE_ADDRESS_CCT) {
+    result = trace_analyze_address_cct(kernel_id, inst_graph, symbols, memory_map, trace_data);
   }
 
   for (auto aiter : analysis_enabled) {
@@ -1084,9 +1241,6 @@ redshow_result_t redshow_flush_thread(uint32_t cpu_thread) {
   PRINT("\nredshow-> Enter redshow_flush cpu_thread %u\n", cpu_thread);
 
   for (auto aiter : analysis_enabled) {
-    // if (aiter.first == REDSHOW_ANALYSIS_MEMORY_PAGE){
-    //   std::dynamic_pointer_cast<MemoryAccess>(aiter.second)->set_memory_snapshot_p(&memory_snapshot);
-    // }
     aiter.second->flush_thread(cpu_thread, output_dir[aiter.first], cubin_map,
                                record_data_callback);
   }

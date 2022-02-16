@@ -40,6 +40,15 @@ void SpatialRedundancy::block_exit(const ThreadId &thread_id) {
   // nothing
 }
 
+void SpatialRedundancy::function_call(const ThreadId &thread_id, u64 pc, u64 target_pc) {
+  // nothing
+}
+
+void SpatialRedundancy::function_return(const ThreadId &thread_id, u64 pc, u64 target_pc) {
+  // nothing
+}
+
+
 void SpatialRedundancy::unit_access(i32 kernel_id, const ThreadId &thread_id,
                                     const AccessKind &access_kind, const Memory &memory, u64 pc,
                                     u64 value, u64 addr, u32 index, GPUPatchFlags flags) {

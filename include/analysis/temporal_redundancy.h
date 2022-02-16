@@ -44,6 +44,10 @@ class TemporalRedundancy final : public Analysis {
 
   virtual void block_exit(const ThreadId &thread_id);
 
+  virtual void function_call(const ThreadId &thread_id, u64 pc, u64 target_pc);
+
+  virtual void function_return(const ThreadId &thread_id, u64 pc, u64 target_pc);
+
   virtual void unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
                            GPUPatchFlags flags);
@@ -52,9 +56,11 @@ class TemporalRedundancy final : public Analysis {
   virtual void flush_thread(u32 cpu_thread, const std::string &output_dir,
                             const LockableMap<u32, Cubin> &cubins,
                             redshow_record_data_callback_func record_data_callback);
+
   virtual void flush_now(u32 cpu_thread, const std::string &output_dir,
                          const LockableMap<u32, Cubin> &cubins,
                          redshow_record_data_callback_func record_data_callback);
+                         
   virtual void flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback);
 

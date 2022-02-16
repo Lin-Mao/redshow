@@ -51,6 +51,10 @@ class Analysis {
 
   virtual void block_exit(const ThreadId &thread_id) = 0;
 
+  virtual void function_call(const ThreadId &thread_id, u64 pc, u64 target_pc) = 0;
+  
+  virtual void function_return(const ThreadId &thread_id, u64 pc, u64 target_pc) = 0;
+
   /**
    * @brief A callback for every unit
    *

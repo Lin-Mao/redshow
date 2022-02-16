@@ -296,6 +296,14 @@ void DataFlow::block_exit(const ThreadId &thread_id) {
   // No operation
 }
 
+void DataFlow::function_call(const ThreadId &thread_id, u64 pc, u64 target_pc) {
+  // No operation
+}
+
+void DataFlow::function_return(const ThreadId &thread_id, u64 pc, u64 target_pc) {
+  // No operation
+}
+
 void DataFlow::merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &memory_range) {
   auto start = memory_range.start;
   auto end = memory_range.end;

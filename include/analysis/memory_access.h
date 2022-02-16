@@ -61,12 +61,17 @@ class MemoryAccess final : public Analysis {
   virtual void block_enter(const ThreadId &thread_id);
 
   virtual void block_exit(const ThreadId &thread_id);
+
+  virtual void function_call(const ThreadId &thread_id, u64 pc, u64 target_pc);
+
+  virtual void function_return(const ThreadId &thread_id, u64 pc, u64 target_pc);
+
   //  Since we don't use value, the value here will always be 0.
   virtual void unit_access(i32 kernel_id, const ThreadId &thread_id,
                            const AccessKind &access_kind, const Memory &memory,
                            u64 pc, u64 value, u64 addr, u32 index,
                            GPUPatchFlags flags);
-  virtual void set_memory_snapshot_p(LockableMap<uint64_t, MemoryMap> *memory_snapshot_p);
+
   // Flush
   virtual void
   flush_thread(u32 cpu_thread, const std::string &output_dir,
@@ -76,17 +81,13 @@ class MemoryAccess final : public Analysis {
   // Flush
   virtual void
   flush_now(u32 cpu_thread, const std::string &output_dir,
-               const LockableMap<u32, Cubin> &cubins,
-               redshow_record_data_callback_func record_data_callback);
+            const LockableMap<u32, Cubin> &cubins,
+            redshow_record_data_callback_func record_data_callback);
 
   virtual void flush(const std::string &output_dir,
                      const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback);
-
-  // get kernel_trace
-  // virtual Map<u32, Map<i32, std::shared_ptr<Trace>>>& get_kernel_trace(u32 cpu_thread);
 };
-
 }  // namespace redshow
 
 #endif  // REDSHOW_ANALYSIS_MEMORY_PAGE_H
