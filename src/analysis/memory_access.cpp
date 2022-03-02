@@ -58,16 +58,17 @@ void MemoryAccess::block_exit(const ThreadId &thread_id) {
 #endif
 
 void MemoryAccess::function_call(const ThreadId &thread_id, u64 pc, u64 target_pc) {
-  PRINT("%s:%d:%s: pc=%llu, target_pc=%llu\n", __FILE__, __LINE__, __FUNCTION__, pc, target_pc);
+  PRINT("redshow-> function_call pc=%llu, target_pc=%llu\n", pc, target_pc);
 }
 
 void MemoryAccess::function_return(const ThreadId &thread_id, u64 pc, u64 target_pc) {
-  PRINT("%s:%d:%s: pc=%llu, target_pc=%llu\n", __FILE__, __LINE__, __FUNCTION__, pc, target_pc);
+  PRINT("redshow-> function_return pc=%llu, target_pc=%llu\n", pc, target_pc);
 }
 
 void MemoryAccess::unit_access(i32 kernel_id, const ThreadId &thread_id,
                                const AccessKind &access_kind, const Memory &memory, u64 pc, 
                                u64 value, u64 addr, u32 index, GPUPatchFlags flags) {
+                                 PRINT("redshow-> kernel_id=%d, block_id=%u, thread_id=%u, unit_access pc=%llu, value=%llu, addr=%llu, index=%u, flags=%u\n", kernel_id, thread_id.flat_block_id, thread_id.flat_thread_id, pc, value, addr, index, flags);
   addr += index * access_kind.unit_size / 8;
   // u64 page_index = addr >> PAGE_SIZE_BITS;
   // PRINT("_trace %p", &_trace);

@@ -381,7 +381,7 @@ static redshow_result_t trace_analyze_address_cct(int32_t kernel_id, Instruction
 
   size_t size = trace_data->head_index;
   gpu_patch_record_addr_cct_t *records = reinterpret_cast<gpu_patch_record_addr_cct_t *>(trace_data->records);
-
+  PRINT("redshow-> trace_data->head_index: %d\n", size);
   for (size_t i = 0; i < size; ++i) {
     // Iterate over each record
     gpu_patch_record_addr_cct_t *record = records + i;
@@ -389,6 +389,9 @@ static redshow_result_t trace_analyze_address_cct(int32_t kernel_id, Instruction
       // Fast path, no thread active
       continue;
     }
+    PRINT("redshow-> record->size: %d\n", record->size);
+    PRINT("redshow-> record->flag: %d\n", record->flags);
+
     if (record->flags & GPU_PATCH_BLOCK_ENTER_FLAG) {
       // Skip analysis
     } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
@@ -404,6 +407,7 @@ static redshow_result_t trace_analyze_address_cct(int32_t kernel_id, Instruction
         }
       }
     } else if (record->flags & GPU_PATCH_FUNCTION_CALL) {
+      PRINT("redshow-> GPU_PATCH_FUNCTION_CALL\n");
       for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
         if (record->active & (0x1u << j)) {
           uint32_t flat_thread_id =
@@ -1142,7 +1146,7 @@ redshow_result_t redshow_mem_views_get(uint32_t *views) {
   return REDSHOW_SUCCESS;
 }
 
-redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id) {
+redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id,  int32_t flat_grid_size, int32_t flat_blocksize, char* function_name ) {
   return REDSHOW_SUCCESS;
 }
 
