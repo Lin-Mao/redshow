@@ -503,9 +503,14 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
   for (auto iter : _kernel_memory_size) {
     sum += iter.second;
   }
-  out << "Launch " << _kernel_memory_size.size() << " kernels, " \
-      << "average memory usage in each kernel launch: " << sum / _kernel_memory_size.size() 
-      << " B" << std::endl;
+  out << "Launch " << _kernel_memory_size.size() << " kernels, " ;
+  if (_kernel_memory_size.size() != 0) {
+    out << "average memory usage in each kernel launch: " << sum / _kernel_memory_size.size() << " B" << std::endl;
+  } else {
+    out << "average memory usage in each kernel launch: 0 B" << std::endl;
+  }
+     
+      
 
   // <thread_id, <kernel_op_id, <memory_op_id, fragmentation>>>>
   for (auto &titer : _object_fragmentation_of_kernel_per_thread) {
