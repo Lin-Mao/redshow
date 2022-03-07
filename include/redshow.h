@@ -398,8 +398,7 @@ EXTERNC redshow_result_t redshow_tool_dtoh_register(redshow_tool_dtoh_func func)
  * @param host_op_id
  * @return EXTERNC
  */
-EXTERNC redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id,
-                                              uint64_t host_op_id);
+EXTERNC redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id, int32_t flat_gridsize, int32_t flat_blocksize, char *function_name);
 
 /**
  * @brief when a kernel ends

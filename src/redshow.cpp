@@ -1146,7 +1146,7 @@ redshow_result_t redshow_mem_views_get(uint32_t *views) {
   return REDSHOW_SUCCESS;
 }
 
-redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id,  int32_t flat_grid_size, int32_t flat_blocksize, char* function_name ) {
+redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id,  int32_t flat_gridsize, int32_t flat_blocksize, char* function_name ) {
   return REDSHOW_SUCCESS;
 }
 
