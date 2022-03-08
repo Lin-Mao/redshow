@@ -29,7 +29,6 @@
 #include "operation/memcpy.h"
 #include "operation/memory.h"
 #include "operation/memset.h"
-
 #ifdef DEBUG
 #define PRINT(...) fprintf(stderr, __VA_ARGS__)
 #else
@@ -746,7 +745,6 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
       analysis_enabled.emplace(REDSHOW_ANALYSIS_VALUE_PATTERN, std::make_shared<ValuePattern>());
       break;
     case REDSHOW_ANALYSIS_MEMORY_PAGE:
-      // rdGetmss(&memory_snapshot);
       analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_PAGE, std::make_shared<MemoryAccess>());
       break;
     default:
@@ -1254,9 +1252,7 @@ redshow_result_t redshow_flush_thread(uint32_t cpu_thread) {
 
 redshow_result_t redshow_flush_now(uint32_t cpu_thread) {
   PRINT("\nredshow-> Enter redshow_flush_now for cpu_thread %u\n", cpu_thread);
-
   for (auto aiter : analysis_enabled) {
-    PRINT("redhow-> enabled analysis: %d\n", aiter.first);
     aiter.second->flush_now(cpu_thread, output_dir[aiter.first], cubin_map,
                             record_data_callback);
   }
@@ -1282,7 +1278,6 @@ redshow_result_t redshow_get_memory_snapshot(void *&memory_snapshot_p) {
 redshow_result_t redshow_get_kernel_trace(uint32_t cpu_thread, void *&thread_kernel_trace, void *&memory_snapshot_p) {
   for (auto aiter : analysis_enabled) {
     if (aiter.first == REDSHOW_ANALYSIS_MEMORY_PAGE) {
-      // aiter.second->_lock.lock();
       aiter.second->lock();
       if (!aiter.second->_kernel_trace.has(cpu_thread)) {
         thread_kernel_trace = nullptr;
@@ -1291,6 +1286,7 @@ redshow_result_t redshow_get_kernel_trace(uint32_t cpu_thread, void *&thread_ker
       }
       aiter.second->unlock();
       memory_snapshot_p = &memory_snapshot;
+      break;
     }
   }
   return REDSHOW_SUCCESS;
