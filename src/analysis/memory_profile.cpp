@@ -31,6 +31,20 @@ void MemoryProfile::update_op_node(u64 op_id, i32 ctx_id) {
   }
 }
 
+void MemoryProfile::memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation mem_op) {
+  auto op_list = _timeline.find(memory_op_id);
+  if (op_list == _timeline.end()) {
+    Map<u64, memory_operation> op_list_temp;
+    op_list_temp.emplace(op_id, mem_op);
+    _timeline.emplace(memory_op_id, op_list_temp);
+  } else {
+    auto operation = op_list->second.find(op_id);
+    if (operation == op_list->second.end()) {
+      op_list->second.emplace(op_id, mem_op);
+    }
+  }
+
+}
 
 void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory /* default = false */) {
   update_op_node(op->op_id, op->ctx_id);
@@ -43,6 +57,8 @@ void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_subme
     _memories.try_emplace(op->op_id, op);
     _up_to_date_memories.try_emplace(op->op_id, op);
     _addresses_map.try_emplace(op->memory_range.start, op->op_id);
+    
+    memory_operation_register(op->op_id, op->op_id, ALLOC);
 
     larget_chunk_with_memories.try_emplace(op->op_id, op->len);
 
@@ -76,9 +92,28 @@ void MemoryProfile::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_sub
     _up_to_date_memories.erase(malloc_op_id);
     _liveness_map.emplace(malloc_op_id, op->op_id);
 
+    memory_operation_register(malloc_op_id, op->op_id, FREE);
+
   } else {
     // TODO(@Lin-Mao)
   }
+}
+
+void MemoryProfile::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
+  
+  if (op->src_memory_op_id != REDSHOW_MEMORY_HOST) {
+    memory_operation_register(op->src_memory_op_id, op->op_id, COPYF);
+  }
+
+  if (op->dst_memory_op_id != REDSHOW_MEMORY_HOST) {
+    memory_operation_register(op->dst_memory_op_id, op->op_id, COPYT);
+  }
+
+  
+}
+
+void MemoryProfile::memset_op_callback(std::shared_ptr<Memset> op) {
+  memory_operation_register(op->memory_op_id, op->op_id, SET);
 }
 
 
@@ -230,6 +265,7 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
 
 // for read access trace
   for (auto &mem_iter : _trace->read_memory) {
+    memory_operation_register(mem_iter.first, _trace->kernel.op_id, ACCESS);
 
 #ifdef SUB_MEMORY
     auto memory = _sub_memories.at(mem_iter.first);
@@ -268,7 +304,7 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
 
 
         // len += range_iter.end - range_iter.start;
-        update_blank_chunks(_trace->kernel.op_id, mem_iter.first, range_iter);
+        // update_blank_chunks(_trace->kernel.op_id, mem_iter.first, range_iter);
       }  
         
       } else {
@@ -280,6 +316,7 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
 
 // for write access trace
   for (auto &mem_iter : _trace->write_memory) {
+    memory_operation_register(mem_iter.first, _trace->kernel.op_id, ACCESS);
 
 #ifdef SUB_MEMORY
     auto memory = _sub_memories.at(mem_iter.first);
@@ -315,7 +352,7 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
       
 
         // len += range_iter.end - range_iter.start;
-        update_blank_chunks(_trace->kernel.op_id, mem_iter.first, range_iter);
+        // update_blank_chunks(_trace->kernel.op_id, mem_iter.first, range_iter);
     }  
       } else {
         // len = memory->len;
@@ -343,6 +380,10 @@ void MemoryProfile::op_callback(OperationPtr op, bool is_submemory /* default = 
     memory_op_callback(std::dynamic_pointer_cast<Memory>(op), is_submemory);
   } else if (op->type == OPERATION_TYPE_MEMFREE) {
     memfree_op_callback(std::dynamic_pointer_cast<Memfree>(op), is_submemory);
+  } else if (op->type == OPERATION_TYPE_MEMCPY) {
+    memcpy_op_callback(std::dynamic_pointer_cast<Memcpy>(op));
+  } else if (op->type == OPERATION_TYPE_MEMSET) {
+    memset_op_callback(std::dynamic_pointer_cast<Memset>(op));
   }
 
   unlock();
@@ -493,10 +534,23 @@ void MemoryProfile::flush_thread(u32 cpu_thread, const std::string &output_dir,
 }
 
 
+
 void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback) {
+
+
   
   std::ofstream out(output_dir + "memory_profile_flush" + ".csv");
+
+  out << std::endl << std::endl << "=================================================================" << std::endl;
+  for (auto ops : _timeline) {
+    out << "[" << ops.first << "] = ";
+    for (auto iter : ops.second) {
+      out << iter.first << "(" << iter.second << ")" << "  ";
+    }
+    out << std::endl;
+  }
+  out << "************************************************************" << std::endl << std::endl;
 
   out << "small op id: " << _first_free_op_id << " large op id: " << _last_free_op_id << std::endl;
   size_t sum = 0; 

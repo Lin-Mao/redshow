@@ -22,6 +22,8 @@
 // #include "operation/memory.h" // included in operation/memfree.h
 #include "operation/kernel.h"
 #include "operation/memfree.h"
+#include "operation/memcpy.h"
+#include "operation/memset.h"
 
 #include <fstream>
 
@@ -92,19 +94,39 @@ class MemoryProfile final : public Analysis {
 // <op_id, ctx_id> to store objects and kernels
 Map<u64, i32> _op_node;
 
+// memory entry
+struct MemoryEntry {
+  u64 op_id;
+  size_t size;
+
+  MemoryEntry() = default;
+  MemoryEntry(u64 op_id, size_t size) : op_id(op_id), size(size) {}
+
+  bool operator<(const MemoryEntry &other) const { return this->size < other.size; }
+
+  bool operator>(const MemoryEntry &other) const { return this->size > other.size; }
+  
+  virtual ~MemoryEntry() {}
+};
 
 // <op_id, memory>   used to log all allocated memory
 Map<u64, std::shared_ptr<Memory>> _memories;
 Map<u64, std::shared_ptr<Memory>> _up_to_date_memories;
+Vector<MemoryEntry> _largest_memories_list;
 
 // <address, memory_op_id> used to map cudaFree later
-std::unordered_map <u64, u64> _addresses_map;
+std::unordered_map<u64, u64> _addresses_map;
 
 // <op_id, memory>  used to log all allocated sub_memory
 Map<u64, std::shared_ptr<Memory>> _sub_memories;
 
 // <cudaMalloc, cudaFree>, used for liveness
 Map<u64, u64> _liveness_map;
+
+enum memory_operation {ALLOC, SET, COPYT, COPYF, ACCESS, FREE};
+
+// <cudaMallo, Vector<cudaMemset, cudaMemcpy, cudaFree>>
+Map<u64, Map<u64, memory_operation>> _timeline;
 
 // last free
 u64 _first_free_op_id = 18446744073709551615; // 2^64
@@ -181,6 +203,22 @@ void memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory = false);
 void memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory = false);
 
 /**
+ * @brief Memcpy register callback function
+ * 
+ * @param op 
+ */
+void memcpy_op_callback(std::shared_ptr<Memcpy> op);
+
+/**
+ * @brief Memset register callback function
+ * 
+ * @param op 
+ */
+void memset_op_callback(std::shared_ptr<Memset> op);
+
+void memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation mem_op);
+
+/**
  * @brief Update the op_id table.
  * 
  * @param op_id 
@@ -208,6 +246,13 @@ void update_blank_chunks(u64 kernel_op_id, u64 memory_op_id, MemoryRange range_i
  */
 void update_object_fragmentation_in_kernel(u32 cpu_thread, u64 kernel_op_id);
 
+
+/**
+ * @brief Get largest list of memories
+ * 
+ * @param 
+ */
+void get_largest_memories_list();
 
 
 
