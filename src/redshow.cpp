@@ -743,7 +743,7 @@ redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mod_id) {
 redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id, uint64_t start,
                                          uint64_t end) {
   PRINT(
-      "\nredshow-> Enter redshow_memory_register\nmemory_id: %d\nhost_op_id: %llu\nstart: %p\nend: "
+      "\nredshow-> Enter redshow_memory_register\nmemory_id: %d\nhost_op_id: %lu\nstart: %p\nend: "
       "%p\n",
       memory_id, host_op_id, start, end);
 
@@ -791,7 +791,7 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
 
 redshow_result_t redshow_memory_unregister(int32_t memory_id, uint64_t host_op_id, uint64_t start, 
                                            uint64_t end) {
-  PRINT("\nredshow-> Enter redshow_memory_unregister\nmemory_free_id: %d\nhost_op_id: %llu\nstart: %p\nend: %p\n",
+  PRINT("\nredshow-> Enter redshow_memory_unregister\nmemory_free_id: %d\nhost_op_id: %lu\nstart: %p\nend: %p\n",
         memory_id, host_op_id, start, end);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -829,7 +829,7 @@ redshow_result_t redshow_memory_unregister(int32_t memory_id, uint64_t host_op_i
 
 redshow_result_t redshow_sub_memory_register(int32_t sub_memory_id, uint64_t host_op_id,
                                                  uint64_t start, uint64_t end) {
-  PRINT("\nredshow-> Enter redshow_sub_memory_register\nmemory_id: %d\nhost_op_id: %llu\nstart: %p\nend: %p\n",
+  PRINT("\nredshow-> Enter redshow_sub_memory_register\nmemory_id: %d\nhost_op_id: %lu\nstart: %p\nend: %p\n",
   sub_memory_id, host_op_id, start, end);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -898,7 +898,7 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
       auto offset = start - memory_map_iter->first.start;
       *shadow_start = reinterpret_cast<uint64_t>(memory_map_iter->second->value.get()) + offset;
       *len = memory_map_iter->second->len;
-      PRINT("memory_id: %d\nmemory_op_id: %llu\noffset %llu\nshadow: %p\nlen: %llu\n", *memory_id,
+      PRINT("memory_id: %d\nmemory_op_id: %lu\noffset %lu\nshadow: %p\nlen: %lu\n", *memory_id,
             *memory_op_id, offset, *shadow_start, *len);
       result = REDSHOW_SUCCESS;
     } else {
@@ -949,8 +949,8 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
                                          uint64_t len) {
   PRINT(
       "\nredshow-> Enter redshow_memcpy_register\nmemcpy_id: %d\nhost_op_id: "
-      "%llu\nsrc_host: %d\nsrc_start: %llu\ndst_host: %d\ndst_start: "
-      "%llu\nlen: %llu\n",
+      "%lu\nsrc_host: %d\nsrc_start: %lu\ndst_host: %d\ndst_start: "
+      "%lu\nlen: %lu\n",
       memcpy_id, host_op_id, src_host, src_start, dst_host, dst_start, len);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -998,8 +998,8 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
 redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id, uint64_t start,
                                          uint32_t value, uint64_t len) {
   PRINT(
-      "\nredshow-> Enter redshow_memset_register\nmemset_id: %d\nhost_op_id: %llu\nstart: "
-      "%llu\nvalue: %u\nlen: %llu\n",
+      "\nredshow-> Enter redshow_memset_register\nmemset_id: %d\nhost_op_id: %lu\nstart: "
+      "%lu\nvalue: %u\nlen: %lu\n",
       memset_id, host_op_id, start, value, len);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -1062,7 +1062,7 @@ redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id, ui
 }
 
 redshow_result_t redshow_kernel_end(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id) {
-  PRINT("\nredshow-> Enter redshow_kernel_end\ncpu_thread: %u\nkernel_id: %d\nhost_op_id: %llu\n",
+  PRINT("\nredshow-> Enter redshow_kernel_end\ncpu_thread: %u\nkernel_id: %d\nhost_op_id: %lu\n",
         cpu_thread, kernel_id, host_op_id);
 
   // propose changes
@@ -1083,7 +1083,7 @@ redshow_result_t redshow_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_
                                  gpu_patch_buffer_t *trace_data) {
   PRINT(
       "\nredshow-> Enter redshow_analyze\ncpu_thread: %u\ncubin_id: %u\nmod_id: %u\n"
-      "kernel_id: %d\nhost_op_id: %llu\ntrace_data: %p\n",
+      "kernel_id: %d\nhost_op_id: %lu\ntrace_data: %p\n",
       cpu_thread, cubin_id, mod_id, kernel_id, host_op_id, trace_data);
 
   redshow_result_t result;
