@@ -533,24 +533,58 @@ void MemoryProfile::flush_thread(u32 cpu_thread, const std::string &output_dir,
 
 }
 
+void MemoryProfile::output_largest_memory_list(std::string file_name) {
+  for (auto iter : _memories) {
+    _largest_memories_list.push_back(MemoryEntry(iter.first, iter.second->len));
+  }
+  // for (auto iter : _largest_memories_list)
+  //   std::cout << "op_id=" << iter.op_id << ", size=" << iter.size << std::endl;
+
+  for (int i = 0; i < _largest_memories_list.size()-1; i++) {
+    int index = i;
+    MemoryEntry temp = _largest_memories_list[i];
+
+    for (int j = i + 1; j < _largest_memories_list.size(); j++) {
+      if (_largest_memories_list[j] > temp) {
+        index = j;
+        temp = _largest_memories_list[j];
+      }
+    }
+
+    if (index != i) {
+      _largest_memories_list[index] = _largest_memories_list[i];
+      _largest_memories_list[i] = temp;
+    }
+  }
+
+  std::ofstream output (file_name);
+
+  for (auto iter : _largest_memories_list)
+    output << "op_id=" << iter.op_id << ", size=" << iter.size << std::endl;
+}
+
+void MemoryProfile::output_memory_operation_list(std::string file_name) {
+  std::ofstream out(file_name);
+
+  for (auto ops : _timeline) {
+    out << "[" << ops.first << "]: ";
+    for (auto iter : ops.second) {
+      out << iter.first << "(" << iter.second << ")" << ", ";
+    }
+    out << std::endl;
+  }
+
+}
 
 
 void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback) {
 
+  output_largest_memory_list(output_dir + "largest_memory_list.txt");
 
+  output_memory_operation_list(output_dir + "memory_operation_list.txt");
   
   std::ofstream out(output_dir + "memory_profile_flush" + ".csv");
-
-  out << std::endl << std::endl << "=================================================================" << std::endl;
-  for (auto ops : _timeline) {
-    out << "[" << ops.first << "] = ";
-    for (auto iter : ops.second) {
-      out << iter.first << "(" << iter.second << ")" << "  ";
-    }
-    out << std::endl;
-  }
-  out << "************************************************************" << std::endl << std::endl;
 
   out << "small op id: " << _first_free_op_id << " large op id: " << _last_free_op_id << std::endl;
   size_t sum = 0; 

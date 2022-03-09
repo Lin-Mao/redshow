@@ -129,7 +129,7 @@ enum memory_operation {ALLOC, SET, COPYT, COPYF, ACCESS, FREE};
 Map<u64, Map<u64, memory_operation>> _timeline;
 
 // last free
-u64 _first_free_op_id = 18446744073709551615; // 2^64
+u64 _first_free_op_id = 2^63 + 2^31;
 u64 _last_free_op_id = 0;
 
 // <op_id, size> in kernel launch
@@ -248,11 +248,18 @@ void update_object_fragmentation_in_kernel(u32 cpu_thread, u64 kernel_op_id);
 
 
 /**
- * @brief Get largest list of memories
+ * @brief Output largest list of memories
  * 
  * @param 
  */
-void get_largest_memories_list();
+void output_largest_memory_list(std::string file_name);
+
+/**
+ * @brief Output memory opreation list
+ * 
+ * @param 
+ */
+void output_memory_operation_list(std::string file_name);
 
 
 
