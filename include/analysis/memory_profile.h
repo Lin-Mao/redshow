@@ -111,7 +111,7 @@ struct MemoryEntry {
 
 // <op_id, memory>   used to log all allocated memory
 Map<u64, std::shared_ptr<Memory>> _memories;
-Map<u64, std::shared_ptr<Memory>> _up_to_date_memories;
+Map<u64, std::shared_ptr<Memory>> _current_memories;
 Vector<MemoryEntry> _largest_memories_list;
 
 // <address, memory_op_id> used to map cudaFree later
@@ -128,8 +128,8 @@ enum memory_operation {ALLOC, SET, COPYT, COPYF, ACCESS, FREE};
 // <cudaMallo, Vector<cudaMemset, cudaMemcpy, cudaFree>>
 Map<u64, Map<u64, memory_operation>> _timeline;
 
-// last free
-u64 _first_free_op_id = 2^63 + 2^31;
+// first alloc and last free
+u64 _first_alloc_op_id = 9223372039002259456;  // 2^63 + 2^31
 u64 _last_free_op_id = 0;
 
 // <op_id, size> in kernel launch

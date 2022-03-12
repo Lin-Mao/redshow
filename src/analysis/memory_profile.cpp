@@ -49,17 +49,18 @@ void MemoryProfile::memory_operation_register(u64 memory_op_id, u64 op_id, memor
 void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory /* default = false */) {
   update_op_node(op->op_id, op->ctx_id);
 
-  if (op->op_id < _first_free_op_id)
-    _first_free_op_id = op->op_id;
+  if (op->op_id < _first_alloc_op_id)
+    _first_alloc_op_id = op->op_id;
 
   if (!is_submemory) {
     
     _memories.try_emplace(op->op_id, op);
-    _up_to_date_memories.try_emplace(op->op_id, op);
+    _current_memories.try_emplace(op->op_id, op);
     _addresses_map.try_emplace(op->memory_range.start, op->op_id);
     
     memory_operation_register(op->op_id, op->op_id, ALLOC);
 
+    // TODO(@Lin-Mao): This map can be removed, to design a better update_chunk function
     larget_chunk_with_memories.try_emplace(op->op_id, op->len);
 
 
@@ -69,8 +70,6 @@ void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_subme
     // HeatMapMemory heatmap(op->len);
     // heatmap.array = arr;
     // _heatmap_list[op->op_id] = heatmap;
-
-    // TODO(@Mao): to store the _memories which is logging the allocated memory. Think about how to update it.
 
   } else { // is_submemory == true
     
@@ -87,9 +86,10 @@ void MemoryProfile::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_sub
   
   if (!is_submemory) {
 
-    auto address = op->memory_range.start;
-    auto malloc_op_id = _addresses_map.at(address); 
-    _up_to_date_memories.erase(malloc_op_id);
+    u64 address = op->memory_range.start;
+    u64 malloc_op_id = _addresses_map.at(address); 
+    _current_memories.erase(malloc_op_id);
+    _addresses_map.erase(address);
     _liveness_map.emplace(malloc_op_id, op->op_id);
 
     memory_operation_register(malloc_op_id, op->op_id, FREE);
@@ -100,6 +100,7 @@ void MemoryProfile::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_sub
 }
 
 void MemoryProfile::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
+  update_op_node(op->op_id, op->ctx_id);
   
   if (op->src_memory_op_id != REDSHOW_MEMORY_HOST) {
     memory_operation_register(op->src_memory_op_id, op->op_id, COPYF);
@@ -113,6 +114,8 @@ void MemoryProfile::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
 }
 
 void MemoryProfile::memset_op_callback(std::shared_ptr<Memset> op) {
+  update_op_node(op->op_id, op->ctx_id);
+
   memory_operation_register(op->memory_op_id, op->op_id, SET);
 }
 
@@ -248,7 +251,7 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
   update_op_node(op->op_id, op->ctx_id);
 
   size_t size = 0;
-  for (auto iter : _up_to_date_memories) {
+  for (auto iter : _current_memories) {
     size += iter.second->len;
   }
   _kernel_memory_size.emplace(op->op_id, size);
@@ -396,7 +399,7 @@ void MemoryProfile::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id
 
     lock();
 
-    if (!this->_kernel_trace[cpu_thread].has(kernel_id)) {
+    if (!this->_kernel_trace[cpu_thread].has(host_op_id)) {
     auto trace = std::make_shared<MemoryProfileTrace>();
     trace->kernel.ctx_id = kernel_id;
     trace->kernel.cubin_id = cubin_id;
@@ -574,6 +577,8 @@ void MemoryProfile::output_memory_operation_list(std::string file_name) {
     out << std::endl;
   }
 
+  out.close();
+
 }
 
 
@@ -586,7 +591,7 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
   
   std::ofstream out(output_dir + "memory_profile_flush" + ".csv");
 
-  out << "small op id: " << _first_free_op_id << " large op id: " << _last_free_op_id << std::endl;
+  out << "small op id: " << _first_alloc_op_id << " large op id: " << _last_free_op_id << std::endl;
   size_t sum = 0; 
   for (auto iter : _kernel_memory_size) {
     sum += iter.second;
