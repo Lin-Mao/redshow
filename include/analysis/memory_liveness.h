@@ -20,6 +20,8 @@
 #include "operation/memset.h"
 // #include "operation/memory.h" #included in memfree
 
+#include <fstream>
+
 
 namespace redshow {
 
@@ -63,14 +65,19 @@ public:
  * ********************************************************************/
 
 private:
+	// override the definition in base class
+	Map<u32, Map<u64, std::shared_ptr<Trace>>> _kernel_trace;
+
 
   struct MemoryLivenessTrace final : public Trace {
     // only need to know memory access, don't care read or write
     // here use memory range to loge access range but not allocation and sub-allocation
 
     // u64: Memory:Operation->op_id
-    Map<u64, Set<MemoryRange>> read_memory;
-    Map<u64, Set<MemoryRange>> write_memory;
+		// @Lin-Mao: don't care about read or write in this mode, just need to know access or not
+		Map<u64, bool> access_memory; // map with sort but vector not
+    // Map<u64, Set<MemoryRange>> read_memory;
+    // Map<u64, Set<MemoryRange>> write_memory;
 
     MemoryLivenessTrace() = default;
 
@@ -87,6 +94,9 @@ private:
 
 	// <op_id, memory> log current memory
 	Map<u64, std::shared_ptr<Memory>> _current_memories;
+
+	// <start_addr, memory_op_id>
+	Map<u64, u64> _addresses_map;
 
 	enum memory_operation {ALLOC, SET, COPYT, COPYF, ACCESS, FREE};
 
@@ -134,6 +144,21 @@ void memset_op_callback(std::shared_ptr<Memset> op);
  * @param mem_op 
  */
 void memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation mem_op);
+
+/**
+ * @brief Output memory opreation list
+ * 
+ * @param 
+ */
+void output_memory_operation_list(std::string file_name);
+
+/**
+ * @brief update _op_node;
+ * 
+ * @param op_id 
+ * @param ctx_id 
+ */
+void update_op_node(u64 op_id, i32 ctx_id);
 
 
 
