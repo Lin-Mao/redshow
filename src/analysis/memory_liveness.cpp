@@ -13,7 +13,44 @@
 
 namespace redshow {
 
-void MemoryLiveness::op_callback(OperationPtr operation, bool is_submemory) {}
+void MemoryLiveness::op_callback(OperationPtr op, bool is_submemory) {
+  lock();
+  
+  if (op->type == OPERATION_TYPE_KERNEL) {
+    kernel_op_callback(std::dynamic_pointer_cast<Kernel>(op));
+  } else if (op->type == OPERATION_TYPE_MEMORY) {
+    memory_op_callback(std::dynamic_pointer_cast<Memory>(op), is_submemory);
+  } else if (op->type == OPERATION_TYPE_MEMFREE) {
+    memfree_op_callback(std::dynamic_pointer_cast<Memfree>(op), is_submemory);
+  } else if (op->type == OPERATION_TYPE_MEMCPY) {
+    memcpy_op_callback(std::dynamic_pointer_cast<Memcpy>(op));
+  } else if (op->type == OPERATION_TYPE_MEMSET) {
+    memset_op_callback(std::dynamic_pointer_cast<Memset>(op));
+  }
+
+  unlock();
+}
+
+void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory) {
+
+}
+
+void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory) {
+
+}
+
+void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
+
+}
+
+void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
+
+}
+
+void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
+
+}
+
 
 void MemoryLiveness::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id,
                               GPUPatchType type) {}

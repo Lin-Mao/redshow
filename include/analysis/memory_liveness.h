@@ -88,6 +88,54 @@ private:
 	// <op_id, memory> log current memory
 	Map<u64, std::shared_ptr<Memory>> _current_memories;
 
+	enum memory_operation {ALLOC, SET, COPYT, COPYF, ACCESS, FREE};
+
+	Map<u64, Map<u64, memory_operation>> _operations;
+
+/**
+ * @brief Kernel end callback
+ * 
+ * @param op 
+ */
+void kernel_op_callback(std::shared_ptr<Kernel> op);
+
+/**
+ * @brief Memory register callback function
+ * 
+ * @param op 
+ */
+void memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory = false);
+
+/**
+ * @brief Memory unregister callback function
+ * 
+ */
+void memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory = false);
+
+/**
+ * @brief Memcpy register callback function
+ * 
+ * @param op 
+ */
+void memcpy_op_callback(std::shared_ptr<Memcpy> op);
+
+/**
+ * @brief Memset register callback function
+ * 
+ * @param op 
+ */
+void memset_op_callback(std::shared_ptr<Memset> op);
+
+/**
+ * @brief Register operations to _operations
+ * 
+ * @param memory_op_id 
+ * @param op_id 
+ * @param mem_op 
+ */
+void memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation mem_op);
+
+
 
 };	// MemoryLiveness
 
