@@ -93,6 +93,11 @@ private:
 	Map<u64, i32> _op_node;
   Map<u64, i32> _kernel_op_node;
 
+  enum memory_operation {ALLOC, SET, COPYT, COPYF, ACCESS, FREE};
+
+  // log ctx for callpath
+  Map<i32, memory_operation> _ctx_node;
+
   // memory entry
   struct MemoryEntry {
     u64 op_id;
@@ -120,8 +125,6 @@ private:
 
 	// <start_addr, memory_op_id>
 	Map<u64, u64> _addresses_map;
-
-	enum memory_operation {ALLOC, SET, COPYT, COPYF, ACCESS, FREE};
 
 	Map<u64, Map<u64, memory_operation>> _operations;
 
@@ -190,12 +193,27 @@ void output_memory_size_list(std::string file_name);
 void output_kernel_list(std::string file_name);
 
 /**
+ * @brief output _ctx_node
+ * 
+ * @param file_name 
+ */
+void output_ctx_node(std::string file_name);
+
+/**
  * @brief update _op_node;
  * 
  * @param op_id 
  * @param ctx_id 
  */
 void update_op_node(u64 op_id, i32 ctx_id);
+
+/**
+ * @brief update _ctx_node
+ * 
+ * @param ctx_id 
+ * @param op 
+ */
+void update_ctx_node(i32 ctx_id, memory_operation op);
 
 /**
  * @brief update the ctx_id--op_id table

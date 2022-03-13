@@ -44,6 +44,12 @@ void MemoryLiveness::update_ctx_table(u64 op_id, i32 ctx_id) {
   }
 }
 
+void MemoryLiveness::update_ctx_node(i32 ctx_id, memory_operation op) {
+  if (!_ctx_node.has(ctx_id)) {
+    _ctx_node.emplace(ctx_id, op);
+  }
+}
+
 void MemoryLiveness::update_op_node(u64 op_id, i32 ctx_id) {
   if (op_id > REDSHOW_MEMORY_HOST) {
     // Point the operation to the calling context
@@ -69,6 +75,7 @@ void MemoryLiveness::memory_operation_register(u64 memory_op_id, u64 op_id, memo
 void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory) {
   update_op_node(op->op_id, op->ctx_id);
   update_ctx_table(op->op_id, op->ctx_id);
+  update_ctx_node(op->ctx_id, ALLOC);
 
   if (!is_submemory) {
     _memories.try_emplace(op->op_id, op);
@@ -87,6 +94,7 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
 void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory) {
   update_op_node(op->op_id, op->ctx_id);
   update_ctx_table(op->op_id, op->ctx_id);
+  update_ctx_node(op->ctx_id, FREE);
 
   if (!is_submemory) {
     u64 address = op->memory_range.start;
@@ -104,6 +112,7 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
 void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
   update_op_node(op->op_id, op->ctx_id);
   update_ctx_table(op->op_id, op->ctx_id);
+  update_ctx_node(op->ctx_id, ACCESS);
   _kernel_op_node[op->op_id] = op->ctx_id;
 
   if (_trace.get() == NULL) {
@@ -126,10 +135,12 @@ void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
   // update_op_node(op->op_id, op->ctx_id);
 
   if (op->src_memory_op_id != REDSHOW_MEMORY_HOST) {
+    update_ctx_node(op->ctx_id, COPYF);
     memory_operation_register(op->src_memory_op_id, op->op_id, COPYF);
   }
 
   if (op->dst_memory_op_id != REDSHOW_MEMORY_HOST) {
+    update_ctx_node(op->ctx_id, COPYT);
     memory_operation_register(op->dst_memory_op_id, op->op_id, COPYT);
   }
 
@@ -138,6 +149,7 @@ void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
 
 void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
   // update_op_node(op->op_id, op->ctx_id);
+  update_ctx_node(op->ctx_id, SET);
 
   memory_operation_register(op->memory_op_id, op->op_id, SET);
 
@@ -246,6 +258,28 @@ void MemoryLiveness::output_kernel_list(std::string file_name) {
 
 }
 
+void MemoryLiveness::output_ctx_node(std::string file_name) {
+
+  std::ofstream output(file_name);
+
+  for (auto ctx : _ctx_node) {
+    if (ctx.second == ALLOC) {
+      output << "ALLOC " << ctx.first << std::endl; 
+    } else if (ctx.second == FREE) {
+      output << "FREE " << ctx.first << std::endl;
+    } else if (ctx.second == ACCESS) {
+      output << "ACCESS " << ctx.first << std::endl;
+    } else if (ctx.second == SET) {
+      output << "SET " << ctx.first << std::endl;
+    } else if (ctx.second == COPYT) {
+      output << "COPYT " << ctx.first << std::endl;
+    } else if (ctx.second == COPYF) {
+      output << "COPYF " << ctx.first << std::endl;
+    }
+  }
+  output.close();
+}
+
 void MemoryLiveness::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback) {
 
@@ -254,6 +288,8 @@ void MemoryLiveness::flush(const std::string &output_dir, const LockableMap<u32,
   output_memory_size_list(output_dir + "memory_size_list.txt");
 
   output_kernel_list(output_dir + "kernel_list.txt");
+
+  output_ctx_node(output_dir + "memory_liveness.csv");
 
 }
 
