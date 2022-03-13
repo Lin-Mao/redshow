@@ -1,5 +1,5 @@
-#ifndef REDSHOW_ANALYSIS_MEMORY_PAGE_H
-#define REDSHOW_ANALYSIS_MEMORY_PAGE_H
+#ifndef REDSHOW_ANALYSIS_MEMORY_ACCESS_H
+#define REDSHOW_ANALYSIS_MEMORY_ACCESS_H
 
 #include <algorithm>
 #include <fstream>
@@ -24,7 +24,7 @@ namespace redshow {
 typedef Map<redshow::MemoryRange, std::shared_ptr<redshow::Memory>> MemoryMap;
 class MemoryAccess final : public Analysis {
  public:
-  MemoryAccess() : Analysis(REDSHOW_ANALYSIS_MEMORY_PAGE) {}
+  MemoryAccess() : Analysis(REDSHOW_ANALYSIS_MEMORY_ACCESS) {}
 
   virtual ~MemoryAccess() = default;
 
@@ -90,4 +90,4 @@ class MemoryAccess final : public Analysis {
 };
 }  // namespace redshow
 
-#endif  // REDSHOW_ANALYSIS_MEMORY_PAGE_H
+#endif  // REDSHOW_ANALYSIS_MEMORY_ACCESS_H

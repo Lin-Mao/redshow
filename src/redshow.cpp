@@ -380,7 +380,7 @@ static redshow_result_t trace_analyze_address_cct(int32_t kernel_id, Instruction
 
   size_t size = trace_data->head_index;
   gpu_patch_record_addr_cct_t *records = reinterpret_cast<gpu_patch_record_addr_cct_t *>(trace_data->records);
-  PRINT("redshow-> trace_data->head_index: %d\n", size);
+  // PRINT("redshow-> trace_data->head_index: %d\n", size);
   for (size_t i = 0; i < size; ++i) {
     // Iterate over each record
     gpu_patch_record_addr_cct_t *record = records + i;
@@ -388,10 +388,11 @@ static redshow_result_t trace_analyze_address_cct(int32_t kernel_id, Instruction
       // Fast path, no thread active
       continue;
     }
-    PRINT("redshow-> record->size: %d\n", record->size);
-    PRINT("redshow-> record->flag: %d\n", record->flags);
+    // PRINT("redshow-> record->size: %d\n", record->size);
+    // PRINT("redshow-> record->flag: %d\n", record->flags);
 
     if (record->flags & GPU_PATCH_BLOCK_ENTER_FLAG) {
+      // PRINT("redshow-> Block enter PC: %p\n", record->pc);
       // Skip analysis
     } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
       // Remove temporal records
@@ -418,6 +419,7 @@ static redshow_result_t trace_analyze_address_cct(int32_t kernel_id, Instruction
         }
       }
     } else if (record->flags & GPU_PATCH_FUNCTION_RET) {
+      PRINT("redshow-> GPU_PATCH_FUNCTION_RET\n");
       for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
         if (record->active & (0x1u << j)) {
           uint32_t flat_thread_id =
@@ -744,8 +746,8 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
     case REDSHOW_ANALYSIS_VALUE_PATTERN:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_VALUE_PATTERN, std::make_shared<ValuePattern>());
       break;
-    case REDSHOW_ANALYSIS_MEMORY_PAGE:
-      analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_PAGE, std::make_shared<MemoryAccess>());
+    case REDSHOW_ANALYSIS_MEMORY_ACCESS:
+      analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_ACCESS, std::make_shared<MemoryAccess>());
       break;
     default:
       result = REDSHOW_ERROR_NO_SUCH_ANALYSIS;
@@ -1277,7 +1279,7 @@ redshow_result_t redshow_get_memory_snapshot(void *&memory_snapshot_p) {
 
 redshow_result_t redshow_get_kernel_trace(uint32_t cpu_thread, void *&thread_kernel_trace, void *&memory_snapshot_p) {
   for (auto aiter : analysis_enabled) {
-    if (aiter.first == REDSHOW_ANALYSIS_MEMORY_PAGE) {
+    if (aiter.first == REDSHOW_ANALYSIS_MEMORY_ACCESS) {
       aiter.second->lock();
       if (!aiter.second->_kernel_trace.has(cpu_thread)) {
         thread_kernel_trace = nullptr;
