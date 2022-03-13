@@ -31,6 +31,19 @@ void MemoryLiveness::op_callback(OperationPtr op, bool is_submemory) {
   unlock();
 }
 
+void MemoryLiveness::update_ctx_table(u64 op_id, i32 ctx_id) {
+  if (op_id > REDSHOW_MEMORY_HOST) {
+    auto ctx_table_node = _ctx_table.find(ctx_id);
+    if (ctx_table_node == _ctx_table.end()) {
+      Vector<u64> op_vec;
+      op_vec.push_back(op_id);
+      _ctx_table.emplace(ctx_id, op_vec);
+    } else {
+      ctx_table_node->second.push_back(op_id);
+    }
+  }
+}
+
 void MemoryLiveness::update_op_node(u64 op_id, i32 ctx_id) {
   if (op_id > REDSHOW_MEMORY_HOST) {
     // Point the operation to the calling context
@@ -39,26 +52,29 @@ void MemoryLiveness::update_op_node(u64 op_id, i32 ctx_id) {
 }
 
 void MemoryLiveness::memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation mem_op) {
-  auto op_list = _operations.find(memory_op_id);
+  auto ops_node = _operations.find(memory_op_id);
 
-  if (op_list == _operations.end()) {
-    Map<u64, memory_operation> op_list_temp;
-    op_list_temp.emplace(op_id, mem_op);
-    _operations.emplace(memory_op_id, op_list_temp);
+  if (ops_node == _operations.end()) {  // for malloc
+    Map<u64, memory_operation> op_list;
+    op_list.emplace(op_id, mem_op);
+    _operations.emplace(memory_op_id, op_list);
   } else {
-    auto operation = op_list->second.find(op_id);
-    if (operation == op_list->second.end()) {
-      op_list->second.emplace(op_id, mem_op);
+    auto operation = ops_node->second.find(op_id);
+    if (operation == ops_node->second.end()) {
+      ops_node->second.emplace(op_id, mem_op);
     }
   }
 }
 
 void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory) {
   update_op_node(op->op_id, op->ctx_id);
+  update_ctx_table(op->op_id, op->ctx_id);
+
   if (!is_submemory) {
     _memories.try_emplace(op->op_id, op);
     _current_memories.try_emplace(op->op_id, op);
     _addresses_map.try_emplace(op->memory_range.start, op->op_id);
+    _memory_size_list.push_back(MemoryEntry(op->op_id, op->len));
 
     if (!_operations.has(op->op_id)) {
       memory_operation_register(op->op_id, op->op_id, ALLOC);
@@ -70,6 +86,8 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
 
 void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory) {
   update_op_node(op->op_id, op->ctx_id);
+  update_ctx_table(op->op_id, op->ctx_id);
+
   if (!is_submemory) {
     u64 address = op->memory_range.start;
     u64 malloc_op_id = _addresses_map.at(address);
@@ -85,6 +103,8 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
 
 void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
   update_op_node(op->op_id, op->ctx_id);
+  update_ctx_table(op->op_id, op->ctx_id);
+  _kernel_op_node[op->op_id] = op->ctx_id;
 
   if (_trace.get() == NULL) {
     // If the kernel is sampled
@@ -103,7 +123,7 @@ void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
 }
 
 void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
-  update_op_node(op->op_id, op->ctx_id);
+  // update_op_node(op->op_id, op->ctx_id);
 
   if (op->src_memory_op_id != REDSHOW_MEMORY_HOST) {
     memory_operation_register(op->src_memory_op_id, op->op_id, COPYF);
@@ -117,7 +137,7 @@ void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
 }
 
 void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
-  update_op_node(op->op_id, op->ctx_id);
+  // update_op_node(op->op_id, op->ctx_id);
 
   memory_operation_register(op->memory_op_id, op->op_id, SET);
 
@@ -181,13 +201,59 @@ void MemoryLiveness::output_memory_operation_list(std::string file_name) {
     out << std::endl;
   }
 
+  out.close();
+}
+
+void MemoryLiveness::output_memory_size_list(std::string file_name) {
+  
+  // TODO(@Lin-Mao): can be changed to quick sort
+  // sort the vector
+  for (int i = 0; i < _memory_size_list.size()-1; i++) {
+    int index = i;
+    MemoryEntry temp = _memory_size_list[i];
+
+    for (int j = i + 1; j < _memory_size_list.size(); j++) {
+      if (_memory_size_list[j] > temp) {
+        index = j;
+        temp = _memory_size_list[j];
+      }
+    }
+
+    if (index != i) {
+      _memory_size_list[index] = _memory_size_list[i];
+      _memory_size_list[i] = temp;
+    }
+  }
+
+  std::ofstream output (file_name);
+
+  for (auto iter : _memory_size_list)
+    output << "op_id=" << iter.op_id << ", size=" << iter.size << std::endl;
+
+  output.close();
+
+}
+
+void MemoryLiveness::output_kernel_list(std::string file_name) {
+  
+  std::ofstream output(file_name);
+
+  for (auto op_ctx : _kernel_op_node) {
+    output << op_ctx.first << ", " << op_ctx.second << std::endl;
+  }
+  
+  output.close();
+
 }
 
 void MemoryLiveness::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback) {
-  Vector<int> vec;
 
   output_memory_operation_list(output_dir + "memory_liveness.txt");
+
+  output_memory_size_list(output_dir + "memory_size_list.txt");
+
+  output_kernel_list(output_dir + "kernel_list.txt");
 
 }
 

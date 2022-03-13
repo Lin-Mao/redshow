@@ -86,8 +86,31 @@ private:
 
   std::shared_ptr<MemoryLivenessTrace> _trace;
 
+  // <ctx_id, Vector<op_id> log the op_id order in the same context
+  Map<i32, Vector<u64>> _ctx_table;
+
 		// <op_id, ctx_id>
 	Map<u64, i32> _op_node;
+  Map<u64, i32> _kernel_op_node;
+
+  // memory entry
+  struct MemoryEntry {
+    u64 op_id;
+    size_t size;
+
+    MemoryEntry() = default;
+
+    MemoryEntry(u64 op_id, size_t size) : op_id(op_id), size(size) {}
+
+    bool operator<(const MemoryEntry &other) const { return this->size < other.size; }
+
+    bool operator>(const MemoryEntry &other) const { return this->size > other.size; }
+    
+    virtual ~MemoryEntry() {}
+  };
+
+  // used to log and sort memory size
+  Vector<MemoryEntry> _memory_size_list;
 
 	// <op_id, memory>   log all allocated memory
 	Map<u64, std::shared_ptr<Memory>> _memories;
@@ -153,6 +176,20 @@ void memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation mem
 void output_memory_operation_list(std::string file_name);
 
 /**
+ * @brief memory list with descending order
+ * 
+ * @param file_name 
+ */
+void output_memory_size_list(std::string file_name);
+
+/**
+ * @brief output kernel instances
+ * 
+ * @param file_name 
+ */
+void output_kernel_list(std::string file_name);
+
+/**
  * @brief update _op_node;
  * 
  * @param op_id 
@@ -160,6 +197,13 @@ void output_memory_operation_list(std::string file_name);
  */
 void update_op_node(u64 op_id, i32 ctx_id);
 
+/**
+ * @brief update the ctx_id--op_id table
+ * 
+ * @param op_id 
+ * @param ctx_id 
+ */
+void update_ctx_table(u64 op_id, i32 ctx_id);
 
 
 };	// MemoryLiveness
