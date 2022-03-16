@@ -71,21 +71,6 @@ class MemoryHeatmap final : public Analysis {
 
   private:
 
-  struct MemoryHeatmapTrace final : public Trace {
-    // only need to know memory access, don't care read or write
-    // here use memory range to loge access range but not allocation and sub-allocation
-
-    // u64: Memory:Operation->op_id
-    Map<u64, Set<MemoryRange>> read_memory;
-    Map<u64, Set<MemoryRange>> write_memory;
-
-    MemoryHeatmapTrace() = default;
-
-    virtual ~MemoryHeatmapTrace() {}
-  };
-
-  std::shared_ptr<MemoryHeatmapTrace> _trace;
-
 // <op_id, ctx_id>
 Map<u64, i32> _op_node;
 
@@ -94,13 +79,6 @@ Map<u64, std::shared_ptr<Memory>> _memories;
 
 // <op_id, memory>  used to log all allocated sub_memory
 Map<u64, std::shared_ptr<Memory>> _sub_memories;
-
-/**
- * @brief Map<memory_op_id, kernel_id> accessed_op_id which is processed in _blank_chunks
- * 
- */
-Map<u64, i32> _accessed_memories;
-
 
 
 /**
@@ -128,29 +106,11 @@ Map<u64, HeatMapMemory> _heatmap_list;
 private:
 
 /**
- * @brief To merge access memory range in unit_access.
- * 
- * @param memory 
- * @param memory_range 
- */
-void merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &memory_range);
-
-
-/**
- * @brief Kernel callback function
- * 
- * @param op 
- */
-void kernel_op_callback(std::shared_ptr<Kernel> op);
-
-/**
  * @brief Memory register callback function
  * 
  * @param op 
  */
 void memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory = false);
-
-
 
 /**
  * @brief Update the op_id table.
