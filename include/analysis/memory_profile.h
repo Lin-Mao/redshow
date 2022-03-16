@@ -112,7 +112,7 @@ struct MemoryEntry {
 // <op_id, memory>   used to log all allocated memory
 Map<u64, std::shared_ptr<Memory>> _memories;
 Map<u64, std::shared_ptr<Memory>> _current_memories;
-Vector<MemoryEntry> _largest_memories_list;
+Vector<MemoryEntry> _memory_size_list;
 
 // <address, memory_op_id> used to map cudaFree later
 std::unordered_map<u64, u64> _addresses_map;
@@ -126,10 +126,10 @@ Map<u64, u64> _liveness_map;
 enum memory_operation {ALLOC, SET, COPYT, COPYF, ACCESS, FREE};
 
 // <cudaMallo, Vector<cudaMemset, cudaMemcpy, cudaFree>>
-Map<u64, Map<u64, memory_operation>> _timeline;
+Map<u64, Map<u64, memory_operation>> _operations;
 
 // first alloc and last free
-u64 _first_alloc_op_id = 9223372039002259456;  // 2^63 + 2^31
+u64 _first_alloc_op_id = 9223372039002259456u;  // 2^63 + 2^31
 u64 _last_free_op_id = 0;
 
 // <op_id, size> in kernel launch
@@ -219,7 +219,7 @@ void memset_op_callback(std::shared_ptr<Memset> op);
 void memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation mem_op);
 
 /**
- * @brief Update the op_id table.
+ * @brief Update the op_id map
  * 
  * @param op_id 
  * @param ctx_id 
@@ -252,7 +252,7 @@ void update_object_fragmentation_in_kernel(u32 cpu_thread, u64 kernel_op_id);
  * 
  * @param 
  */
-void output_largest_memory_list(std::string file_name);
+void output_memory_size_list(std::string file_name);
 
 /**
  * @brief Output memory opreation list

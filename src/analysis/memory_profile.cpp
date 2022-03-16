@@ -32,18 +32,18 @@ void MemoryProfile::update_op_node(u64 op_id, i32 ctx_id) {
 }
 
 void MemoryProfile::memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation mem_op) {
-  auto op_list = _timeline.find(memory_op_id);
-  if (op_list == _timeline.end()) {
-    Map<u64, memory_operation> op_list_temp;
-    op_list_temp.emplace(op_id, mem_op);
-    _timeline.emplace(memory_op_id, op_list_temp);
+  auto ops_node = _operations.find(memory_op_id);
+
+  if (ops_node == _operations.end()) {  // for malloc
+    Map<u64, memory_operation> op_list;
+    op_list.emplace(op_id, mem_op);
+    _operations.emplace(memory_op_id, op_list);
   } else {
-    auto operation = op_list->second.find(op_id);
-    if (operation == op_list->second.end()) {
-      op_list->second.emplace(op_id, mem_op);
+    auto operation = ops_node->second.find(op_id);
+    if (operation == ops_node->second.end()) {
+      ops_node->second.emplace(op_id, mem_op);
     }
   }
-
 }
 
 void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory /* default = false */) {
@@ -536,40 +536,44 @@ void MemoryProfile::flush_thread(u32 cpu_thread, const std::string &output_dir,
 
 }
 
-void MemoryProfile::output_largest_memory_list(std::string file_name) {
+void MemoryProfile::output_memory_size_list(std::string file_name) {
   for (auto iter : _memories) {
-    _largest_memories_list.push_back(MemoryEntry(iter.first, iter.second->len));
+    _memory_size_list.push_back(MemoryEntry(iter.first, iter.second->len));
   }
-  // for (auto iter : _largest_memories_list)
+  // for (auto iter : _memory_size_list)
   //   std::cout << "op_id=" << iter.op_id << ", size=" << iter.size << std::endl;
 
-  for (int i = 0; i < _largest_memories_list.size()-1; i++) {
+  // TODO(@Lin-Mao): can be changed to quick sort
+  // sort the vector
+  for (int i = 0; i < _memory_size_list.size()-1; i++) {
     int index = i;
-    MemoryEntry temp = _largest_memories_list[i];
+    MemoryEntry temp = _memory_size_list[i];
 
-    for (int j = i + 1; j < _largest_memories_list.size(); j++) {
-      if (_largest_memories_list[j] > temp) {
+    for (int j = i + 1; j < _memory_size_list.size(); j++) {
+      if (_memory_size_list[j] > temp) {
         index = j;
-        temp = _largest_memories_list[j];
+        temp = _memory_size_list[j];
       }
     }
 
     if (index != i) {
-      _largest_memories_list[index] = _largest_memories_list[i];
-      _largest_memories_list[i] = temp;
+      _memory_size_list[index] = _memory_size_list[i];
+      _memory_size_list[i] = temp;
     }
   }
 
   std::ofstream output (file_name);
 
-  for (auto iter : _largest_memories_list)
+  for (auto iter : _memory_size_list)
     output << "op_id=" << iter.op_id << ", size=" << iter.size << std::endl;
+
+  output.close();
 }
 
 void MemoryProfile::output_memory_operation_list(std::string file_name) {
   std::ofstream out(file_name);
 
-  for (auto ops : _timeline) {
+  for (auto ops : _operations) {
     out << "[" << ops.first << "]: ";
     for (auto iter : ops.second) {
       out << iter.first << "(" << iter.second << ")" << ", ";
@@ -585,7 +589,7 @@ void MemoryProfile::output_memory_operation_list(std::string file_name) {
 void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback) {
 
-  output_largest_memory_list(output_dir + "largest_memory_list.txt");
+  output_memory_size_list(output_dir + "largest_memory_list.txt");
 
   output_memory_operation_list(output_dir + "memory_operation_list.txt");
   
