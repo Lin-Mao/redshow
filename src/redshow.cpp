@@ -407,7 +407,7 @@ static redshow_result_t trace_analyze_address_cct(int32_t kernel_id, Instruction
         }
       }
     } else if (record->flags & GPU_PATCH_FUNCTION_CALL) {
-      PRINT("redshow-> GPU_PATCH_FUNCTION_CALL\n");
+      // PRINT("redshow-> GPU_PATCH_FUNCTION_CALL\n");
       for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
         if (record->active & (0x1u << j)) {
           uint32_t flat_thread_id =
@@ -419,7 +419,7 @@ static redshow_result_t trace_analyze_address_cct(int32_t kernel_id, Instruction
         }
       }
     } else if (record->flags & GPU_PATCH_FUNCTION_RET) {
-      PRINT("redshow-> GPU_PATCH_FUNCTION_RET\n");
+      // PRINT("redshow-> GPU_PATCH_FUNCTION_RET\n");
       for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
         if (record->active & (0x1u << j)) {
           uint32_t flat_thread_id =
@@ -1146,14 +1146,14 @@ redshow_result_t redshow_mem_views_get(uint32_t *views) {
   return REDSHOW_SUCCESS;
 }
 
-redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id,  int32_t flat_gridsize, int32_t flat_blocksize, char* function_name ) {
+redshow_result_t redshow_kernel_launch_begin(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id,  int32_t flat_gridsize, int32_t flat_blocksize, char* function_name, uint64_t function_pc) {
   return REDSHOW_SUCCESS;
 }
 
-redshow_result_t redshow_kernel_end(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id) {
-  PRINT("\nredshow-> Enter redshow_kernel_end\ncpu_thread: %u\nkernel_id: %d\nhost_op_id: %llu\n",
-        cpu_thread, kernel_id, host_op_id);
+redshow_result_t redshow_kernel_launch_end(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id, int32_t flat_gridsize, int32_t flat_blocksize, char *function_name, uint64_t function_pc) {
 
+  PRINT(
+      "\nredshow-> Enter redshow_kernel_launch_end\nkernel_id: %d\nhost_op_id:%llu\n flat_gridsize: %d\n flat_blocksize: %d\nfunction_name: %s\nfunction_pc: %llu\n", kernel_id, host_op_id, flat_gridsize, flat_blocksize, function_name, function_pc);
   // propose changes
   // read_memory_op_ids, write_memory_op_ids
   redshow_result_t result = REDSHOW_SUCCESS;

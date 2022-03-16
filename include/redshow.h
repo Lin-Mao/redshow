@@ -386,7 +386,7 @@ typedef void (*redshow_tool_dtoh_func)(uint64_t host_start, uint64_t device_star
  * @brief Register dtoh function
  *
  * @param func
- * @return EXTERNC
+ * @return
  */
 EXTERNC redshow_result_t redshow_tool_dtoh_register(redshow_tool_dtoh_func func);
 
@@ -396,9 +396,9 @@ EXTERNC redshow_result_t redshow_tool_dtoh_register(redshow_tool_dtoh_func func)
  * @param cpu_thread
  * @param kernel_id
  * @param host_op_id
- * @return EXTERNC
+ * @return
  */
-EXTERNC redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id, int32_t flat_gridsize, int32_t flat_blocksize, char *function_name);
+EXTERNC redshow_result_t redshow_kernel_launch_begin(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id, int32_t flat_gridsize, int32_t flat_blocksize, char *function_name, uint64_t function_pc);
 
 /**
  * @brief when a kernel ends
@@ -406,10 +406,10 @@ EXTERNC redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kerne
  * @param cpu_thread
  * @param kernel_id
  * @param host_op_id
- * @return EXTERNC
+ * @return
  */
-EXTERNC redshow_result_t redshow_kernel_end(uint32_t cpu_thread, int32_t kernel_id,
-                                            uint64_t host_op_id);
+EXTERNC redshow_result_t redshow_kernel_launch_end(uint32_t cpu_thread, int32_t kernel_id,
+                                                   uint64_t host_op_id, int32_t flat_gridsize, int32_t flat_blocksize, char *function_name, uint64_t function_pc);
 
 /**
  * @brief Mark the begin of the current analysis region
@@ -460,15 +460,12 @@ EXTERNC redshow_result_t redshow_flush();
  */
 EXTERNC redshow_result_t redshow_flush_now(uint32_t cpu_thread);
 
-
-
-
 /**
  * @brief Get kernel_trace and memory_snapshot for drcctprof.
  *
  * @param cpu_thread
  * @param thread_kernel_trace
- * @param memory_snapshot_p 
+ * @param memory_snapshot_p
  * @return reshow_result_t
  *
  * @thread-safe YES
