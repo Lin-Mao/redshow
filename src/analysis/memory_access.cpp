@@ -90,6 +90,7 @@ void MemoryAccess::flush_thread(u32 cpu_thread, const std::string &output_dir,
   unlock();
   // @findhao: for debug
   cout << std::flush << "======flush thread start=======" << endl;
+  // @findhao is it necessnary to be thread safe?
   for (auto item : this->_kernel_trace) {
     cout << "cpu thread id " << item.first << endl;
     for (auto item2 : item.second) {

@@ -749,11 +749,13 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
     case REDSHOW_ANALYSIS_MEMORY_ACCESS:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_ACCESS, std::make_shared<MemoryAccess>());
       break;
-    default:
+    case REDSHOW_ANALYSIS_CCT_MEMORY_ACCESS:
+      analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_ACCESS, std::make_shared<MemoryAccess>());
+      break;
+     default:
       result = REDSHOW_ERROR_NO_SUCH_ANALYSIS;
       break;
   }
-
   return result;
 }
 
