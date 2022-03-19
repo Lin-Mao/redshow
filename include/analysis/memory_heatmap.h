@@ -87,7 +87,7 @@ Map<u64, std::shared_ptr<Memory>> _sub_memories;
  */
 struct HeatMapMemory {
   size_t size;
-  uint8_t *array;
+  int *array;
 
   HeatMapMemory() = default;
 

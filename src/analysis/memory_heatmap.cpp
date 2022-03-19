@@ -102,14 +102,15 @@ if (memory.op_id <= REDSHOW_MEMORY_HOST) {
   }
 
   auto &memory_range = memory.memory_range;
+  // printf("op_id:%lu, start:%lu, end:%lu, len:%lu\n", memory.op_id, memory_range.start, memory_range.end, memory.len);
 
   auto heatmap = _heatmap_list.find(memory.op_id);
   if (heatmap == _heatmap_list.end()) {
     auto object = _memories.at(memory.op_id);
     size_t len = object->len / access_kind.unit_size;
     
-    uint8_t* arr = (uint8_t*) malloc(sizeof(uint8_t) * len);
-    memset(arr, 0, sizeof(uint8_t) * len);
+    int* arr = (int*) malloc(sizeof(int) * len);
+    memset(arr, 0, sizeof(int) * len);
 
     HeatMapMemory heatmap(len);
     heatmap.array = arr;
