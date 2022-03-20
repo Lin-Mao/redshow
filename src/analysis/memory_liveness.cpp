@@ -82,6 +82,11 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
     _current_memories.try_emplace(op->op_id, op);
     _addresses_map.try_emplace(op->memory_range.start, op->op_id);
     _memory_size_list.push_back(MemoryEntry(op->op_id, op->len));
+    _current_memory_usage += op->len;
+
+    // printf("op_id:%lu, len:%d\n", op->op_id, op->len);
+    if (_current_memory_usage > _current_memory_peak)
+      _current_memory_peak = _current_memory_usage;
 
     if (!_operations.has(op->op_id)) {
       memory_operation_register(op->op_id, op->op_id, ALLOC);
@@ -102,6 +107,7 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
     
     _addresses_map.erase(address);
     _current_memories.erase(malloc_op_id);
+    _current_memory_usage -= op->len;
 
     memory_operation_register(malloc_op_id, op->op_id, FREE);
 
@@ -120,9 +126,14 @@ void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
     return;
   }
 
+  u64 kernel_memory_usage = 0;
   for (auto &trace_iter : _trace->access_memory) {
+    auto memory = _memories.at(trace_iter.first);
+    kernel_memory_usage += memory->len;
     memory_operation_register(trace_iter.first, _trace->kernel.op_id, ACCESS);
   }
+  if (kernel_memory_usage > _optimal_memory_peak)
+    _optimal_memory_peak = kernel_memory_usage;
 
 
   // reset trace
@@ -262,21 +273,31 @@ void MemoryLiveness::output_ctx_node(std::string file_name) {
 
   std::ofstream output(file_name);
 
-  for (auto ctx : _ctx_node) {
-    if (ctx.second == ALLOC) {
-      output << "ALLOC " << ctx.first << std::endl; 
-    } else if (ctx.second == FREE) {
-      output << "FREE " << ctx.first << std::endl;
-    } else if (ctx.second == ACCESS) {
-      output << "ACCESS " << ctx.first << std::endl;
-    } else if (ctx.second == SET) {
-      output << "SET " << ctx.first << std::endl;
-    } else if (ctx.second == COPYT) {
-      output << "COPYT " << ctx.first << std::endl;
-    } else if (ctx.second == COPYF) {
-      output << "COPYF " << ctx.first << std::endl;
+  output << "optimal_memory_peak: " << _optimal_memory_peak << " B" << std::endl;
+  output << "current_memory_peak: " << _current_memory_peak - 512 << " B" << std::endl;
+  output << std::endl;
+
+  for (auto op : _op_node) {
+    output << "op_id: " << op.first << ", ";
+    auto ctx_type =_ctx_node.at(op.second);
+
+    if (ctx_type == ALLOC) {
+      output << "ALLOC " << op.second << std::endl; 
+    } else if (ctx_type == FREE) {
+      output << "FREE " << op.second << std::endl;
+    } else if (ctx_type == ACCESS) {
+      output << "ACCESS " << op.second << std::endl;
+    } else if (ctx_type == SET) {
+      output << "SET " << op.second << std::endl;
+    } else if (ctx_type == COPYT) {
+      output << "COPYT " << op.second << std::endl;
+    } else if (ctx_type == COPYF) {
+      output << "COPYF " << op.second << std::endl;
     }
+
+
   }
+
   output.close();
 }
 

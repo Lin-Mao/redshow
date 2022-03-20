@@ -128,6 +128,12 @@ private:
 
 	Map<u64, Map<u64, memory_operation>> _operations;
 
+  // current memory peak and optimal memory peak
+  u64 _current_memory_usage = 0;  // to update _current_memory_peak
+  u64 _current_memory_peak = 0;
+  u64 _optimal_memory_peak = 0;
+
+
 /**
  * @brief Kernel end callback
  * 
