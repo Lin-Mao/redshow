@@ -12,15 +12,11 @@
 #include <string>
 #include <vector>
 
-#include "analysis/data_flow.h"
 #include "analysis/memory_access.h"
-#include "analysis/spatial_redundancy.h"
-#include "analysis/temporal_redundancy.h"
-#include "analysis/value_pattern.h"
 #include "binutils/cubin.h"
 #include "binutils/instruction.h"
 #include "binutils/real_pc.h"
-#include "binutils/symbol.h"
+// #include "binutils/symbol.h"
 #include "common/map.h"
 #include "common/set.h"
 #include "common/utils.h"
@@ -68,39 +64,39 @@ static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
 
 static redshow_data_type_t default_data_type = REDSHOW_DATA_UNKNOWN;
 
-static redshow_result_t analyze_cubin(const char *path, SymbolVector &symbols,
-                                      InstructionGraph &inst_graph) {
-  redshow_result_t result = REDSHOW_SUCCESS;
+// static redshow_result_t analyze_cubin(const char *path, SymbolVector &symbols,
+//                                       InstructionGraph &inst_graph) {
+//   redshow_result_t result = REDSHOW_SUCCESS;
 
-  std::string cubin_path = std::string(path);
-  auto iter = cubin_path.rfind("/");
-  if (iter == std::string::npos) {
-    result = REDSHOW_ERROR_NO_SUCH_FILE;
-  } else {
-    // x/x.cubin
-    // 012345678
-    std::string cubin_name = cubin_path.substr(iter + 1, cubin_path.size() - iter);
-    // x/cubins/x.cubin
-    iter = cubin_path.rfind("/", iter - 1);
-    std::string dir_name = cubin_path.substr(0, iter);
-    std::string inst_path = dir_name + "/structs/nvidia/" + cubin_name + ".inst";
+//   std::string cubin_path = std::string(path);
+//   auto iter = cubin_path.rfind("/");
+//   if (iter == std::string::npos) {
+//     result = REDSHOW_ERROR_NO_SUCH_FILE;
+//   } else {
+//     // x/x.cubin
+//     // 012345678
+//     std::string cubin_name = cubin_path.substr(iter + 1, cubin_path.size() - iter);
+//     // x/cubins/x.cubin
+//     iter = cubin_path.rfind("/", iter - 1);
+//     std::string dir_name = cubin_path.substr(0, iter);
+//     std::string inst_path = dir_name + "/structs/nvidia/" + cubin_name + ".inst";
 
-    // Prevent boost from core dump
-    std::ifstream f(inst_path.c_str());
-    if (f.good() == false) {
-      result = REDSHOW_ERROR_NO_SUCH_FILE;
-    } else {
-      // instructions are analyzed before hpcrun
-      if (InstructionParser::parse(inst_path, symbols, inst_graph)) {
-        result = REDSHOW_SUCCESS;
-      } else {
-        result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
-      }
-    }
-  }
+//     // Prevent boost from core dump
+//     std::ifstream f(inst_path.c_str());
+//     if (f.good() == false) {
+//       result = REDSHOW_ERROR_NO_SUCH_FILE;
+//     } else {
+//       // instructions are analyzed before hpcrun
+//       if (InstructionParser::parse(inst_path, symbols, inst_graph)) {
+//         result = REDSHOW_SUCCESS;
+//       } else {
+//         result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
+//       }
+//     }
+//   }
 
-  return result;
-}
+//   return result;
+// }
 
 static redshow_result_t trace_analyze_address_patch(int32_t kernel_id, MemoryMap *memory_map,
                                                     gpu_patch_buffer_t *trace_data) {
@@ -223,158 +219,157 @@ static redshow_result_t trace_analyze_address_analysis(int32_t kernel_id, Memory
   return result;
 }
 
-static redshow_result_t trace_analyze_default(int32_t kernel_id, InstructionGraph *inst_graph,
-                                              SymbolVector *symbols, MemoryMap *memory_map,
-                                              gpu_patch_buffer_t *trace_data) {
-  redshow_result_t result = REDSHOW_SUCCESS;
+// static redshow_result_t trace_analyze_default(int32_t kernel_id, InstructionGraph *inst_graph,
+//                                               SymbolVector *symbols, MemoryMap *memory_map,
+//                                               gpu_patch_buffer_t *trace_data) {
+//   redshow_result_t result = REDSHOW_SUCCESS;
 
-  size_t size = trace_data->head_index;
-  gpu_patch_record_t *records = reinterpret_cast<gpu_patch_record_t *>(trace_data->records);
+//   size_t size = trace_data->head_index;
+//   gpu_patch_record_t *records = reinterpret_cast<gpu_patch_record_t *>(trace_data->records);
 
-  for (size_t i = 0; i < size; ++i) {
-    // Iterate over each record
-    gpu_patch_record_t *record = records + i;
+//   for (size_t i = 0; i < size; ++i) {
+//     // Iterate over each record
+//     gpu_patch_record_t *record = records + i;
 
-    if (record->size == 0) {
-      // Fast path, no thread active
-      continue;
-    }
+//     if (record->size == 0) {
+//       // Fast path, no thread active
+//       continue;
+//     }
 
-    if (record->flags & GPU_PATCH_BLOCK_ENTER_FLAG) {
-      // Skip analysis
-    } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
-      // Remove temporal records
-      for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
-        if (record->active & (0x1u << j)) {
-          uint32_t flat_thread_id =
-              record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
-          ThreadId thread_id{record->flat_block_id, flat_thread_id};
-          for (auto aiter : analysis_enabled) {
-            aiter.second->block_exit(thread_id);
-          }
-        }
-      }
-    } else {
-      RealPC real_pc;
+//     if (record->flags & GPU_PATCH_BLOCK_ENTER_FLAG) {
+//       // Skip analysis
+//     } else if (record->flags & GPU_PATCH_BLOCK_EXIT_FLAG) {
+//       // Remove temporal records
+//       for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+//         if (record->active & (0x1u << j)) {
+//           uint32_t flat_thread_id =
+//               record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
+//           ThreadId thread_id{record->flat_block_id, flat_thread_id};
+//           for (auto aiter : analysis_enabled) {
+//             aiter.second->block_exit(thread_id);
+//           }
+//         }
+//       }
+//     } else {
+//       RealPC real_pc;
 
-      auto ret = symbols->transform_pc(record->pc);
-      if (ret.has_value()) {
-        real_pc = ret.value();
-      } else {
-        result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
-        return result;
-      }
+//       auto ret = symbols->transform_pc(record->pc);
+//       if (ret.has_value()) {
+//         real_pc = ret.value();
+//       } else {
+//         result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
+//         return result;
+//       }
 
-      // record->size * 8, byte to bits
-      AccessKind access_kind;
+//       // record->size * 8, byte to bits
+//       AccessKind access_kind;
 
-      if (inst_graph->size() != 0) {
-        // Accurate mode, when we have instruction information
-        auto &inst = inst_graph->node(real_pc.cubin_offset);
-        if (inst.access_kind.get() != NULL) {
-          access_kind = *inst.access_kind;
-        }
-        // Fall back to default mode if failed
-      }
+//       if (inst_graph->size() != 0) {
+//         // Accurate mode, when we have instruction information
+//         auto &inst = inst_graph->node(real_pc.cubin_offset);
+//         if (inst.access_kind.get() != NULL) {
+//           access_kind = *inst.access_kind;
+//         }
+//         // Fall back to default mode if failed
+//       }
 
-      if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
-        // Default mode, we identify every data as 64 bits unit size, 64 bits vec size, float type
-        access_kind.data_type = default_data_type;
-        if (access_kind.vec_size == 0) {
-          access_kind.vec_size = record->size * 8;
-          access_kind.unit_size = MIN2(32, access_kind.vec_size);
-        }
-      }
+//       if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
+//         // Default mode, we identify every data as 64 bits unit size, 64 bits vec size, float type
+//         access_kind.data_type = default_data_type;
+//         if (access_kind.vec_size == 0) {
+//           access_kind.vec_size = record->size * 8;
+//           access_kind.unit_size = MIN2(32, access_kind.vec_size);
+//         }
+//       }
 
-      // Reserved for debugging
-      // std::cout << "function_index: " << real_pc.function_index << ", pc_offset: " <<
-      //  real_pc.pc_offset << ", " << access_kind.to_string() << std::endl;
-      // TODO: accelerate by handling all threads in a warp together
-      for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
-        if ((record->active & (0x1u << j)) == 0) {
-          continue;
-        }
+//       // Reserved for debugging
+//       // std::cout << "function_index: " << real_pc.function_index << ", pc_offset: " <<
+//       //  real_pc.pc_offset << ", " << access_kind.to_string() << std::endl;
+//       // TODO: accelerate by handling all threads in a warp together
+//       for (size_t j = 0; j < GPU_PATCH_WARP_SIZE; ++j) {
+//         if ((record->active & (0x1u << j)) == 0) {
+//           continue;
+//         }
 
-        uint32_t flat_thread_id =
-            record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
-        ThreadId thread_id{record->flat_block_id, flat_thread_id};
+//         uint32_t flat_thread_id =
+//             record->flat_thread_id / GPU_PATCH_WARP_SIZE * GPU_PATCH_WARP_SIZE + j;
+//         ThreadId thread_id{record->flat_block_id, flat_thread_id};
 
-        MemoryRange memory_range(record->address[j], record->address[j]);
-        auto iter = memory_map->prev(memory_range);
-        uint64_t memory_op_id = 0;
-        int32_t memory_id = 0;
-        uint64_t memory_size = 0;
-        uint64_t memory_addr = 0;
-        if (iter != memory_map->end()) {
-          if (record->address[j] >= iter->second->memory_range.start &&
-              record->address[j] + record->size <= iter->second->memory_range.end) {
-            memory_op_id = iter->second->op_id;
-            memory_id = iter->second->ctx_id;
-            memory_size = iter->second->len;
-            memory_addr = iter->second->memory_range.start;
-          } else {
-            // TODO(Keren): Investigate what are the causes
-            // Prevent out of bound memory accesses
-            continue;
-          }
-        }
+//         MemoryRange memory_range(record->address[j], record->address[j]);
+//         auto iter = memory_map->prev(memory_range);
+//         uint64_t memory_op_id = 0;
+//         int32_t memory_id = 0;
+//         uint64_t memory_size = 0;
+//         uint64_t memory_addr = 0;
+//         if (iter != memory_map->end()) {
+//           if (record->address[j] >= iter->second->memory_range.start &&
+//               record->address[j] + record->size <= iter->second->memory_range.end) {
+//             memory_op_id = iter->second->op_id;
+//             memory_id = iter->second->ctx_id;
+//             memory_size = iter->second->len;
+//             memory_addr = iter->second->memory_range.start;
+//           } else {
+//             // TODO(Keren): Investigate what are the causes
+//             // Prevent out of bound memory accesses
+//             continue;
+//           }
+//         }
 
-        uint32_t stride = GLOBAL_MEMORY_OFFSET;
-        if (memory_op_id == 0) {
-          // XXX(Keren): memory_op_id == 1 ?
-          // Memory object not found, it means the memory is local, shared, or allocated in an
-          // unknown way
-          if (record->flags & GPU_PATCH_LOCAL) {
-            memory_op_id = REDSHOW_MEMORY_LOCAL;
-            memory_id = LOCAL_MEMORY_CTX_ID;
-            stride = LOCAL_MEMORY_OFFSET;
-          } else if (record->flags & GPU_PATCH_SHARED) {
-            memory_op_id = REDSHOW_MEMORY_SHARED;
-            memory_id = SHARED_MEMORY_CTX_ID;
-            stride = SHARED_MEMORY_OFFSET;
-          } else {
-            // Unknown allocation
-          }
-        }
+//         uint32_t stride = GLOBAL_MEMORY_OFFSET;
+//         if (memory_op_id == 0) {
+//           // XXX(Keren): memory_op_id == 1 ?
+//           // Memory object not found, it means the memory is local, shared, or allocated in an
+//           // unknown way
+//           if (record->flags & GPU_PATCH_LOCAL) {
+//             memory_op_id = REDSHOW_MEMORY_LOCAL;
+//             memory_id = LOCAL_MEMORY_CTX_ID;
+//             stride = LOCAL_MEMORY_OFFSET;
+//           } else if (record->flags & GPU_PATCH_SHARED) {
+//             memory_op_id = REDSHOW_MEMORY_SHARED;
+//             memory_id = SHARED_MEMORY_CTX_ID;
+//             stride = SHARED_MEMORY_OFFSET;
+//           } else {
+//             // Unknown allocation
+//           }
+//         }
 
-        if (memory_op_id == 0) {
-          // Unknown memory object
-          continue;
-        }
+//         if (memory_op_id == 0) {
+//           // Unknown memory object
+//           continue;
+//         }
 
-        Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
-        auto num_units = access_kind.vec_size / access_kind.unit_size;
-        AccessKind unit_access_kind = access_kind;
-        // We iterate through all the units such that every unit's vec_size = unit_size
-        unit_access_kind.vec_size = unit_access_kind.unit_size;
+//         Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
+//         auto num_units = access_kind.vec_size / access_kind.unit_size;
+//         AccessKind unit_access_kind = access_kind;
+//         // We iterate through all the units such that every unit's vec_size = unit_size
+//         unit_access_kind.vec_size = unit_access_kind.unit_size;
 
-        for (size_t m = 0; m < num_units; m++) {
-          uint64_t value = 0;
-          uint32_t byte_size = unit_access_kind.unit_size >> 3u;
-          memcpy(&value, &record->value[j][m * byte_size], byte_size);
-          // The 7th digit in float number's decimal part is partial valid, so we set the deault
-          // approx level to REDSHOW_APPROX_MIN.
-          value =
-              unit_access_kind.value_to_basic_type(value, decimal_degree_f32, decimal_degree_f64);
+//         for (size_t m = 0; m < num_units; m++) {
+//           uint64_t value = 0;
+//           uint32_t byte_size = unit_access_kind.unit_size >> 3u;
+//           memcpy(&value, &record->value[j][m * byte_size], byte_size);
+//           // The 7th digit in float number's decimal part is partial valid, so we set the deault
+//           // approx level to REDSHOW_APPROX_MIN.
+//           value =
+//               unit_access_kind.value_to_basic_type(value, decimal_degree_f32, decimal_degree_f64);
 
-          // Reserved for debug
-          // std::cout << "thread: " << j << ", value: " << value << std::endl;
+//           // Reserved for debug
+//           // std::cout << "thread: " << j << ", value: " << value << std::endl;
 
-          for (auto aiter : analysis_enabled) {
-            aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory, record->pc,
-                                      value, record->address[j], m,
-                                      static_cast<GPUPatchFlags>(record->flags));
-          }
-        }
-      }
-    }
-  }
+//           for (auto aiter : analysis_enabled) {
+//             aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory, record->pc,
+//                                       value, record->address[j], m,
+//                                       static_cast<GPUPatchFlags>(record->flags));
+//           }
+//         }
+//       }
+//     }
+//   }
 
-  return result;
-}
+//   return result;
+// }
 
-static redshow_result_t trace_analyze_address_cct(int32_t kernel_id, InstructionGraph *inst_graph,
-                                                  SymbolVector *symbols, MemoryMap *memory_map,
+static redshow_result_t trace_analyze_address_cct(int32_t kernel_id, MemoryMap *memory_map,
                                                   gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -431,33 +426,33 @@ static redshow_result_t trace_analyze_address_cct(int32_t kernel_id, Instruction
         }
       }
     } else {
-      RealPC real_pc;
-      auto ret = symbols->transform_pc(record->pc);
-      if (ret.has_value()) {
-        real_pc = ret.value();
-      } else {
-        result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
-        return result;
-      }
+      // RealPC real_pc;
+      // auto ret = symbols->transform_pc(record->pc);
+      // if (ret.has_value()) {
+      //   real_pc = ret.value();
+      // } else {
+      //   result = REDSHOW_ERROR_FAILED_ANALYZE_CUBIN;
+      //   return result;
+      // }
       // record->size * 8, byte to bits
-      AccessKind access_kind;
-      if (inst_graph->size() != 0) {
-        // Accurate mode, when we have instruction information
-        auto &inst = inst_graph->node(real_pc.cubin_offset);
-        if (inst.access_kind.get() != NULL) {
-          access_kind = *inst.access_kind;
-        }
-        // Fall back to default mode if failed
-      }
+      // AccessKind access_kind;
+      // if (inst_graph->size() != 0) {
+      //   // Accurate mode, when we have instruction information
+      //   auto &inst = inst_graph->node(real_pc.cubin_offset);
+      //   if (inst.access_kind.get() != NULL) {
+      //     access_kind = *inst.access_kind;
+      //   }
+      //   // Fall back to default mode if failed
+      // }
 
-      if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
-        // Default mode, we identify every data as 64 bits unit size, 64 bits vec size, float type
-        access_kind.data_type = default_data_type;
-        if (access_kind.vec_size == 0) {
-          access_kind.vec_size = record->size * 8;
-          access_kind.unit_size = MIN2(32, access_kind.vec_size);
-        }
-      }
+      // if (access_kind.data_type == REDSHOW_DATA_UNKNOWN) {
+      //   // Default mode, we identify every data as 64 bits unit size, 64 bits vec size, float type
+      //   access_kind.data_type = default_data_type;
+      //   if (access_kind.vec_size == 0) {
+      //     access_kind.vec_size = record->size * 8;
+      //     access_kind.unit_size = MIN2(32, access_kind.vec_size);
+      //   }
+      // }
 
       // Reserved for debugging
       // std::cout << "function_index: " << real_pc.function_index << ", pc_offset: " <<
@@ -516,16 +511,23 @@ static redshow_result_t trace_analyze_address_cct(int32_t kernel_id, Instruction
         }
 
         Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
-        auto num_units = access_kind.vec_size / access_kind.unit_size;
-        AccessKind unit_access_kind = access_kind;
-        // We iterate through all the units such that every unit's vec_size = unit_size
-        unit_access_kind.vec_size = unit_access_kind.unit_size;
+        // auto num_units = access_kind.vec_size / access_kind.unit_size;
+        // AccessKind unit_access_kind = access_kind;
+        // // We iterate through all the units such that every unit's vec_size = unit_size
+        // unit_access_kind.vec_size = unit_access_kind.unit_size;
 
-        for (size_t m = 0; m < num_units; m++) {
-          for (auto aiter : analysis_enabled) {
-            aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory, record->pc, 0,
-                                      record->address[j], m, static_cast<GPUPatchFlags>(record->flags));
-          }
+        // for (size_t m = 0; m < num_units; m++) {
+        //   for (auto aiter : analysis_enabled) {
+        //     aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory, record->pc, 0,
+        //                               record->address[j], m, static_cast<GPUPatchFlags>(record->flags));
+        //   }
+        // }
+        // @FindHao TODO: for now, ignore the vector access. So we fake this access type.
+        AccessKind unit_access_kind;
+        unit_access_kind.unit_size = 0;
+        for (auto aiter : analysis_enabled) {
+          aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory, record->pc, 0,
+                                    record->address[j], 0, static_cast<GPUPatchFlags>(record->flags));
         }
       }
     }
@@ -545,11 +547,11 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
   std::string cubin_path;
 
   cubin_map.lock();
-  if (!cubin_map.has(cubin_id) || !cubin_map.at(cubin_id).symbols.has(mod_id)) {
+  if (!cubin_map.has(cubin_id)) {
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
   } else {
-    symbols = &(cubin_map.at(cubin_id).symbols.at(mod_id));
-    inst_graph = &(cubin_map.at(cubin_id).inst_graph);
+    // symbols = &(cubin_map.at(cubin_id).symbols.at(mod_id));
+    // inst_graph = &(cubin_map.at(cubin_id).inst_graph);
     cubin_path = cubin_map.at(cubin_id).path;
   }
   cubin_map.unlock();
@@ -565,14 +567,14 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
       result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
     } else {
       auto &cubin_cache = cubin_cache_map.at(cubin_id);
-      if (!cubin_cache.symbol_pcs.has(mod_id)) {
-        result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
-      } else {
-        result = REDSHOW_SUCCESS;
-        nsymbols = cubin_cache.nsymbols;
-        symbol_pcs = cubin_cache.symbol_pcs.at(mod_id).get();
-        path = cubin_cache.path.c_str();
-      }
+      // if (!cubin_cache.symbol_pcs.has(mod_id)) {
+      //   result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+      // } else {
+      result = REDSHOW_SUCCESS;
+      // nsymbols = cubin_cache.nsymbols;
+      // symbol_pcs = cubin_cache.symbol_pcs.at(mod_id).get();
+      path = cubin_cache.path.c_str();
+      // }
     }
     cubin_cache_map.unlock();
 
@@ -587,14 +589,14 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
         result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
       } else {
         auto &cubin = cubin_map.at(cubin_id);
-        if (!cubin.symbols.has(mod_id)) {
-          result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
-        } else {
-          result = REDSHOW_SUCCESS;
-          symbols = &(cubin.symbols.at(mod_id));
-          inst_graph = &(cubin.inst_graph);
-          cubin_path = cubin.path;
-        }
+        // if (!cubin.symbols.has(mod_id)) {
+        //   result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+        // } else {
+        result = REDSHOW_SUCCESS;
+        // symbols = &(cubin.symbols.at(mod_id));
+        // inst_graph = &(cubin.inst_graph);
+        cubin_path = cubin.path;
+        // }
       }
       cubin_map.unlock();
     }
@@ -624,20 +626,23 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
                                  static_cast<GPUPatchType>(trace_data->type));
   }
 
-  if (trace_data->type == GPU_PATCH_TYPE_DEFAULT) {
-    result = trace_analyze_default(kernel_id, inst_graph, symbols, memory_map, trace_data);
-  } else if (trace_data->type == GPU_PATCH_TYPE_ADDRESS_PATCH) {
-    result = trace_analyze_address_patch(kernel_id, memory_map, trace_data);
-  } else if (trace_data->type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS) {
-    result = trace_analyze_address_analysis(kernel_id, memory_map, trace_data);
-  } else if (trace_data->type == GPU_PATCH_TYPE_ADDRESS_CCT) {
-    result = trace_analyze_address_cct(kernel_id, inst_graph, symbols, memory_map, trace_data);
+  // if (trace_data->type == GPU_PATCH_TYPE_DEFAULT) {
+  //   result = trace_analyze_default(kernel_id, inst_graph, symbols, memory_map, trace_data);
+  // } else if (trace_data->type == GPU_PATCH_TYPE_ADDRESS_PATCH) {
+  //   result = trace_analyze_address_patch(kernel_id, memory_map, trace_data);
+  // } else if (trace_data->type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS) {
+  //   result = trace_analyze_address_analysis(kernel_id, memory_map, trace_data);
+  // } else if (trace_data->type == GPU_PATCH_TYPE_ADDRESS_CCT) {
+  //   result = trace_analyze_address_cct(kernel_id, inst_graph, symbols, memory_map, trace_data);
+  // }
+  if (trace_data->type != GPU_PATCH_TYPE_ADDRESS_CCT) {
+    PRINT("redshow-> unsupported trace type: %d\n", trace_data->type);
+    exit(-1);
   }
-
+  result = trace_analyze_address_cct(kernel_id, memory_map, trace_data);
   for (auto aiter : analysis_enabled) {
     aiter.second->analysis_end(cpu_thread, kernel_id);
   }
-
   return result;
 }
 
@@ -732,27 +737,13 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
   redshow_result_t result = REDSHOW_SUCCESS;
 
   switch (analysis_type) {
-    case REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY:
-      analysis_enabled.emplace(REDSHOW_ANALYSIS_SPATIAL_REDUNDANCY,
-                               std::make_shared<SpatialRedundancy>());
-      break;
-    case REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY:
-      analysis_enabled.emplace(REDSHOW_ANALYSIS_TEMPORAL_REDUNDANCY,
-                               std::make_shared<TemporalRedundancy>());
-      break;
-    case REDSHOW_ANALYSIS_DATA_FLOW:
-      analysis_enabled.emplace(REDSHOW_ANALYSIS_DATA_FLOW, std::make_shared<DataFlow>());
-      break;
-    case REDSHOW_ANALYSIS_VALUE_PATTERN:
-      analysis_enabled.emplace(REDSHOW_ANALYSIS_VALUE_PATTERN, std::make_shared<ValuePattern>());
-      break;
     case REDSHOW_ANALYSIS_MEMORY_ACCESS:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_ACCESS, std::make_shared<MemoryAccess>());
       break;
     case REDSHOW_ANALYSIS_CCT_MEMORY_ACCESS:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_ACCESS, std::make_shared<MemoryAccess>());
       break;
-     default:
+    default:
       result = REDSHOW_ERROR_NO_SUCH_ANALYSIS;
       break;
   }
@@ -799,40 +790,40 @@ redshow_result_t redshow_cubin_register(uint32_t cubin_id, uint32_t mod_id, uint
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  InstructionGraph inst_graph;
-  SymbolVector symbols(nsymbols);
-  result = analyze_cubin(path, symbols, inst_graph);
+  // InstructionGraph inst_graph;
+  // SymbolVector symbols(nsymbols);
+  // result = analyze_cubin(path, symbols, inst_graph);
 
-  if (result == REDSHOW_SUCCESS || result == REDSHOW_ERROR_NO_SUCH_FILE) {
-    // We must have found an instruction file, no matter nvdisasm failed or not
-    // Assign symbol pc
-    for (auto i = 0; i < nsymbols; ++i) {
-      symbols[i].pc = symbol_pcs[i];
-    }
+  // if (result == REDSHOW_SUCCESS || result == REDSHOW_ERROR_NO_SUCH_FILE) {
+  // We must have found an instruction file, no matter nvdisasm failed or not
+  // Assign symbol pc
+  // for (auto i = 0; i < nsymbols; ++i) {
+  //   symbols[i].pc = symbol_pcs[i];
+  // }
 
-    // Sort symbols by pc
-    std::sort(symbols.begin(), symbols.end());
+  // Sort symbols by pc
+  // std::sort(symbols.begin(), symbols.end());
 
-    cubin_map.lock();
+  cubin_map.lock();
 
-    if (!cubin_map.has(cubin_id)) {
-      cubin_map[cubin_id].cubin_id = cubin_id;
-      cubin_map[cubin_id].path = path;
-      cubin_map[cubin_id].inst_graph = inst_graph;
-      result = REDSHOW_SUCCESS;
-    } else if (cubin_map[cubin_id].symbols.find(mod_id) == cubin_map[cubin_id].symbols.end()) {
-      result = REDSHOW_SUCCESS;
-    } else {
-      result = REDSHOW_ERROR_DUPLICATE_ENTRY;
-    }
-    if (result != REDSHOW_ERROR_DUPLICATE_ENTRY) {
-      cubin_map[cubin_id].symbols[mod_id] = symbols;
-    }
-
-    cubin_map.unlock();
+  if (!cubin_map.has(cubin_id)) {
+    cubin_map[cubin_id].cubin_id = cubin_id;
+    cubin_map[cubin_id].path = path;
+    // cubin_map[cubin_id].inst_graph = NULL;
+    result = REDSHOW_SUCCESS;
+    // } else if (cubin_map[cubin_id].symbols.find(mod_id) == cubin_map[cubin_id].symbols.end()) {
+    //   result = REDSHOW_SUCCESS;
+  } else {
+    result = REDSHOW_ERROR_DUPLICATE_ENTRY;
+  }
+  if (result != REDSHOW_ERROR_DUPLICATE_ENTRY) {
+    // cubin_map[cubin_id].symbols[mod_id] = symbols;
   }
 
-  return result;
+  cubin_map.unlock();
+  // }
+
+  // return result;
 }
 
 redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id, uint32_t nsymbols,
@@ -848,22 +839,22 @@ redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id
 
     cubin_cache.cubin_id = cubin_id;
     cubin_cache.path = std::string(path);
-    cubin_cache.nsymbols = nsymbols;
+    // cubin_cache.nsymbols = nsymbols;
     result = REDSHOW_SUCCESS;
-  } else if (cubin_cache_map[cubin_id].symbol_pcs.find(mod_id) ==
-             cubin_cache_map[cubin_id].symbol_pcs.end()) {
-    result = REDSHOW_SUCCESS;
+  // } else if (cubin_cache_map[cubin_id].symbol_pcs.find(mod_id) ==
+  //            cubin_cache_map[cubin_id].symbol_pcs.end()) {
+  //   result = REDSHOW_SUCCESS;
   } else {
     result = REDSHOW_ERROR_DUPLICATE_ENTRY;
   }
 
-  if (result != REDSHOW_ERROR_DUPLICATE_ENTRY) {
-    auto *pcs = new uint64_t[nsymbols];
-    cubin_cache_map[cubin_id].symbol_pcs[mod_id].reset(pcs);
-    for (size_t i = 0; i < nsymbols; ++i) {
-      pcs[i] = symbol_pcs[i];
-    }
-  }
+  // if (result != REDSHOW_ERROR_DUPLICATE_ENTRY) {
+    // auto *pcs = new uint64_t[nsymbols];
+    // cubin_cache_map[cubin_id].symbol_pcs[mod_id].reset(pcs);
+    // for (size_t i = 0; i < nsymbols; ++i) {
+    //   pcs[i] = symbol_pcs[i];
+    // }
+  // }
   cubin_cache_map.unlock();
 
   return result;
@@ -876,10 +867,10 @@ redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mod_id) {
 
   cubin_map.lock();
   if (cubin_map.has(cubin_id)) {
-    cubin_map.at(cubin_id).symbols.erase(mod_id);
-    if (cubin_map.at(cubin_id).symbols.size() == 0) {
-      cubin_map.erase(cubin_id);
-    }
+    // cubin_map.at(cubin_id).symbols.erase(mod_id);
+    // if (cubin_map.at(cubin_id).symbols.size() == 0) {
+    //   cubin_map.erase(cubin_id);
+    // }
     result = REDSHOW_SUCCESS;
   } else {
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
@@ -900,8 +891,18 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
 
   MemoryMap memory_map;
   MemoryRange memory_range(start, end);
-  auto memory = std::make_shared<Memory>(host_op_id, memory_id, memory_range);
-
+  std::shared_ptr<Memory> memory;
+  bool is_memory_access_mode = false;
+  for (auto aiter : analysis_enabled) {
+    if (aiter.first == REDSHOW_ANALYSIS_MEMORY_ACCESS) {
+      memory = std::make_shared<Memory>(memory_id, host_op_id, start, end - start);
+      is_memory_access_mode = true;
+      break;
+    }
+  }
+  if (!is_memory_access_mode) {
+    memory = std::make_shared<Memory>(host_op_id, memory_id, memory_range);
+  }
   memory_snapshot.lock();
   if (memory_snapshot.size() == 0) {
     // First snapshot
@@ -1148,12 +1149,11 @@ redshow_result_t redshow_mem_views_get(uint32_t *views) {
   return REDSHOW_SUCCESS;
 }
 
-redshow_result_t redshow_kernel_launch_begin(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id,  int32_t flat_gridsize, int32_t flat_blocksize, char* function_name, uint64_t function_pc) {
+redshow_result_t redshow_kernel_launch_begin(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id, int32_t flat_gridsize, int32_t flat_blocksize, char *function_name, uint64_t function_pc) {
   return REDSHOW_SUCCESS;
 }
 
 redshow_result_t redshow_kernel_launch_end(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id, int32_t flat_gridsize, int32_t flat_blocksize, char *function_name, uint64_t function_pc) {
-
   PRINT(
       "\nredshow-> Enter redshow_kernel_launch_end\nkernel_id: %d\nhost_op_id:%llu\n flat_gridsize: %d\n flat_blocksize: %d\nfunction_name: %s\nfunction_pc: %llu\n", kernel_id, host_op_id, flat_gridsize, flat_blocksize, function_name, function_pc);
   // propose changes
