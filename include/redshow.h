@@ -18,7 +18,8 @@ typedef enum redshow_analysis_type {
   // @FindHao remove Memory_access?
   REDSHOW_ANALYSIS_MEMORY_ACCESS = 5,
   REDSHOW_ANALYSIS_CCT = 6,
-  REDSHOW_ANALYSIS_CCT_MEMORY_ACCESS = 7
+  REDSHOW_ANALYSIS_CCT_MEMORY_ACCESS = 7,
+  REDSHOW_ANALYSIS_PAGE_SHARING = 8,
 } redshow_analysis_type_t;
 
 typedef enum redshow_analysis_config_type {

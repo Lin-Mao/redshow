@@ -738,9 +738,8 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
 
   switch (analysis_type) {
     case REDSHOW_ANALYSIS_MEMORY_ACCESS:
-      analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_ACCESS, std::make_shared<MemoryAccess>());
-      break;
     case REDSHOW_ANALYSIS_CCT_MEMORY_ACCESS:
+    case REDSHOW_ANALYSIS_PAGE_SHARING:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_ACCESS, std::make_shared<MemoryAccess>());
       break;
     default:
@@ -841,19 +840,19 @@ redshow_result_t redshow_cubin_cache_register(uint32_t cubin_id, uint32_t mod_id
     cubin_cache.path = std::string(path);
     // cubin_cache.nsymbols = nsymbols;
     result = REDSHOW_SUCCESS;
-  // } else if (cubin_cache_map[cubin_id].symbol_pcs.find(mod_id) ==
-  //            cubin_cache_map[cubin_id].symbol_pcs.end()) {
-  //   result = REDSHOW_SUCCESS;
+    // } else if (cubin_cache_map[cubin_id].symbol_pcs.find(mod_id) ==
+    //            cubin_cache_map[cubin_id].symbol_pcs.end()) {
+    //   result = REDSHOW_SUCCESS;
   } else {
     result = REDSHOW_ERROR_DUPLICATE_ENTRY;
   }
 
   // if (result != REDSHOW_ERROR_DUPLICATE_ENTRY) {
-    // auto *pcs = new uint64_t[nsymbols];
-    // cubin_cache_map[cubin_id].symbol_pcs[mod_id].reset(pcs);
-    // for (size_t i = 0; i < nsymbols; ++i) {
-    //   pcs[i] = symbol_pcs[i];
-    // }
+  // auto *pcs = new uint64_t[nsymbols];
+  // cubin_cache_map[cubin_id].symbol_pcs[mod_id].reset(pcs);
+  // for (size_t i = 0; i < nsymbols; ++i) {
+  //   pcs[i] = symbol_pcs[i];
+  // }
   // }
   cubin_cache_map.unlock();
 
