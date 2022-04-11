@@ -143,7 +143,7 @@ void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
 }
 
 void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
-  // update_op_node(op->op_id, op->ctx_id);
+  update_op_node(op->op_id, op->ctx_id);
 
   if (op->src_memory_op_id != REDSHOW_MEMORY_HOST) {
     update_ctx_node(op->ctx_id, COPYF);
@@ -159,7 +159,7 @@ void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
 }
 
 void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
-  // update_op_node(op->op_id, op->ctx_id);
+  update_op_node(op->op_id, op->ctx_id);
   update_ctx_node(op->ctx_id, SET);
 
   memory_operation_register(op->memory_op_id, op->op_id, SET);
