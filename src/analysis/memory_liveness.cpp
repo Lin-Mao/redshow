@@ -83,6 +83,7 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
     _addresses_map.try_emplace(op->memory_range.start, op->op_id);
     _memory_size_list.push_back(MemoryEntry(op->op_id, op->len));
     _current_memory_usage += op->len;
+    _memory_size_log.try_emplace(op->op_id, memory_size("alloc", _current_memory_usage));
 
     // printf("op_id:%lu, len:%d\n", op->op_id, op->len);
     if (_current_memory_usage > _current_memory_peak)
@@ -108,6 +109,7 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
     _addresses_map.erase(address);
     _current_memories.erase(malloc_op_id);
     _current_memory_usage -= op->len;
+    _memory_size_log.emplace(op->op_id, memory_size("free", _current_memory_usage));
 
     memory_operation_register(malloc_op_id, op->op_id, FREE);
 
@@ -132,8 +134,10 @@ void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
     kernel_memory_usage += memory->len;
     memory_operation_register(trace_iter.first, _trace->kernel.op_id, ACCESS);
   }
-  if (kernel_memory_usage > _optimal_memory_peak)
+  if (kernel_memory_usage > _optimal_memory_peak) {
+    memory_peak_kernel = op->op_id;
     _optimal_memory_peak = kernel_memory_usage;
+  }
 
 
   // reset trace
@@ -311,6 +315,16 @@ void MemoryLiveness::flush(const std::string &output_dir, const LockableMap<u32,
   output_kernel_list(output_dir + "kernel_list.txt");
 
   output_ctx_node(output_dir + "memory_liveness.csv");
+
+  std::ofstream output(output_dir + "memory_size_op.txt");
+  output << "memory_peak_kernel: " << memory_peak_kernel << std::endl;
+  output << "optimal_memory_peak: " << _optimal_memory_peak << " B" << std::endl;
+  output << "current_memory_peak: " << _current_memory_peak - 512 << " B" << std::endl << std::endl;
+
+  for (auto op : _memory_size_log) {
+    output << op.first << "(" << op.second.op << "): " << op.second.size << " B" << std::endl;
+  }
+  output.close();
 
 }
 

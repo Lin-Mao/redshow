@@ -133,6 +133,22 @@ private:
   u64 _current_memory_peak = 0;
   u64 _optimal_memory_peak = 0;
 
+  struct memory_size
+  {
+    std::string op;
+    u64 size;
+
+    memory_size() = default;
+
+    memory_size(std::string str, u64 s) : op(str), size(s) {};
+
+    virtual ~memory_size(){};
+  };
+
+  Map<u64, memory_size> _memory_size_log;
+
+  u64 memory_peak_kernel = 0;
+  
 
 /**
  * @brief Kernel end callback
