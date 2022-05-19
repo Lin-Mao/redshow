@@ -33,7 +33,7 @@ class ValuePattern final : public Analysis {
 
   // Fine-grained
   virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id,
-                              GPUPatchType type);
+                              GPUPatchType type, void* aux = NULL);
 
   virtual void analysis_end(u32 cpu_thread, i32 kernel_id);
 
