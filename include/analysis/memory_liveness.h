@@ -216,6 +216,13 @@ void output_memory_size_list(std::string file_name);
 void output_kernel_list(std::string file_name);
 
 /**
+ * @brief output memory operation sequence
+ * 
+ * @param file_name
+ */
+void output_op_sequence(std::string file_name);
+
+/**
  * @brief output _ctx_node
  * 
  * @param file_name 

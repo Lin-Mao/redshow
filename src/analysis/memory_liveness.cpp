@@ -242,10 +242,6 @@ void MemoryLiveness::unit_access(i32 kernel_id, const ThreadId &thread_id, const
 
 }
 
-void MemoryLiveness::flush_thread(u32 cpu_thread, const std::string &output_dir,
-                            const LockableMap<u32, Cubin> &cubins,
-                            redshow_record_data_callback_func record_data_callback) {}
-
 void MemoryLiveness::output_memory_operation_list(std::string file_name) {
   std::ofstream out(file_name);
 
@@ -334,6 +330,22 @@ void MemoryLiveness::output_ctx_node(std::string file_name) {
   output.close();
 }
 
+void MemoryLiveness::output_op_sequence(std::string filename) {
+  std::ofstream output(filename);
+  output << "memory_peak_kernel: " << _memory_peak_kernel << std::endl;
+  output << "optimal_memory_peak: " << _optimal_memory_peak << " B" << std::endl;
+  output << "current_memory_peak: " << _current_memory_peak - 512 << " B" << std::endl << std::endl;
+
+  for (auto op : _memory_size_log) {
+    output << op.first << "(" << op.second.op << "): " << op.second.size << " B" << std::endl;
+  }
+  output.close();
+}
+
+void MemoryLiveness::flush_thread(u32 cpu_thread, const std::string &output_dir,
+                            const LockableMap<u32, Cubin> &cubins,
+                            redshow_record_data_callback_func record_data_callback) {}
+
 void MemoryLiveness::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback) {
 
@@ -345,15 +357,7 @@ void MemoryLiveness::flush(const std::string &output_dir, const LockableMap<u32,
 
   output_ctx_node(output_dir + "memory_liveness.csv");
 
-  std::ofstream output(output_dir + "memory_size_op.txt");
-  output << "memory_peak_kernel: " << _memory_peak_kernel << std::endl;
-  output << "optimal_memory_peak: " << _optimal_memory_peak << " B" << std::endl;
-  output << "current_memory_peak: " << _current_memory_peak - 512 << " B" << std::endl << std::endl;
-
-  for (auto op : _memory_size_log) {
-    output << op.first << "(" << op.second.op << "): " << op.second.size << " B" << std::endl;
-  }
-  output.close();
+  // output_op_sequence(output_dir + "memory_op_sequence");
 
 }
 
