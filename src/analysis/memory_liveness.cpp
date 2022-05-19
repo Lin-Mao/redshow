@@ -13,22 +13,22 @@
 
 namespace redshow {
 
-void MemoryLiveness::op_callback(OperationPtr op, bool is_submemory) {
-  lock();
-  
-  if (op->type == OPERATION_TYPE_KERNEL) {
-    kernel_op_callback(std::dynamic_pointer_cast<Kernel>(op));
-  } else if (op->type == OPERATION_TYPE_MEMORY) {
-    memory_op_callback(std::dynamic_pointer_cast<Memory>(op), is_submemory);
-  } else if (op->type == OPERATION_TYPE_MEMFREE) {
-    memfree_op_callback(std::dynamic_pointer_cast<Memfree>(op), is_submemory);
-  } else if (op->type == OPERATION_TYPE_MEMCPY) {
-    memcpy_op_callback(std::dynamic_pointer_cast<Memcpy>(op));
-  } else if (op->type == OPERATION_TYPE_MEMSET) {
-    memset_op_callback(std::dynamic_pointer_cast<Memset>(op));
+void MemoryLiveness::update_aux_hit(void* aux, u64 kernel_op_id) {
+  gpu_patch_aux_address_dict_t* kernel_aux = static_cast<gpu_patch_aux_address_dict_t*>(aux);
+
+  u64 kernel_memory_usage = 0;
+  for (int i = 0; i < kernel_aux->size; i++) {
+    if (kernel_aux->hit[i] == 1) {
+      u64 memory_op_id = _addresses_map.at(kernel_aux->start_end[i].start);
+      memory_operation_register(memory_op_id, kernel_op_id, ACCESS);
+      kernel_memory_usage += _current_memories.at(memory_op_id)->len;
+    }
+  }
+  if (_optimal_memory_peak < kernel_memory_usage) {
+    _memory_peak_kernel = kernel_op_id;
+    _optimal_memory_peak = kernel_memory_usage;
   }
 
-  unlock();
 }
 
 void MemoryLiveness::update_ctx_table(u64 op_id, i32 ctx_id) {
@@ -72,9 +72,27 @@ void MemoryLiveness::memory_operation_register(u64 memory_op_id, u64 op_id, memo
   }
 }
 
+void MemoryLiveness::op_callback(OperationPtr op, bool is_submemory) {
+  lock();
+  
+  if (op->type == OPERATION_TYPE_KERNEL) {
+    kernel_op_callback(std::dynamic_pointer_cast<Kernel>(op));
+  } else if (op->type == OPERATION_TYPE_MEMORY) {
+    memory_op_callback(std::dynamic_pointer_cast<Memory>(op), is_submemory);
+  } else if (op->type == OPERATION_TYPE_MEMFREE) {
+    memfree_op_callback(std::dynamic_pointer_cast<Memfree>(op), is_submemory);
+  } else if (op->type == OPERATION_TYPE_MEMCPY) {
+    memcpy_op_callback(std::dynamic_pointer_cast<Memcpy>(op));
+  } else if (op->type == OPERATION_TYPE_MEMSET) {
+    memset_op_callback(std::dynamic_pointer_cast<Memset>(op));
+  }
+
+  unlock();
+}
+
 void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory) {
   update_op_node(op->op_id, op->ctx_id);
-  update_ctx_table(op->op_id, op->ctx_id);
+  // update_ctx_table(op->op_id, op->ctx_id);
   update_ctx_node(op->ctx_id, ALLOC);
 
   if (!is_submemory) {
@@ -93,13 +111,12 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
       memory_operation_register(op->op_id, op->op_id, ALLOC);
     }
   }
-  
 
 }
 
 void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory) {
   update_op_node(op->op_id, op->ctx_id);
-  update_ctx_table(op->op_id, op->ctx_id);
+  // update_ctx_table(op->op_id, op->ctx_id);
   update_ctx_node(op->ctx_id, FREE);
 
   if (!is_submemory) {
@@ -119,10 +136,11 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
 
 void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
   update_op_node(op->op_id, op->ctx_id);
-  update_ctx_table(op->op_id, op->ctx_id);
+  // update_ctx_table(op->op_id, op->ctx_id);
   update_ctx_node(op->ctx_id, ACCESS);
   _kernel_op_node[op->op_id] = op->ctx_id;
 
+#ifndef GPU_ANALYSIS
   if (_trace.get() == NULL) {
     // If the kernel is sampled
     return;
@@ -135,7 +153,7 @@ void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
     memory_operation_register(trace_iter.first, _trace->kernel.op_id, ACCESS);
   }
   if (kernel_memory_usage > _optimal_memory_peak) {
-    memory_peak_kernel = op->op_id;
+    _memory_peak_kernel = op->op_id;
     _optimal_memory_peak = kernel_memory_usage;
   }
 
@@ -143,11 +161,12 @@ void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
   // reset trace
   _trace->access_memory.clear();
   _trace = NULL;
+#endif
 
 }
 
 void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
-  update_op_node(op->op_id, op->ctx_id);
+  // update_op_node(op->op_id, op->ctx_id);
 
   if (op->src_memory_op_id != REDSHOW_MEMORY_HOST) {
     update_ctx_node(op->ctx_id, COPYF);
@@ -163,7 +182,7 @@ void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
 }
 
 void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
-  update_op_node(op->op_id, op->ctx_id);
+  // update_op_node(op->op_id, op->ctx_id);
   update_ctx_node(op->ctx_id, SET);
 
   memory_operation_register(op->memory_op_id, op->op_id, SET);
@@ -172,9 +191,17 @@ void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
 
 
 void MemoryLiveness::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id,
-                              GPUPatchType type) {
+                              GPUPatchType type, void* aux) {
   // Do not need to know value and need to get interval of memory
   assert(type == GPU_PATCH_TYPE_ADDRESS_PATCH || type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS);
+
+#ifdef GPU_ANALYSIS
+
+  if (aux) {
+    update_aux_hit(aux, host_op_id);
+  }
+
+#else
 
   lock();
 
@@ -191,6 +218,8 @@ void MemoryLiveness::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_i
   _trace = std::dynamic_pointer_cast<MemoryLivenessTrace>(this->_kernel_trace[cpu_thread][host_op_id]);
 
   unlock();
+#endif
+
 }
 
 void MemoryLiveness::analysis_end(u32 cpu_thread, i32 kernel_id) {}
@@ -317,7 +346,7 @@ void MemoryLiveness::flush(const std::string &output_dir, const LockableMap<u32,
   output_ctx_node(output_dir + "memory_liveness.csv");
 
   std::ofstream output(output_dir + "memory_size_op.txt");
-  output << "memory_peak_kernel: " << memory_peak_kernel << std::endl;
+  output << "memory_peak_kernel: " << _memory_peak_kernel << std::endl;
   output << "optimal_memory_peak: " << _optimal_memory_peak << " B" << std::endl;
   output << "current_memory_peak: " << _current_memory_peak - 512 << " B" << std::endl << std::endl;
 

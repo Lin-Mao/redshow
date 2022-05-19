@@ -22,6 +22,7 @@
 
 #include <fstream>
 
+#define GPU_ANALYSIS
 
 namespace redshow {
 
@@ -40,7 +41,7 @@ public:
 
   // Fine-grained
   virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id,
-                              GPUPatchType type);
+                              GPUPatchType type, void* aux = NULL);
 
   virtual void analysis_end(u32 cpu_thread, i32 kernel_id);
 
@@ -147,7 +148,7 @@ private:
 
   Map<u64, memory_size> _memory_size_log;
 
-  u64 memory_peak_kernel = 0;
+  u64 _memory_peak_kernel = 0;
   
 
 /**
@@ -244,6 +245,12 @@ void update_ctx_node(i32 ctx_id, memory_operation op);
  * @param ctx_id 
  */
 void update_ctx_table(u64 op_id, i32 ctx_id);
+
+/**
+ * @brief for gpu liveness analysis
+ * @param aux aux buffer
+ */
+void update_aux_hit(void* aux, u64 kernel_op_id);
 
 
 };	// MemoryLiveness
