@@ -11,7 +11,30 @@
 
 #include "analysis/memory_liveness.h"
 
+#include "torch_monitor.h"
+
 namespace redshow {
+
+#ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+
+const static size_t MAX_NUM_STATES = 30;
+
+thread_local static torch_monitor_python_state_t python_states[MAX_NUM_STATES];
+
+void MemoryLiveness::update_torch_python_states(u64 op_id) {
+  size_t num_states = 0;
+  torch_monitor_python_state_get(MAX_NUM_STATES, python_states, &num_states);
+
+  Vector<PythonState> pstates;
+  for (size_t i = 0; i < num_states; ++i) {
+    pstates.push_back(PythonState(std::string(python_states[i].file_name), std::string(python_states[i].function_name), \ 
+                                  python_states[i].function_first_lineno, python_states[i].lineno));
+  }
+  _torch_python_states.try_emplace(op_id, pstates);
+
+}
+
+#endif
 
 void MemoryLiveness::update_aux_hit(void* aux, u64 kernel_op_id) {
   gpu_patch_aux_address_dict_t* kernel_aux = static_cast<gpu_patch_aux_address_dict_t*>(aux);
@@ -57,7 +80,7 @@ void MemoryLiveness::update_op_node(u64 op_id, i32 ctx_id) {
   }
 }
 
-void MemoryLiveness::memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation_t mem_op) {
+void MemoryLiveness::memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation_t mem_op, bool is_sub) {
   auto ops_node = _operations.find(memory_op_id);
 
   if (ops_node == _operations.end()) {  // for malloc
