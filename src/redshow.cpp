@@ -33,6 +33,8 @@
 #include "operation/memset.h"
 #include "operation/memfree.h"
 
+#include "torch_monitor.h"
+
 #ifdef DEBUG
 #define PRINT(...) fprintf(stderr, __VA_ARGS__)
 #else
@@ -68,6 +70,8 @@ static redshow_log_data_callback_func log_data_callback = NULL;
 
 static redshow_record_data_callback_func record_data_callback = NULL;
 
+static redshow_get_op_id update_op_id_func = NULL;
+
 static thread_local uint64_t mini_host_op_id = 0;
 
 static uint32_t pc_views_limit = PC_VIEWS_LIMIT;
@@ -77,6 +81,35 @@ static int decimal_degree_f32 = VALID_FLOAT_DIGITS;
 static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
 
 static redshow_data_type_t default_data_type = REDSHOW_DATA_UNKNOWN;
+
+static void torch_memory_callback(torch_monitor_callback_site_t callback_site,
+                            torch_monitor_callback_data_t* callback_data) {
+    if (callback_site == TORCH_MONITOR_CALLBACK_ENTER) {
+       std::cout << "Torch_Domain: " << callback_data->domain << std::endl;
+      if (callback_data->domain == TORCH_MONITOR_DOMAIN_MEMORY \ 
+          && callback_data->data.mem_data.device_type == TORCH_MONITOR_DEVICE_TYPE_GPU) {
+        std::cout << "Current thread id: " << callback_data->current_thread_id << std::endl;
+        if (callback_data->data.mem_data.type == TORCH_MONITOR_MEM_DATA_ALLOC) {
+          std::cout << "Allocate ptr: " << std::hex << callback_data->data.mem_data.ptr << std::dec
+                    << std::endl;
+          u64 op_id = update_op_id_func();
+          redshow_result_t res = redshow_submemory_register(0, op_id, (u64) callback_data->data.mem_data.ptr, \
+          (u64) callback_data->data.mem_data.ptr + callback_data->data.mem_data.size);
+
+        } else {
+          std::cout << "Free ptr: 0x" << std::hex << callback_data->data.mem_data.ptr << std::dec
+                    << std::endl;
+          u64 op_id = update_op_id_func();
+          redshow_submemory_unregister(0, op_id, (u64) callback_data->data.mem_data.ptr, \
+          (u64) callback_data->data.mem_data.ptr + callback_data->data.mem_data.size);
+      
+        }
+        std::cout << "Size: " << callback_data->data.mem_data.size << std::endl;
+        std::cout << "Total size: " << callback_data->data.mem_data.total_allocated << std::endl;
+        std::cout << "Total reserved: " << callback_data->data.mem_data.total_reserved << std::endl;
+      }
+    }
+}
 
 static redshow_result_t analyze_cubin(const char *path, SymbolVector &symbols,
                                       InstructionGraph &inst_graph) {
@@ -577,6 +610,45 @@ redshow_result_t redshow_approx_get(int *degree_f32, int *degree_f64) {
   return result;
 }
 
+redshow_result_t redshow_torch_enable() {
+  torch_monitor_status status = torch_monitor_domain_enable(TORCH_MONITOR_DOMAIN_FUNCTION);
+  if (status != TORCH_MONITOR_STATUS_SUCCESS) {
+    std::cerr << "Torch monitor status: " << status << std::endl;
+    exit(1);
+  } 
+
+  status = torch_monitor_domain_enable(TORCH_MONITOR_DOMAIN_BACKWARD_FUNCTION);
+  if (status != TORCH_MONITOR_STATUS_SUCCESS) {
+    std::cerr << "Torch monitor status: " << status << std::endl;
+    exit(1);
+  } 
+  
+  status = torch_monitor_domain_enable(TORCH_MONITOR_DOMAIN_MEMORY);
+  if (status != TORCH_MONITOR_STATUS_SUCCESS) {
+    std::cerr << "Torch monitor status: " << status << std::endl;
+    exit(1);
+  }    
+  status = torch_monitor_callback_subscribe(torch_memory_callback);
+  if (status != TORCH_MONITOR_STATUS_SUCCESS) {
+    std::cerr << "Torch monitor status: " << status << std::endl;
+    exit(1);
+  }
+  status = torch_monitor_init();
+  if (status != TORCH_MONITOR_STATUS_SUCCESS) {
+    std::cerr << "Torch monitor status: " << status << std::endl;
+    exit(1);
+  }
+
+  return REDSHOW_SUCCESS;   
+}
+
+// invoked by sanitizer-api.c
+redshow_result_t redshow_get_op_id_register(redshow_get_op_id func) {
+  update_op_id_func = func;
+
+  return REDSHOW_SUCCESS;
+}
+
 redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) {
   PRINT("\nredshow-> Enter redshow_analysis_enable\nanalysis_type: %u\n", analysis_type);
 
@@ -830,9 +902,9 @@ redshow_result_t redshow_memory_unregister(int32_t memory_id, uint64_t host_op_i
   return result;
 }
 
-redshow_result_t redshow_sub_memory_register(int32_t sub_memory_id, uint64_t host_op_id,
+redshow_result_t redshow_submemory_register(int32_t sub_memory_id, uint64_t host_op_id,
                                                  uint64_t start, uint64_t end) {
-  PRINT("\nredshow-> Enter redshow_sub_memory_register\nmemory_id: %d\nhost_op_id: %lu\nstart: %p\nend: %p\n",
+  PRINT("\nredshow-> Enter redshow_submemory_register\nmemory_id: %d\nhost_op_id: %lu\nstart: %p\nend: %p\n",
   sub_memory_id, host_op_id, start, end);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -854,7 +926,7 @@ redshow_result_t redshow_sub_memory_register(int32_t sub_memory_id, uint64_t hos
         if (iter != sub_memory_snapshot.end()) {
             // Take a snapshot
             sub_memory_map = iter->second;
-            if (sub_memory_map.has(sub_memory_range)) {
+            if (!sub_memory_map.has(sub_memory_range)) {
                 sub_memory_map[sub_memory_range] = submemory;
                 sub_memory_snapshot[host_op_id] = sub_memory_map;
                 result = REDSHOW_SUCCESS;
@@ -878,6 +950,45 @@ redshow_result_t redshow_sub_memory_register(int32_t sub_memory_id, uint64_t hos
 
     return result;    
 
+}
+
+redshow_result_t redshow_submemory_unregister(int32_t sub_memory_id, uint64_t host_op_id, uint64_t start, 
+                                           uint64_t end) {
+  PRINT("\nredshow-> Enter redshow_submemory_unregister\nmemory_free_id: %d\nhost_op_id: %lu\nstart: %p\nend: %p\n",
+        sub_memory_id, host_op_id, start, end);
+
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  MemoryMap sub_memory_map;
+  MemoryRange sub_memory_range(start, end);
+  auto submemfree = std::make_shared<Memfree>(host_op_id, sub_memory_id, sub_memory_range);
+
+  sub_memory_snapshot.lock();
+  auto snapshot_iter = sub_memory_snapshot.prev(host_op_id);
+  if (snapshot_iter != sub_memory_snapshot.end()) {
+    // Take a snapshot
+    sub_memory_map = snapshot_iter->second;
+    auto sub_memory_map_iter = sub_memory_map.find(sub_memory_range);
+    if (sub_memory_map_iter != sub_memory_map.end()) {
+      sub_memory_map.erase(sub_memory_map_iter);
+      sub_memory_snapshot[host_op_id] = sub_memory_map;
+      result = REDSHOW_SUCCESS;
+    } else {
+      result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+    }
+  } else {
+    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+  }
+  sub_memory_snapshot.unlock();
+
+  bool is_submemory = true;
+  if (result == REDSHOW_SUCCESS) {
+    for (auto aiter : analysis_enabled) {
+      aiter.second->op_callback(submemfree, is_submemory);
+    }
+  }
+
+  return result;
 }
 
 redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32_t *memory_id,
