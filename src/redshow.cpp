@@ -1067,6 +1067,8 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
       "%lu\nlen: %lu\n",
       memcpy_id, host_op_id, src_host, src_start, dst_host, dst_start, len);
 
+  auto copy_len = len;
+
   redshow_result_t result = REDSHOW_SUCCESS;
 
   i32 src_mem_id = 0;
@@ -1098,8 +1100,10 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
 
   if (dst_mem_addr != 0 && src_mem_addr != 0) {
     // Avoid memcpy to symbol without allocation
+    src_mem_addr = src_start;
+    dst_mem_addr = dst_start;
     auto memcpy = std::make_shared<Memcpy>(host_op_id, memcpy_id, src_mem_op_id, src_mem_addr,
-                                           dst_mem_op_id, dst_mem_addr, len);
+                                           dst_mem_op_id, dst_mem_addr, copy_len);
 
     for (auto aiter : analysis_enabled) {
       aiter.second->op_callback(memcpy);
@@ -1116,6 +1120,8 @@ redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
       "%lu\nvalue: %u\nlen: %lu\n",
       memset_id, host_op_id, start, value, len);
 
+  auto start_addr = start;
+
   redshow_result_t result = REDSHOW_SUCCESS;
 
   i32 mem_id = 0;
@@ -1125,7 +1131,7 @@ redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
 
   redshow_memory_query(host_op_id, start, &mem_id, &mem_op_id, &addr, &size);
 
-  auto memset = std::make_shared<Memset>(host_op_id, memset_id, mem_op_id, addr, value, len);
+  auto memset = std::make_shared<Memset>(host_op_id, memset_id, mem_op_id, start_addr, value, len);
 
   if (addr != 0) {
     for (auto aiter : analysis_enabled) {
