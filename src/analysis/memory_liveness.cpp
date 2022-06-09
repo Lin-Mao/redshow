@@ -233,7 +233,7 @@ void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
   for (auto trace_iter : _trace->access_submemory) {
     auto submemory = _submemories.at(trace_iter.first);
     kernel_submemory_usage += submemory->len;
-    memory_operation_register(trace_iter.first, op->op_id, ACCESS, true);
+    memory_operation_register(trace_iter.first, op->op_id, REDSHOW_MEMORY_ACCESS, true);
   }
   if (kernel_submemory_usage > _optimal_submemory_peak) {
     _submemory_peak_kernel = op->op_id;
@@ -496,7 +496,7 @@ void MemoryLiveness::output_submemory_liveness(std::string file_name) {
 void MemoryLiveness::output_submemory_size_list(std::string file_name) {
 
   // sort the vector
-  for (int i = 0; i < _submemory_size_list.size()-1; i++) {
+  for (int i = 0; i < _submemory_size_list.size()-1; i++) { // TODO(@Lin-Mao): unknown bug
     int index = i;
     MemoryEntry temp = _submemory_size_list[i];
 

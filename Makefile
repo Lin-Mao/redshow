@@ -73,7 +73,7 @@ $(BINS): % : $(SRC_DIR)%.cpp $(OBJECTS)
 -L$(TORCH_MONITOR_DIR)/lib -Wl,-rpath=$(TORCH_MONITOR_DIR)/lib -o $@ $^ -ltorch_monitor
 
 $(LIB): $(OBJECTS)
-	$(CC) $(LDFLAGS) -o $@ $^ 
+	$(CC) $(LDFLAGS) -L$(TORCH_MONITOR_DIR)/lib -Wl,-rpath=$(TORCH_MONITOR_DIR)/lib -o $@ $^ -ltorch_monitor
 
 $(OBJECTS): $(BUILD_DIR)%.o : %.cpp
 	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(BOOST_DIR)/include -I$(GPU_PATCH_DIR)/include \
