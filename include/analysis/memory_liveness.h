@@ -48,7 +48,7 @@ public:
 
   virtual void block_exit(const ThreadId &thread_id);
 
-  virtual void unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
+  virtual void unit_access(i32 kernel_id, u64 host_op_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
                            GPUPatchFlags flags);
 
@@ -76,6 +76,7 @@ private:
     // u64: Memory:Operation->op_id
 		// @Lin-Mao: don't care about read or write in this mode, just need to know access or not
 		Map<u64, bool> access_memory; // map with sort but vector not
+    Map<u64, bool> access_submemory;
     // Map<u64, Set<MemoryRange>> read_memory;
     // Map<u64, Set<MemoryRange>> write_memory;
 
@@ -93,7 +94,7 @@ private:
 	Map<u64, i32> _op_node;
   Map<u64, i32> _kernel_op_node;
 
-  enum memory_operation {ALLOC, SET, COPYT, COPYF, ACCESS, FREE};
+  enum memory_operation {ALLOC, SET, COPYT, COPYF, ACCESS, FREE, SUBALLOC, SUBFREE};
 
   // log ctx for callpath
   Map<i32, memory_operation> _ctx_node;
@@ -132,6 +133,7 @@ private:
   u64 _current_memory_usage = 0;  // to update _current_memory_peak
   u64 _current_memory_peak = 0;
   u64 _optimal_memory_peak = 0;
+  u64 _memory_peak_kernel = 0;
 
   struct memory_size
   {
@@ -147,8 +149,52 @@ private:
 
   Map<u64, memory_size> _memory_size_log;
 
-  u64 memory_peak_kernel = 0;
-  
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< For sub-alloc
+    // torch
+  bool _troch_sub_analysis = true;
+
+  // <op_id, submemory>   log all allocated submemory
+	Map<u64, std::shared_ptr<Memory>> _submemories;
+
+	// <op_id, submemory> log current submemory
+	Map<u64, std::shared_ptr<Memory>> _current_submemories;
+
+  // <start_addr, sub_op_id> for mapping access to sub-memories
+  Map<u64, u64> _sub_addresses_map;
+
+  // for liveness
+  Map<u64, Map<u64, memory_operation>> _sub_operations;
+
+  // get sub-alloc size list
+  Vector<MemoryEntry> _submemory_size_list;
+
+  u64 _current_submemory_usage = 0;  // to update _current_submemory_peak
+  u64 _current_submemory_peak = 0;
+  u64 _optimal_submemory_peak = 0;
+  u64 _submemory_peak_kernel = 0;
+
+  // For python state
+  struct PythonState {
+    std::string file_name;
+    std::string function_name;
+    size_t function_first_lineno;
+    size_t lineno;
+
+    PythonState() = default;
+
+    PythonState(std::string file_name, std::string function_name, size_t function_first_lineno, \
+    size_t lineno)
+      : file_name(file_name), function_name(function_name), function_first_lineno(function_first_lineno), \
+      lineno(lineno) {}
+  };
+
+  // <op_id, vector<python_states>>
+  Map<u64, Vector<PythonState>> _torch_python_states;
+
+  // <op_id, op_type>
+  Map<u64, std::string> _sub_op_node;
+
+//For sub-alloc >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 /**
  * @brief Kernel end callback
@@ -191,7 +237,7 @@ void memset_op_callback(std::shared_ptr<Memset> op);
  * @param op_id 
  * @param mem_op 
  */
-void memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation mem_op);
+void memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation mem_op, bool is_sub = false);
 
 /**
  * @brief Output memory opreation list
@@ -214,12 +260,48 @@ void output_memory_size_list(std::string file_name);
  */
 void output_kernel_list(std::string file_name);
 
+
+/**
+ * @brief output memory operation sequence
+ * 
+ * @param file_name
+ */
+void output_op_sequence(std::string file_name);
+
 /**
  * @brief output _ctx_node
  * 
  * @param file_name 
  */
 void output_ctx_node(std::string file_name);
+
+/**
+ * @brief output sub-memory liveness
+ * 
+ * @param file_name
+ */
+void output_submemory_liveness(std::string file_name);
+
+/**
+ * @brief output sub-memory size list
+ * 
+ * @param file_name
+ */
+void output_submemory_size_list(std::string file_name);
+
+/**
+ * @brief output submemory info
+ * 
+ * @param file_name
+ */
+void output_submemory_info(std::string file_name);
+
+/**
+ * @brief output python states
+ * 
+ * @param file_name
+ */
+void output_torch_python_states(std::string file_name);
 
 /**
  * @brief update _op_node;
@@ -244,6 +326,17 @@ void update_ctx_node(i32 ctx_id, memory_operation op);
  * @param ctx_id 
  */
 void update_ctx_table(u64 op_id, i32 ctx_id);
+
+/**
+ * @brief udpate torch python states
+ * 
+ * @param op_id
+ * 
+ * @param type
+ */
+void update_torch_python_states(u64 op_id);
+
+bool verify_sub_allocation_ongpu(std::shared_ptr<Memory> sub_alloc);
 
 
 };	// MemoryLiveness

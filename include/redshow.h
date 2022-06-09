@@ -154,6 +154,11 @@ EXTERNC redshow_result_t redshow_approx_level_config(redshow_approx_level_t leve
 EXTERNC redshow_result_t redshow_approx_get(int *degree_f32, int *degree_f64);
 
 /**
+ * @brief enable pytorch analysis
+ **/
+EXTERNC redshow_result_t redshow_torch_enable();
+
+/**
  * @brief This function is used to setup specific analysis types.
  *
  * @param analysis_type
@@ -281,6 +286,12 @@ EXTERNC redshow_result_t redshow_sub_memory_register(int32_t sub_memory_id, uint
                                                  uint64_t start, uint64_t end);
 
 /**
+ * @brief This function is used to unregister a sub-memory
+ **/
+EXTERNC redshow_result_t redshow_sub_memory_unregister(int32_t memory_id, uint64_t host_op_id, 
+                                                   uint64_t start, uint64_t end);
+
+/**
  * @brief This funciton is used to query the address of a shadow memory
  *
  * @param host_op_id Unique identifier of the current timestamp
@@ -395,6 +406,12 @@ EXTERNC redshow_result_t redshow_analyze(uint32_t cpu_thread, uint32_t cubin_id,
  *
  */
 typedef void (*redshow_tool_dtoh_func)(uint64_t host_start, uint64_t device_start, uint64_t len);
+
+typedef uint64_t (*redshow_get_op_id) ();
+/**
+ * @brief Register get_op_id function
+ **/
+EXTERNC redshow_result_t redshow_get_op_id_register(redshow_get_op_id func);
 
 /**
  * @brief Register dtoh function

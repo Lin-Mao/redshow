@@ -33,6 +33,8 @@
 #include "operation/memset.h"
 #include "operation/memfree.h"
 
+#include "../../torch-monitor/include/torch_monitor.h"
+
 #ifdef DEBUG
 #define PRINT(...) fprintf(stderr, __VA_ARGS__)
 #else
@@ -49,6 +51,7 @@ static LockableMap<uint32_t, Cubin> cubin_map;
 
 static LockableMap<uint32_t, CubinCache> cubin_cache_map;
 
+static redshow_get_op_id update_op_id_func;
 
 // MemoryMap(<range, object>) is a map with current object
 typedef Map<MemoryRange, std::shared_ptr<Memory>> MemoryMap;
@@ -77,6 +80,35 @@ static int decimal_degree_f32 = VALID_FLOAT_DIGITS;
 static int decimal_degree_f64 = VALID_DOUBLE_DIGITS;
 
 static redshow_data_type_t default_data_type = REDSHOW_DATA_UNKNOWN;
+
+static void torch_callback(torch_monitor_callback_site_t callback_site,
+                            torch_monitor_callback_data_t* callback_data) {
+    if (callback_site == TORCH_MONITOR_CALLBACK_ENTER) {
+       std::cout << "Torch_Domain: " << callback_data->domain << std::endl;
+      if (callback_data->domain == TORCH_MONITOR_DOMAIN_MEMORY \ 
+          && callback_data->data.mem_data.device_type == TORCH_MONITOR_DEVICE_TYPE_GPU) {
+        std::cout << "Current thread id: " << callback_data->current_thread_id << std::endl;
+        if (callback_data->data.mem_data.type == TORCH_MONITOR_MEM_DATA_ALLOC) {
+          std::cout << "Allocate ptr: " << std::hex << callback_data->data.mem_data.ptr << std::dec
+                    << std::endl;
+          u64 op_id = update_op_id_func();
+          redshow_result_t res = redshow_sub_memory_register(0, op_id, (u64) callback_data->data.mem_data.ptr, \
+          (u64) callback_data->data.mem_data.ptr + callback_data->data.mem_data.size);
+
+        } else {
+          std::cout << "Free ptr: 0x" << std::hex << callback_data->data.mem_data.ptr << std::dec
+                    << std::endl;
+          u64 op_id = update_op_id_func();
+          redshow_sub_memory_unregister(0, op_id, (u64) callback_data->data.mem_data.ptr, \
+          (u64) callback_data->data.mem_data.ptr + callback_data->data.mem_data.size);
+      
+        }
+        std::cout << "Size: " << callback_data->data.mem_data.size << std::endl;
+        std::cout << "Total size: " << callback_data->data.mem_data.total_allocated << std::endl;
+        std::cout << "Total reserved: " << callback_data->data.mem_data.total_reserved << std::endl;
+      }
+    }
+}
 
 static redshow_result_t analyze_cubin(const char *path, SymbolVector &symbols,
                                       InstructionGraph &inst_graph) {
@@ -112,7 +144,7 @@ static redshow_result_t analyze_cubin(const char *path, SymbolVector &symbols,
   return result;
 }
 
-static redshow_result_t trace_analyze_address_patch(int32_t kernel_id, MemoryMap *memory_map,
+static redshow_result_t trace_analyze_address_patch(int32_t kernel_id, u64 host_op_id, MemoryMap *memory_map,
                                                     gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -166,7 +198,7 @@ static redshow_result_t trace_analyze_address_patch(int32_t kernel_id, MemoryMap
       Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
       // XXX(Keren): Need to separate address analysis with value analysis
       for (auto aiter : analysis_enabled) {
-        aiter.second->unit_access(kernel_id, thread_id, access_kind, memory, 0, 0, 0, 0,
+        aiter.second->unit_access(kernel_id, host_op_id, thread_id, access_kind, memory, 0, 0, 0, 0,
                                   static_cast<GPUPatchFlags>(record->flags));
       }
     }
@@ -174,7 +206,7 @@ static redshow_result_t trace_analyze_address_patch(int32_t kernel_id, MemoryMap
   return result;
 }
 
-static redshow_result_t trace_analyze_address_analysis(int32_t kernel_id, MemoryMap *memory_map,
+static redshow_result_t trace_analyze_address_analysis(int32_t kernel_id, u64 host_op_id, MemoryMap *memory_map,
                                                        gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -227,7 +259,7 @@ static redshow_result_t trace_analyze_address_analysis(int32_t kernel_id, Memory
       Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
       // XXX(Keren): Need to separate address analysis with value analysis
       for (auto aiter : analysis_enabled) {
-        aiter.second->unit_access(kernel_id, thread_id, access_kind, memory, 0, 0, 0, 0,
+        aiter.second->unit_access(kernel_id, host_op_id, thread_id, access_kind, memory, 0, 0, 0, 0,
                                   static_cast<GPUPatchFlags>(trace_data->flags));
       }
     }
@@ -236,7 +268,7 @@ static redshow_result_t trace_analyze_address_analysis(int32_t kernel_id, Memory
   return result;
 }
 
-static redshow_result_t trace_analyze_default(int32_t kernel_id, InstructionGraph *inst_graph,
+static redshow_result_t trace_analyze_default(int32_t kernel_id, u64 host_op_id, InstructionGraph *inst_graph,
                                               SymbolVector *symbols, MemoryMap *memory_map,
                                               gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -374,7 +406,7 @@ static redshow_result_t trace_analyze_default(int32_t kernel_id, InstructionGrap
           // std::cout << "thread: " << j << ", value: " << value << std::endl;
 
           for (auto aiter : analysis_enabled) {
-            aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory, record->pc,
+            aiter.second->unit_access(kernel_id, host_op_id, thread_id, unit_access_kind, memory, record->pc,
                                       value, record->address[j], m,
                                       static_cast<GPUPatchFlags>(record->flags));
           }
@@ -478,11 +510,11 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
   }
 
   if (trace_data->type == GPU_PATCH_TYPE_DEFAULT) {
-    result = trace_analyze_default(kernel_id, inst_graph, symbols, memory_map, trace_data);
+    result = trace_analyze_default(kernel_id, host_op_id, inst_graph, symbols, memory_map, trace_data);
   } else if (trace_data->type == GPU_PATCH_TYPE_ADDRESS_PATCH) {
-    result = trace_analyze_address_patch(kernel_id, memory_map, trace_data);
+    result = trace_analyze_address_patch(kernel_id, host_op_id, memory_map, trace_data);
   } else if (trace_data->type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS) {
-    result = trace_analyze_address_analysis(kernel_id, memory_map, trace_data);
+    result = trace_analyze_address_analysis(kernel_id, host_op_id, memory_map, trace_data);
   }
 
   for (auto aiter : analysis_enabled) {
@@ -575,6 +607,44 @@ redshow_result_t redshow_approx_get(int *degree_f32, int *degree_f64) {
   *degree_f64 = decimal_degree_f64;
 
   return result;
+}
+
+redshow_result_t redshow_torch_enable() {
+  torch_monitor_status status = torch_monitor_domain_enable(TORCH_MONITOR_DOMAIN_FUNCTION);
+  if (status != TORCH_MONITOR_STATUS_SUCCESS) {
+    std::cerr << "Torch monitor status: " << status << std::endl;
+    exit(1);
+  } 
+
+  status = torch_monitor_domain_enable(TORCH_MONITOR_DOMAIN_BACKWARD_FUNCTION);
+  if (status != TORCH_MONITOR_STATUS_SUCCESS) {
+    std::cerr << "Torch monitor status: " << status << std::endl;
+    exit(1);
+  } 
+  
+  status = torch_monitor_domain_enable(TORCH_MONITOR_DOMAIN_MEMORY);
+  if (status != TORCH_MONITOR_STATUS_SUCCESS) {
+    std::cerr << "Torch monitor status: " << status << std::endl;
+    exit(1);
+  }    
+  status = torch_monitor_callback_subscribe(torch_callback);
+  if (status != TORCH_MONITOR_STATUS_SUCCESS) {
+    std::cerr << "Torch monitor status: " << status << std::endl;
+    exit(1);
+  }
+  status = torch_monitor_init();
+  if (status != TORCH_MONITOR_STATUS_SUCCESS) {
+    std::cerr << "Torch monitor status: " << status << std::endl;
+    exit(1);
+  }
+
+  return REDSHOW_SUCCESS;   
+}
+
+redshow_result_t redshow_get_op_id_register(redshow_get_op_id func) {
+  update_op_id_func = func;
+
+  return REDSHOW_SUCCESS;
 }
 
 redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) {
@@ -854,7 +924,7 @@ redshow_result_t redshow_sub_memory_register(int32_t sub_memory_id, uint64_t hos
         if (iter != sub_memory_snapshot.end()) {
             // Take a snapshot
             sub_memory_map = iter->second;
-            if (sub_memory_map.has(sub_memory_range)) {
+            if (!sub_memory_map.has(sub_memory_range)) {
                 sub_memory_map[sub_memory_range] = submemory;
                 sub_memory_snapshot[host_op_id] = sub_memory_map;
                 result = REDSHOW_SUCCESS;
@@ -880,10 +950,49 @@ redshow_result_t redshow_sub_memory_register(int32_t sub_memory_id, uint64_t hos
 
 }
 
+redshow_result_t redshow_sub_memory_unregister(int32_t sub_memory_id, uint64_t host_op_id, uint64_t start, 
+                                           uint64_t end) {
+  PRINT("\nredshow-> Enter redshow_sub_memory_unregister\nmemory_free_id: %d\nhost_op_id: %lu\nstart: %p\nend: %p\n",
+        sub_memory_id, host_op_id, start, end);
+
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  MemoryMap sub_memory_map;
+  MemoryRange sub_memory_range(start, end);
+  auto submemfree = std::make_shared<Memfree>(host_op_id, sub_memory_id, sub_memory_range);
+
+  sub_memory_snapshot.lock();
+  auto snapshot_iter = sub_memory_snapshot.prev(host_op_id);
+  if (snapshot_iter != sub_memory_snapshot.end()) {
+    // Take a snapshot
+    sub_memory_map = snapshot_iter->second;
+    auto sub_memory_map_iter = sub_memory_map.find(sub_memory_range);
+    if (sub_memory_map_iter != sub_memory_map.end()) {
+      sub_memory_map.erase(sub_memory_map_iter);
+      sub_memory_snapshot[host_op_id] = sub_memory_map;
+      result = REDSHOW_SUCCESS;
+    } else {
+      result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+    }
+  } else {
+    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+  }
+  sub_memory_snapshot.unlock();
+
+  bool is_submemory = true;
+  if (result == REDSHOW_SUCCESS) {
+    for (auto aiter : analysis_enabled) {
+      aiter.second->op_callback(submemfree, is_submemory);
+    }
+  }
+
+  return result;
+}
+
 redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32_t *memory_id,
                                       uint64_t *memory_op_id, uint64_t *shadow_start,
                                       uint64_t *len) {
-  PRINT("\nredshow-> Enter redshow_memory_query\nhost_op_id: %lu\nstart: %p\n", host_op_id, start);
+  PRINT("\nredshow-> Enter redshow_memory_query\nhost_op_id: %lu\nstart: %lu\n", host_op_id, start);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -901,7 +1010,7 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
       auto offset = start - memory_map_iter->first.start;
       *shadow_start = reinterpret_cast<uint64_t>(memory_map_iter->second->value.get()) + offset;
       *len = memory_map_iter->second->len;
-      PRINT("memory_id: %d\nmemory_op_id: %lu\noffset %lu\nshadow: %p\nlen: %lu\n", *memory_id,
+      PRINT("memory_id: %d\nmemory_op_id: %lu\noffset %lu\nshadow: %lu\nlen: %lu\n", *memory_id,
             *memory_op_id, offset, *shadow_start, *len);
       result = REDSHOW_SUCCESS;
     } else {
@@ -955,6 +1064,8 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
       "%lu\nsrc_host: %d\nsrc_start: %lu\ndst_host: %d\ndst_start: "
       "%lu\nlen: %lu\n",
       memcpy_id, host_op_id, src_host, src_start, dst_host, dst_start, len);
+  
+  auto copy_len = len;
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -987,8 +1098,11 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
 
   if (dst_mem_addr != 0 && src_mem_addr != 0) {
     // Avoid memcpy to symbol without allocation
+
+    src_mem_addr = src_start;
+    dst_mem_addr = dst_start;
     auto memcpy = std::make_shared<Memcpy>(host_op_id, memcpy_id, src_mem_op_id, src_mem_addr,
-                                           dst_mem_op_id, dst_mem_addr, len);
+                                           dst_mem_op_id, dst_mem_addr, copy_len);
 
     for (auto aiter : analysis_enabled) {
       aiter.second->op_callback(memcpy);
@@ -1005,6 +1119,7 @@ redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
       "%lu\nvalue: %u\nlen: %lu\n",
       memset_id, host_op_id, start, value, len);
 
+  auto start_addr = start;
   redshow_result_t result = REDSHOW_SUCCESS;
 
   i32 mem_id = 0;
@@ -1014,7 +1129,7 @@ redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
 
   redshow_memory_query(host_op_id, start, &mem_id, &mem_op_id, &addr, &size);
 
-  auto memset = std::make_shared<Memset>(host_op_id, memset_id, mem_op_id, addr, value, len);
+  auto memset = std::make_shared<Memset>(host_op_id, memset_id, mem_op_id, start_addr, value, len);
 
   if (addr != 0) {
     for (auto aiter : analysis_enabled) {

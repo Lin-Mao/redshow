@@ -50,7 +50,7 @@ void ValuePattern::block_exit(const ThreadId &thread_id) {
   // Do nothing
 }
 
-void ValuePattern::unit_access(i32 kernel_id, const ThreadId &thread_id,
+void ValuePattern::unit_access(i32 kernel_id, u64 host_op_id, const ThreadId &thread_id,
                                const AccessKind &access_kind, const Memory &memory, u64 pc,
                                u64 value, u64 addr, u32 index, GPUPatchFlags flags) {
   addr += index * access_kind.unit_size / 8;
@@ -58,9 +58,9 @@ void ValuePattern::unit_access(i32 kernel_id, const ThreadId &thread_id,
     // If unknown, try each data type
     auto enum_access_kind = access_kind;
     enum_access_kind.data_type = REDSHOW_DATA_FLOAT;
-    unit_access(kernel_id, thread_id, enum_access_kind, memory, pc, value, addr, index, flags);
+    unit_access(kernel_id, host_op_id, thread_id, enum_access_kind, memory, pc, value, addr, index, flags);
     enum_access_kind.data_type = REDSHOW_DATA_INT;
-    unit_access(kernel_id, thread_id, enum_access_kind, memory, pc, value, addr, index, flags);
+    unit_access(kernel_id, host_op_id, thread_id, enum_access_kind, memory, pc, value, addr, index, flags);
 
     return;
   }

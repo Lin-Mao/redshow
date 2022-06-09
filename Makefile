@@ -31,8 +31,10 @@ else
 OFLAGS += -march=native
 endif
 
-CFLAGS := -fPIC -std=c++17 $(OFLAGS)
-LDFLAGS := -fPIC -shared -L$(BOOST_DIR)/lib -lboost_graph -lboost_regex
+# CFLAGS := -fPIC -std=c++17 $(OFLAGS)
+# LDFLAGS := -fPIC -shared -L$(BOOST_DIR)/lib -lboost_graph -lboost_regex
+CFLAGS := -fPIC -std=c++17 $(OFLAGS) -I$(TORCH_MONITOR_DIR)/include
+LDFLAGS := -fPIC -shared -L$(BOOST_DIR)/lib -lboost_graph -lboost_regex -L$(TORCH_MONITOR_DIR)/lib -Wl,-rpath=$(TORCH_MONITOR_DIR)/lib
 
 ifdef OPENMP
 CFLAGS += -DOPENMP -fopenmp
@@ -69,13 +71,13 @@ $(LIB_DIR):
 	mkdir -p $@
 
 $(BINS): % : $(SRC_DIR)%.cpp $(OBJECTS)
-	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(BOOST_DIR)/include -I$(GPU_PATCH_DIR)/include -o $@ $^
+	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(BOOST_DIR)/include -I$(GPU_PATCH_DIR)/include -L$(TORCH_MONITOR_DIR)/lib -Wl,-rpath=$(TORCH_MONITOR_DIR)/lib -o $@ $^ -ltorch_monitor
 
 $(LIB): $(OBJECTS)
-	$(CC) $(LDFLAGS) -o $@ $^ 
+	$(CC) $(LDFLAGS) -o $@ $^ -ltorch_monitor
 
 $(OBJECTS): $(BUILD_DIR)%.o : %.cpp
-	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(BOOST_DIR)/include -I$(GPU_PATCH_DIR)/include -o $@ -c $<
+	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(BOOST_DIR)/include -I$(GPU_PATCH_DIR)/include -o $@ -c $< -ltorch_monitor
 
 clean:
 	-rm -rf $(BUILD_DIR) $(LIB_DIR) $(BINS)

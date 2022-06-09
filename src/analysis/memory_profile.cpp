@@ -496,7 +496,7 @@ void MemoryProfile::merge_memory_range(Set<MemoryRange> &memory, const MemoryRan
 
 
 // not a whole buffer, but a part buffer in a memory object
-void MemoryProfile::unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
+void MemoryProfile::unit_access(i32 kernel_id, u64 host_op_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
                            GPUPatchFlags flags) {
 

@@ -93,7 +93,7 @@ void MemoryHeatmap::update_heatmap_list(u64 op_id, MemoryRange memory_range, uin
 
 
 // not a whole buffer, but a part buffer in a memory object
-void MemoryHeatmap::unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
+void MemoryHeatmap::unit_access(i32 kernel_id, u64 host_op_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
                            GPUPatchFlags flags) {
 

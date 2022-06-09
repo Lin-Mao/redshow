@@ -361,7 +361,7 @@ void DataFlow::merge_memory_range(Set<MemoryRange> &memory, const MemoryRange &m
   }
 }
 
-void DataFlow::unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
+void DataFlow::unit_access(i32 kernel_id, u64 host_op_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
                            GPUPatchFlags flags) {
   // TODO(Keren): handle other memories
