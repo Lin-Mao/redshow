@@ -228,7 +228,7 @@ void MemoryLiveness::block_enter(const ThreadId &thread_id) {}
 
 void MemoryLiveness::block_exit(const ThreadId &thread_id) {}
 
-void MemoryLiveness::unit_access(i32 kernel_id, const ThreadId &thread_id, const AccessKind &access_kind,
+void MemoryLiveness::unit_access(i32 kernel_id, u64 host_op_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
                            GPUPatchFlags flags) {
   if (memory.op_id <= REDSHOW_MEMORY_HOST) {

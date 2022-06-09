@@ -42,7 +42,7 @@ void TemporalRedundancy::block_exit(const ThreadId &thread_id) {
   _trace->write_temporal_trace.erase(thread_id);
 }
 
-void TemporalRedundancy::unit_access(i32 kernel_id, const ThreadId &thread_id,
+void TemporalRedundancy::unit_access(i32 kernel_id, u64 host_op_id, const ThreadId &thread_id,
                                      const AccessKind &access_kind, const Memory &memory, u64 pc,
                                      u64 value, u64 addr, u32 index, GPUPatchFlags flags) {
   addr += index * access_kind.unit_size / 8;

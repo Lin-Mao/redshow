@@ -145,7 +145,7 @@ static redshow_result_t analyze_cubin(const char *path, SymbolVector &symbols,
   return result;
 }
 
-static redshow_result_t trace_analyze_address_patch(int32_t kernel_id, MemoryMap *memory_map,
+static redshow_result_t trace_analyze_address_patch(int32_t kernel_id, u64 host_op_id, MemoryMap *memory_map,
                                                     gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -199,7 +199,7 @@ static redshow_result_t trace_analyze_address_patch(int32_t kernel_id, MemoryMap
       Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
       // XXX(Keren): Need to separate address analysis with value analysis
       for (auto aiter : analysis_enabled) {
-        aiter.second->unit_access(kernel_id, thread_id, access_kind, memory, 0, 0, 0, 0,
+        aiter.second->unit_access(kernel_id, host_op_id, thread_id, access_kind, memory, 0, 0, 0, 0,
                                   static_cast<GPUPatchFlags>(record->flags));
       }
     }
@@ -207,7 +207,7 @@ static redshow_result_t trace_analyze_address_patch(int32_t kernel_id, MemoryMap
   return result;
 }
 
-static redshow_result_t trace_analyze_address_analysis(int32_t kernel_id, MemoryMap *memory_map,
+static redshow_result_t trace_analyze_address_analysis(int32_t kernel_id, u64 host_op_id, MemoryMap *memory_map,
                                                        gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -260,7 +260,7 @@ static redshow_result_t trace_analyze_address_analysis(int32_t kernel_id, Memory
       Memory memory = Memory(memory_op_id, memory_id, memory_addr, memory_size);
       // XXX(Keren): Need to separate address analysis with value analysis
       for (auto aiter : analysis_enabled) {
-        aiter.second->unit_access(kernel_id, thread_id, access_kind, memory, 0, 0, 0, 0,
+        aiter.second->unit_access(kernel_id, host_op_id, thread_id, access_kind, memory, 0, 0, 0, 0,
                                   static_cast<GPUPatchFlags>(trace_data->flags));
       }
     }
@@ -269,7 +269,7 @@ static redshow_result_t trace_analyze_address_analysis(int32_t kernel_id, Memory
   return result;
 }
 
-static redshow_result_t trace_analyze_default(int32_t kernel_id, InstructionGraph *inst_graph,
+static redshow_result_t trace_analyze_default(int32_t kernel_id, u64 host_op_id, InstructionGraph *inst_graph,
                                               SymbolVector *symbols, MemoryMap *memory_map,
                                               gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -407,7 +407,7 @@ static redshow_result_t trace_analyze_default(int32_t kernel_id, InstructionGrap
           // std::cout << "thread: " << j << ", value: " << value << std::endl;
 
           for (auto aiter : analysis_enabled) {
-            aiter.second->unit_access(kernel_id, thread_id, unit_access_kind, memory, record->pc,
+            aiter.second->unit_access(kernel_id, host_op_id, thread_id, unit_access_kind, memory, record->pc,
                                       value, record->address[j], m,
                                       static_cast<GPUPatchFlags>(record->flags));
           }
@@ -511,11 +511,11 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
   }
 
   if (trace_data->type == GPU_PATCH_TYPE_DEFAULT) {
-    result = trace_analyze_default(kernel_id, inst_graph, symbols, memory_map, trace_data);
+    result = trace_analyze_default(kernel_id, host_op_id, inst_graph, symbols, memory_map, trace_data);
   } else if (trace_data->type == GPU_PATCH_TYPE_ADDRESS_PATCH) {
-    result = trace_analyze_address_patch(kernel_id, memory_map, trace_data);
+    result = trace_analyze_address_patch(kernel_id, host_op_id, memory_map, trace_data);
   } else if (trace_data->type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS) {
-    result = trace_analyze_address_analysis(kernel_id, memory_map, trace_data);
+    result = trace_analyze_address_analysis(kernel_id, host_op_id, memory_map, trace_data);
   }
 
   for (auto aiter : analysis_enabled) {
