@@ -22,8 +22,8 @@
 
 #include <fstream>
 
-#define REDSHOW_GPU_ANALYSIS
-#define REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+#define REDSHOW_GPU_ANALYSIS    // Enable liveness analysis on GPU
+#define REDSHOW_TORCH_SUBMEMORY_ANALYSIS    // Enable PyTorch submemory analysis
 
 namespace redshow {
 
@@ -150,6 +150,7 @@ private:
   u64 _current_memory_usage = 0;  // to update _current_memory_peak
   u64 _current_memory_peak = 0;
   u64 _optimal_memory_peak = 0;
+  u64 _memory_peak_kernel = 0;
 
   struct memory_size
   {
@@ -165,7 +166,6 @@ private:
 
   Map<u64, memory_size> _memory_size_log;
 
-  u64 _memory_peak_kernel = 0;
 
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
   // <op_id, submemory>   log all allocated submemory

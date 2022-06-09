@@ -81,18 +81,34 @@ void MemoryLiveness::update_op_node(u64 op_id, i32 ctx_id) {
 }
 
 void MemoryLiveness::memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation_t mem_op, bool is_sub) {
-  auto ops_node = _operations.find(memory_op_id);
 
-  if (ops_node == _operations.end()) {  // for malloc
-    Map<u64, memory_operation_t> op_list;
-    op_list.emplace(op_id, mem_op);
-    _operations.emplace(memory_op_id, op_list);
+  if (!is_sub) {
+    auto ops_node = _operations.find(memory_op_id);
+
+    if (ops_node == _operations.end()) {  // for malloc
+      Map<u64, memory_operation_t> op_list;
+      op_list.emplace(op_id, mem_op);
+      _operations.emplace(memory_op_id, op_list);
+    } else {
+      auto operation = ops_node->second.find(op_id);
+      if (operation == ops_node->second.end()) {
+        ops_node->second.emplace(op_id, mem_op);
+      }
+    }
   } else {
-    auto operation = ops_node->second.find(op_id);
-    if (operation == ops_node->second.end()) {
-      ops_node->second.emplace(op_id, mem_op);
+    auto sub_ops_node = _sub_operations.find(memory_op_id);
+    if (sub_ops_node == _sub_operations.end()) {  // for sub-alloc
+      Map<u64, memory_operation> sub_op_list;
+      sub_op_list.emplace(op_id, mem_op);
+      _sub_operations.emplace(memory_op_id, sub_op_list);
+    } else {
+      auto sub_operation = sub_ops_node->second.find(op_id);
+      if (sub_operation == sub_ops_node->second.end()) {
+        sub_ops_node->second.emplace(op_id, mem_op);
+      }
     }
   }
+  
 }
 
 void MemoryLiveness::op_callback(OperationPtr op, bool is_submemory) {
@@ -114,11 +130,12 @@ void MemoryLiveness::op_callback(OperationPtr op, bool is_submemory) {
 }
 
 void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory) {
-  update_op_node(op->op_id, op->ctx_id);
-  // update_ctx_table(op->op_id, op->ctx_id);
-  update_ctx_node(op->ctx_id, REDSHOW_MEMORY_ALLOC);
 
   if (!is_submemory) {
+    update_op_node(op->op_id, op->ctx_id);
+    // update_ctx_table(op->op_id, op->ctx_id);
+    update_ctx_node(op->ctx_id, REDSHOW_MEMORY_ALLOC);
+
     _memories.try_emplace(op->op_id, op);
     _current_memories.try_emplace(op->op_id, op);
     _addresses_map.try_emplace(op->memory_range.start, op->op_id);
@@ -133,16 +150,35 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
     if (!_operations.has(op->op_id)) {
       memory_operation_register(op->op_id, op->op_id, REDSHOW_MEMORY_ALLOC);
     }
+  } else {
+    update_torch_python_states(op->op_id);
+    _sub_op_node.try_emplace(op->op_id, "ALLOC");
+
+    _submemories.try_emplace(op->op_id, op);
+    _current_submemories.try_emplace(op->op_id, op);
+    _sub_addresses_map.try_emplace(op->memory_range.start, op->op_id);
+    _submemory_size_list.push_back(MemoryEntry(op->op_id, op->len));
+    _current_submemory_usage += op->len;
+
+    if (_current_submemory_usage > _current_submemory_peak) {
+      _current_submemory_peak = _current_submemory_usage;
+    }
+
+    if (!_sub_operations.has(op->op_id)) {
+      memory_operation_register(op->op_id, op->op_id, REDSHOW_SUBMEMORY_ALLOC, true);
+    }
+
   }
 
 }
 
 void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory) {
-  update_op_node(op->op_id, op->ctx_id);
-  // update_ctx_table(op->op_id, op->ctx_id);
-  update_ctx_node(op->ctx_id, REDSHOW_SUBMEMORY_FREE);
 
   if (!is_submemory) {
+    update_op_node(op->op_id, op->ctx_id);
+    // update_ctx_table(op->op_id, op->ctx_id);
+    update_ctx_node(op->ctx_id, REDSHOW_MEMORY_FREE);
+
     u64 address = op->memory_range.start;
     u64 malloc_op_id = _addresses_map.at(address);
     
@@ -151,8 +187,20 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
     _current_memory_usage -= op->len;
     _memory_size_log.emplace(op->op_id, memory_size("free", _current_memory_usage));
 
-    memory_operation_register(malloc_op_id, op->op_id, REDSHOW_SUBMEMORY_FREE);
+    memory_operation_register(malloc_op_id, op->op_id, REDSHOW_MEMORY_FREE);
 
+  } else {
+    update_torch_python_states(op->op_id);
+    _sub_op_node.try_emplace(op->op_id, "FREE");
+
+    u64 address = op->memory_range.start;
+    u64 sub_alloc_id = _sub_addresses_map.at(address);
+
+    _sub_addresses_map.erase(address);
+    _current_submemories.erase(sub_alloc_id);
+    _current_submemory_usage -= op->len;
+    
+    memory_operation_register(sub_alloc_id, op->op_id, REDSHOW_SUBMEMORY_FREE, true);
   }
 
 }
@@ -173,13 +221,27 @@ void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
   for (auto &trace_iter : _trace->access_memory) {
     auto memory = _memories.at(trace_iter.first);
     kernel_memory_usage += memory->len;
-    memory_operation_register(trace_iter.first, _trace->kernel.op_id, REDSHOW_MEMORY_ACCESS);
+    memory_operation_register(trace_iter.first, op->op_id, REDSHOW_MEMORY_ACCESS);
   }
   if (kernel_memory_usage > _optimal_memory_peak) {
     _memory_peak_kernel = op->op_id;
     _optimal_memory_peak = kernel_memory_usage;
   }
 
+#ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+  u64 kernel_submemory_usage = 0;
+  for (auto trace_iter : _trace->access_submemory) {
+    auto submemory = _submemories.at(trace_iter.first);
+    kernel_submemory_usage += submemory->len;
+    memory_operation_register(trace_iter.first, op->op_id, ACCESS, true);
+  }
+  if (kernel_submemory_usage > _optimal_submemory_peak) {
+    _submemory_peak_kernel = op->op_id;
+    _optimal_submemory_peak = kernel_submemory_usage;
+  }
+
+  _trace->access_submemory.clear();
+#endif
 
   // reset trace
   _trace->access_memory.clear();
@@ -201,6 +263,35 @@ void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
     memory_operation_register(op->dst_memory_op_id, op->op_id, REDSHOW_MEMORY_COPYT);
   }
 
+#ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+  if (op->src_memory_op_id != REDSHOW_MEMORY_HOST) {    
+    auto liter = _sub_addresses_map.prev(op->src_start);
+    auto riter = _sub_addresses_map.prev(op->src_start + op->len);
+    if (liter != _sub_addresses_map.end()) 
+    {
+      if (riter->second != liter->second) {
+      for (auto iter = liter; iter != riter; iter++) {
+        memory_operation_register(iter->second, op->op_id, REDSHOW_MEMORY_COPYF, true);
+      }
+      memory_operation_register(riter->second, op->op_id, REDSHOW_MEMORY_COPYF, true);
+      }
+    }
+  }
+
+  if (op->dst_memory_op_id != REDSHOW_MEMORY_HOST) {
+    auto liter = _sub_addresses_map.prev(op->dst_start);
+    auto riter = _sub_addresses_map.prev(op->dst_start + op->len);
+    if (liter != _sub_addresses_map.end()) {
+      if (riter->second != liter->second) {
+        for (auto iter = liter; iter != riter; iter++) {
+          memory_operation_register(iter->second, op->op_id, REDSHOW_MEMORY_COPYT, true);
+        }
+      }
+      memory_operation_register(riter->second, op->op_id, REDSHOW_MEMORY_COPYT, true);
+    }
+  }
+#endif
+
 
 }
 
@@ -209,6 +300,17 @@ void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
   update_ctx_node(op->ctx_id, REDSHOW_MEMORY_SET);
 
   memory_operation_register(op->memory_op_id, op->op_id, REDSHOW_MEMORY_SET);
+
+#ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+  auto liter = _sub_addresses_map.prev(op->start);
+  auto riter = _sub_addresses_map.prev(op->start + op->len);
+  if (liter->second != riter->second) {
+    for (auto iter = liter; iter != riter; iter++) {
+      memory_operation_register(iter->second, op->op_id, REDSHOW_MEMORY_SET, true);
+    }
+  }
+  memory_operation_register(riter->second, op->op_id, REDSHOW_MEMORY_SET, true);
+#endif
 
 }
 
@@ -254,6 +356,7 @@ void MemoryLiveness::block_exit(const ThreadId &thread_id) {}
 void MemoryLiveness::unit_access(i32 kernel_id, u64 host_op_id, const ThreadId &thread_id, const AccessKind &access_kind,
                            const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
                            GPUPatchFlags flags) {
+#ifndef REDSHOW_GPU_ANALYSIS
   if (memory.op_id <= REDSHOW_MEMORY_HOST) {
     return;
   }
@@ -262,7 +365,15 @@ void MemoryLiveness::unit_access(i32 kernel_id, u64 host_op_id, const ThreadId &
     _trace->access_memory.emplace(memory.op_id, true);
   }
   
+#ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+  auto iter = _sub_addresses_map.prev(memory.memory_range.start); 
 
+  // memory_operation_register(riter->second, host_op_id, ACCESS, true);
+  if (!_trace->access_submemory.has(iter->second)) {
+    _trace->access_submemory.emplace(iter->second, true);
+  }
+#endif
+#endif
 }
 
 void MemoryLiveness::output_memory_operation_list(std::string file_name) {
