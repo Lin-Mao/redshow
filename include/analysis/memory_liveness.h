@@ -22,7 +22,8 @@
 
 #include <fstream>
 
-#define GPU_ANALYSIS
+#define REDSHOW_GPU_ANALYSIS
+#define REDSHOW_TORCH_SUBALLOCATION_ANALYSIS
 
 namespace redshow {
 
@@ -94,10 +95,19 @@ private:
 	Map<u64, i32> _op_node;
   Map<u64, i32> _kernel_op_node;
 
-  enum memory_operation {ALLOC, SET, COPYT, COPYF, ACCESS, FREE};
+  typedef enum memory_operation {
+    REDSHOW_MEMORY_ALLOC = 0,
+    REDSHOW_MEMORY_SET = 1,
+    REDSHOW_MEMORY_COPYT = 2,
+    REDSHOW_MEMORY_COPYF = 3,
+    REDSHOW_MEMORY_ACCESS = 4,
+    REDSHOW_MEMORY_FREE = 5,
+    REDSHOW_SUBMEMORY_ALLOC = 6,
+    REDSHOW_SUBMEMORY_FREE = 7
+  } memory_operation_t;
 
   // log ctx for callpath
-  Map<i32, memory_operation> _ctx_node;
+  Map<i32, memory_operation_t> _ctx_node;
 
   // memory entry
   struct MemoryEntry {
@@ -127,7 +137,7 @@ private:
 	// <start_addr, memory_op_id>
 	Map<u64, u64> _addresses_map;
 
-	Map<u64, Map<u64, memory_operation>> _operations;
+	Map<u64, Map<u64, memory_operation_t>> _operations;
 
   // current memory peak and optimal memory peak
   u64 _current_memory_usage = 0;  // to update _current_memory_peak
@@ -192,7 +202,7 @@ void memset_op_callback(std::shared_ptr<Memset> op);
  * @param op_id 
  * @param mem_op 
  */
-void memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation mem_op);
+void memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation_t mem_op);
 
 /**
  * @brief Output memory opreation list
@@ -243,7 +253,7 @@ void update_op_node(u64 op_id, i32 ctx_id);
  * @param ctx_id 
  * @param op 
  */
-void update_ctx_node(i32 ctx_id, memory_operation op);
+void update_ctx_node(i32 ctx_id, memory_operation_t op);
 
 /**
  * @brief update the ctx_id--op_id table

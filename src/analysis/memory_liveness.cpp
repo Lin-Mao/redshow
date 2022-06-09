@@ -20,7 +20,7 @@ void MemoryLiveness::update_aux_hit(void* aux, u64 kernel_op_id) {
   for (int i = 0; i < kernel_aux->size; i++) {
     if (kernel_aux->hit[i] == 1) {
       u64 memory_op_id = _addresses_map.at(kernel_aux->start_end[i].start);
-      memory_operation_register(memory_op_id, kernel_op_id, ACCESS);
+      memory_operation_register(memory_op_id, kernel_op_id, REDSHOW_MEMORY_ACCESS);
       kernel_memory_usage += _current_memories.at(memory_op_id)->len;
     }
   }
@@ -44,7 +44,7 @@ void MemoryLiveness::update_ctx_table(u64 op_id, i32 ctx_id) {
   }
 }
 
-void MemoryLiveness::update_ctx_node(i32 ctx_id, memory_operation op) {
+void MemoryLiveness::update_ctx_node(i32 ctx_id, memory_operation_t op) {
   if (!_ctx_node.has(ctx_id)) {
     _ctx_node.emplace(ctx_id, op);
   }
@@ -57,11 +57,11 @@ void MemoryLiveness::update_op_node(u64 op_id, i32 ctx_id) {
   }
 }
 
-void MemoryLiveness::memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation mem_op) {
+void MemoryLiveness::memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation_t mem_op) {
   auto ops_node = _operations.find(memory_op_id);
 
   if (ops_node == _operations.end()) {  // for malloc
-    Map<u64, memory_operation> op_list;
+    Map<u64, memory_operation_t> op_list;
     op_list.emplace(op_id, mem_op);
     _operations.emplace(memory_op_id, op_list);
   } else {
@@ -93,7 +93,7 @@ void MemoryLiveness::op_callback(OperationPtr op, bool is_submemory) {
 void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory) {
   update_op_node(op->op_id, op->ctx_id);
   // update_ctx_table(op->op_id, op->ctx_id);
-  update_ctx_node(op->ctx_id, ALLOC);
+  update_ctx_node(op->ctx_id, REDSHOW_MEMORY_ALLOC);
 
   if (!is_submemory) {
     _memories.try_emplace(op->op_id, op);
@@ -108,7 +108,7 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
       _current_memory_peak = _current_memory_usage;
 
     if (!_operations.has(op->op_id)) {
-      memory_operation_register(op->op_id, op->op_id, ALLOC);
+      memory_operation_register(op->op_id, op->op_id, REDSHOW_MEMORY_ALLOC);
     }
   }
 
@@ -117,7 +117,7 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
 void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory) {
   update_op_node(op->op_id, op->ctx_id);
   // update_ctx_table(op->op_id, op->ctx_id);
-  update_ctx_node(op->ctx_id, FREE);
+  update_ctx_node(op->ctx_id, REDSHOW_SUBMEMORY_FREE);
 
   if (!is_submemory) {
     u64 address = op->memory_range.start;
@@ -128,7 +128,7 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
     _current_memory_usage -= op->len;
     _memory_size_log.emplace(op->op_id, memory_size("free", _current_memory_usage));
 
-    memory_operation_register(malloc_op_id, op->op_id, FREE);
+    memory_operation_register(malloc_op_id, op->op_id, REDSHOW_SUBMEMORY_FREE);
 
   }
 
@@ -137,10 +137,10 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
 void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
   update_op_node(op->op_id, op->ctx_id);
   // update_ctx_table(op->op_id, op->ctx_id);
-  update_ctx_node(op->ctx_id, ACCESS);
+  update_ctx_node(op->ctx_id, REDSHOW_MEMORY_ACCESS);
   _kernel_op_node[op->op_id] = op->ctx_id;
 
-#ifndef GPU_ANALYSIS
+#ifndef REDSHOW_GPU_ANALYSIS
   if (_trace.get() == NULL) {
     // If the kernel is sampled
     return;
@@ -150,7 +150,7 @@ void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
   for (auto &trace_iter : _trace->access_memory) {
     auto memory = _memories.at(trace_iter.first);
     kernel_memory_usage += memory->len;
-    memory_operation_register(trace_iter.first, _trace->kernel.op_id, ACCESS);
+    memory_operation_register(trace_iter.first, _trace->kernel.op_id, REDSHOW_MEMORY_ACCESS);
   }
   if (kernel_memory_usage > _optimal_memory_peak) {
     _memory_peak_kernel = op->op_id;
@@ -169,13 +169,13 @@ void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
   // update_op_node(op->op_id, op->ctx_id);
 
   if (op->src_memory_op_id != REDSHOW_MEMORY_HOST) {
-    update_ctx_node(op->ctx_id, COPYF);
-    memory_operation_register(op->src_memory_op_id, op->op_id, COPYF);
+    update_ctx_node(op->ctx_id, REDSHOW_MEMORY_COPYF);
+    memory_operation_register(op->src_memory_op_id, op->op_id, REDSHOW_MEMORY_COPYF);
   }
 
   if (op->dst_memory_op_id != REDSHOW_MEMORY_HOST) {
-    update_ctx_node(op->ctx_id, COPYT);
-    memory_operation_register(op->dst_memory_op_id, op->op_id, COPYT);
+    update_ctx_node(op->ctx_id, REDSHOW_MEMORY_COPYT);
+    memory_operation_register(op->dst_memory_op_id, op->op_id, REDSHOW_MEMORY_COPYT);
   }
 
 
@@ -183,9 +183,9 @@ void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
 
 void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
   // update_op_node(op->op_id, op->ctx_id);
-  update_ctx_node(op->ctx_id, SET);
+  update_ctx_node(op->ctx_id, REDSHOW_MEMORY_SET);
 
-  memory_operation_register(op->memory_op_id, op->op_id, SET);
+  memory_operation_register(op->memory_op_id, op->op_id, REDSHOW_MEMORY_SET);
 
 }
 
@@ -195,7 +195,7 @@ void MemoryLiveness::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_i
   // Do not need to know value and need to get interval of memory
   assert(type == GPU_PATCH_TYPE_ADDRESS_PATCH || type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS);
 
-#ifdef GPU_ANALYSIS
+#ifdef REDSHOW_GPU_ANALYSIS
 
   if (aux) {
     update_aux_hit(aux, host_op_id);
@@ -310,17 +310,17 @@ void MemoryLiveness::output_ctx_node(std::string file_name) {
     output << "op_id: " << op.first << ", ";
     auto ctx_type =_ctx_node.at(op.second);
 
-    if (ctx_type == ALLOC) {
+    if (ctx_type == REDSHOW_MEMORY_ALLOC) {
       output << "ALLOC " << op.second << std::endl; 
-    } else if (ctx_type == FREE) {
+    } else if (ctx_type == REDSHOW_MEMORY_FREE) {
       output << "FREE " << op.second << std::endl;
-    } else if (ctx_type == ACCESS) {
+    } else if (ctx_type == REDSHOW_MEMORY_ACCESS) {
       output << "ACCESS " << op.second << std::endl;
-    } else if (ctx_type == SET) {
+    } else if (ctx_type == REDSHOW_MEMORY_SET) {
       output << "SET " << op.second << std::endl;
-    } else if (ctx_type == COPYT) {
+    } else if (ctx_type == REDSHOW_MEMORY_COPYT) {
       output << "COPYT " << op.second << std::endl;
-    } else if (ctx_type == COPYF) {
+    } else if (ctx_type == REDSHOW_MEMORY_COPYF) {
       output << "COPYF " << op.second << std::endl;
     }
 
