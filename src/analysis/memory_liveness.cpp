@@ -304,12 +304,14 @@ void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
   auto liter = _sub_addresses_map.prev(op->start);
   auto riter = _sub_addresses_map.prev(op->start + op->len);
-  if (liter->second != riter->second) {
-    for (auto iter = liter; iter != riter; iter++) {
-      memory_operation_register(iter->second, op->op_id, REDSHOW_MEMORY_SET, true);
+  if (liter != _sub_addresses_map.end()) {
+    if (liter->second != riter->second) {
+      for (auto iter = liter; iter != riter; iter++) {
+        memory_operation_register(iter->second, op->op_id, REDSHOW_MEMORY_SET, true);
+      }
     }
+    memory_operation_register(riter->second, op->op_id, REDSHOW_MEMORY_SET, true);
   }
-  memory_operation_register(riter->second, op->op_id, REDSHOW_MEMORY_SET, true);
 #endif
 
 }
