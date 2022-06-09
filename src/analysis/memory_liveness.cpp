@@ -456,8 +456,11 @@ void MemoryLiveness::output_ctx_node(std::string file_name) {
       output << "COPYT " << op.second << std::endl;
     } else if (ctx_type == REDSHOW_MEMORY_COPYF) {
       output << "COPYF " << op.second << std::endl;
+    } else if (ctx_type == REDSHOW_SUBMEMORY_ALLOC) {
+      output << "SUBALLOC" << op.second << std::endl;
+    } else if (ctx_type == REDSHOW_SUBMEMORY_FREE) {
+      output << "SUBFREE" << op.second << std::endl;
     }
-
 
   }
 
@@ -474,6 +477,72 @@ void MemoryLiveness::output_op_sequence(std::string filename) {
     output << op.first << "(" << op.second.op << "): " << op.second.size << " B" << std::endl;
   }
   output.close();
+}
+
+void MemoryLiveness::output_submemory_liveness(std::string file_name) {
+  std::ofstream output(file_name);
+  for (auto sub_ops : _sub_operations) {
+    output << "[" << sub_ops.first << "]: ";
+    for (auto iter : sub_ops.second) {
+      output << iter.first << "(" << iter.second << ")" << ", ";
+    }
+    output << std::endl;
+  }
+  output.close();
+}
+
+void MemoryLiveness::output_submemory_size_list(std::string file_name) {
+
+  // sort the vector
+  for (int i = 0; i < _submemory_size_list.size()-1; i++) {
+    int index = i;
+    MemoryEntry temp = _submemory_size_list[i];
+
+    for (int j = i + 1; j < _submemory_size_list.size(); j++) {
+      if (_submemory_size_list[j] > temp) {
+        index = j;
+        temp = _submemory_size_list[j];
+      }
+    }
+    if (index != i) {
+      _submemory_size_list[index] = _submemory_size_list[i];
+      _submemory_size_list[i] = temp;
+    }
+  }
+
+  std::ofstream output(file_name);
+  
+  for (auto iter : _submemory_size_list) {
+    output << "op_id=" << iter.op_id << ", size=" << iter.size << std::endl;
+  }
+  output.close();
+}
+
+void MemoryLiveness::output_submemory_info(std::string file_name) {
+  std::ofstream output(file_name);
+  output << "submemory_peak_kernel: " << _submemory_peak_kernel << std::endl;
+  output << "optimal_submemory_peak: " << _optimal_submemory_peak << " B" << std::endl;
+  output << "current_submemory_peak: " << _current_submemory_peak - 512 << " B" << std::endl << std::endl;
+  output.close();
+}
+
+void MemoryLiveness::output_torch_python_states(std::string filename) {
+  std::ofstream output(filename);
+  for (auto miter : _torch_python_states) {
+    output << "------------------------------" << std::endl;
+    output << _sub_op_node.at(miter.first) << ": " << miter.first << std::endl;
+    int count = 0;
+    for (auto viter : miter.second) {
+      output << "(" << count << ")"
+             << "File: " <<  viter.file_name << std::endl;
+      output << "\tFunction: " << viter.function_name << std::endl;
+      output << "\tFirst line: " << viter.function_first_lineno << std::endl;
+      output << "\tCall at line: " << viter.lineno << std::endl;
+      count++;
+    }
+
+    output << std::endl;
+  }
 }
 
 void MemoryLiveness::flush_thread(u32 cpu_thread, const std::string &output_dir,
@@ -493,6 +562,17 @@ void MemoryLiveness::flush(const std::string &output_dir, const LockableMap<u32,
 
   // output_op_sequence(output_dir + "memory_op_sequence");
 
+#ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+
+  output_submemory_liveness(output_dir + "submemory_liveness.txt");
+
+  output_submemory_size_list(output_dir + "submemory_size_list.txt");
+
+  output_submemory_info(output_dir + "submemory_info.txt");
+
+  output_torch_python_states(output_dir + "torch_python_states.txt");
+
+#endif
 }
 
 }   // namespace redshow
