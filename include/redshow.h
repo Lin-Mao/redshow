@@ -327,6 +327,13 @@ EXTERNC redshow_result_t redshow_memory_ranges_get(uint64_t host_op_id, uint64_t
                                                    uint32_t *len);
 
 /**
+ * @brief This funciton is used to return the first limit submemory ranges at the current snapshot
+ */
+EXTERNC redshow_result_t redshow_submemory_ranges_get(uint64_t host_op_id, uint64_t limit,
+                                                   gpu_patch_analysis_address_t *start_end,
+                                                   uint32_t *len);
+
+/**
  * @brief This funciton is used to track a memcpy operation
  *
  * @param memcpy_id Calling context of the mempry operation

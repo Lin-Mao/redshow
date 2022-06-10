@@ -507,7 +507,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
 
   for (auto aiter : analysis_enabled) {
     aiter.second->analysis_begin(cpu_thread, kernel_id, host_op_id, cubin_id, mod_id,
-                                 static_cast<GPUPatchType>(trace_data->type), trace_data->aux);
+                                 static_cast<GPUPatchType>(trace_data->type), trace_data);
   }
 
   if (trace_data->type == GPU_PATCH_TYPE_DEFAULT) {
@@ -1054,6 +1054,39 @@ EXTERNC redshow_result_t redshow_memory_ranges_get(uint64_t host_op_id, uint64_t
     result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
   }
   memory_snapshot.unlock();
+
+  return result;
+}
+
+
+EXTERNC redshow_result_t redshow_submemory_ranges_get(uint64_t host_op_id, uint64_t limit,
+                                                   gpu_patch_analysis_address *start_end,
+                                                   uint32_t *len) {
+  PRINT("\nredshow-> Enter redshow_submemory_ranges_get\nhost_op_id: %lu\nlimit: %lu\n", host_op_id,
+        limit);
+
+  redshow_result_t result = REDSHOW_SUCCESS;
+
+  *len = 0;
+  sub_memory_snapshot.lock();
+  auto snapshot_iter = sub_memory_snapshot.prev(host_op_id);
+  if (snapshot_iter != sub_memory_snapshot.end()) {
+    auto &memory_map = snapshot_iter->second;
+    if (memory_map.size() != 0) {
+      auto memory_map_iter = memory_map.begin();
+      while (memory_map_iter != memory_map.end()) {
+        start_end[(*len)].start = memory_map_iter->first.start;
+        start_end[(*len)].end = memory_map_iter->first.end;
+        ++(*len);
+        ++memory_map_iter;
+      }
+    } else {
+      result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+    }
+  } else {
+    result = REDSHOW_ERROR_NOT_EXIST_ENTRY;
+  }
+  sub_memory_snapshot.unlock();
 
   return result;
 }

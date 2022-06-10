@@ -36,21 +36,39 @@ void MemoryLiveness::update_torch_python_states(u64 op_id) {
 
 #endif
 
-void MemoryLiveness::update_aux_hit(void* aux, u64 kernel_op_id) {
+void MemoryLiveness::update_aux_hit(void* aux, u64 kernel_op_id, bool is_sub) {
   gpu_patch_aux_address_dict_t* kernel_aux = static_cast<gpu_patch_aux_address_dict_t*>(aux);
 
-  u64 kernel_memory_usage = 0;
-  for (int i = 0; i < kernel_aux->size; i++) {
-    if (kernel_aux->hit[i] == 1) {
-      u64 memory_op_id = _addresses_map.at(kernel_aux->start_end[i].start);
-      memory_operation_register(memory_op_id, kernel_op_id, REDSHOW_MEMORY_ACCESS);
-      kernel_memory_usage += _current_memories.at(memory_op_id)->len;
+  if (!is_sub) {
+    u64 kernel_memory_usage = 0;
+    for (int i = 0; i < kernel_aux->size; i++) {
+      if (kernel_aux->hit[i] == 1) {
+        u64 memory_op_id = _addresses_map.at(kernel_aux->start_end[i].start);
+        memory_operation_register(memory_op_id, kernel_op_id, REDSHOW_MEMORY_ACCESS);
+        kernel_memory_usage += _current_memories.at(memory_op_id)->len;
+      }
     }
+    if (_optimal_memory_peak < kernel_memory_usage) {
+      _memory_peak_kernel = kernel_op_id;
+      _optimal_memory_peak = kernel_memory_usage;
+    }
+  } else {
+    u64 kernel_submemory_usage = 0;
+    for (int i = 0; i < kernel_aux->size; i++) {
+      if (kernel_aux->hit[i] == 1) {
+        u64 sub_memory_op_id = _sub_addresses_map.at(kernel_aux->start_end[i].start);
+        memory_operation_register(sub_memory_op_id, kernel_op_id, REDSHOW_MEMORY_ACCESS, true);
+        kernel_submemory_usage += _current_submemories.at(sub_memory_op_id)->len;
+      }
+    }
+
+    if (_optimal_submemory_peak < kernel_submemory_usage) {
+      _submemory_peak_kernel = kernel_op_id;
+      _optimal_memory_peak = kernel_submemory_usage;
+    }
+
   }
-  if (_optimal_memory_peak < kernel_memory_usage) {
-    _memory_peak_kernel = kernel_op_id;
-    _optimal_memory_peak = kernel_memory_usage;
-  }
+  
 
 }
 
@@ -318,14 +336,19 @@ void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
 
 
 void MemoryLiveness::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id,
-                              GPUPatchType type, void* aux) {
+                              GPUPatchType type, void* trace_data) {
   // Do not need to know value and need to get interval of memory
   assert(type == GPU_PATCH_TYPE_ADDRESS_PATCH || type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS);
 
 #ifdef REDSHOW_GPU_ANALYSIS
+  gpu_patch_buffer_t* buffer = static_cast<gpu_patch_buffer_t*>(trace_data);
 
-  if (aux) {
-    update_aux_hit(aux, host_op_id);
+  if (buffer->aux) {
+    update_aux_hit(buffer->aux, host_op_id);
+  }
+
+  if (buffer->torch_aux) {
+    update_aux_hit(buffer->torch_aux, host_op_id, true);
   }
 
 #else

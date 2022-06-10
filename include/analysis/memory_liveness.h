@@ -22,8 +22,10 @@
 
 #include <fstream>
 
-#define REDSHOW_GPU_ANALYSIS    // Enable liveness analysis on GPU
-#define REDSHOW_TORCH_SUBMEMORY_ANALYSIS    // Enable PyTorch submemory analysis
+// Enable liveness analysis on GPU (HPCRUN_SANITIZER_LIVENESS_ONGPU=1)
+#define REDSHOW_GPU_ANALYSIS
+// Enable PyTorch submemory analysis (HPCRUN_SANITIZER_TORCH_ANALYSIS=1)
+#define REDSHOW_TORCH_SUBMEMORY_ANALYSIS
 
 namespace redshow {
 
@@ -320,7 +322,7 @@ void update_ctx_table(u64 op_id, i32 ctx_id);
  * @brief for gpu liveness analysis
  * @param aux aux buffer
  */
-void update_aux_hit(void* aux, u64 kernel_op_id);
+void update_aux_hit(void* aux, u64 kernel_op_id, bool is_sub = false);
 
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
 /**
