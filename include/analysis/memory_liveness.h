@@ -182,6 +182,8 @@ private:
   // for liveness
   Map<u64, Map<u64, memory_operation_t>> _sub_operations;
 
+  Map<u64, memory_size> _submemory_size_log;
+
   // get sub-alloc size list
   Vector<MemoryEntry> _submemory_size_list;
 
@@ -281,11 +283,11 @@ void output_memory_size_list(std::string file_name);
 void output_kernel_list(std::string file_name);
 
 /**
- * @brief output memory operation sequence
+ * @brief output sub-memory size growth sequence
  * 
  * @param file_name
  */
-void output_op_sequence(std::string file_name);
+void output_memory_size_growth_sequence(std::string file_name);
 
 /**
  * @brief output _ctx_node
@@ -345,6 +347,13 @@ void output_submemory_size_list(std::string file_name);
  * @param file_name
  */
 void output_submemory_info(std::string file_name);
+
+/**
+ * @brief output sub-memory size growth sequence
+ * 
+ * @param filename
+ **/
+void output_submemory_size_growth_sequence(std::string filename);
 
 /**
  * @brief output python states

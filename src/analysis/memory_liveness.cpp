@@ -53,6 +53,8 @@ void MemoryLiveness::update_aux_hit(void* aux, u64 kernel_op_id, bool is_sub) {
       _optimal_memory_peak = kernel_memory_usage;
     }
   } else {
+#ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+
     u64 kernel_submemory_usage = 0;
     for (int i = 0; i < kernel_aux->size; i++) {
       if (kernel_aux->hit[i] == 1) {
@@ -67,6 +69,7 @@ void MemoryLiveness::update_aux_hit(void* aux, u64 kernel_op_id, bool is_sub) {
       _optimal_memory_peak = kernel_submemory_usage;
     }
 
+#endif
   }
   
 
@@ -114,6 +117,8 @@ void MemoryLiveness::memory_operation_register(u64 memory_op_id, u64 op_id, memo
       }
     }
   } else {
+#ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+
     auto sub_ops_node = _sub_operations.find(memory_op_id);
     if (sub_ops_node == _sub_operations.end()) {  // for sub-alloc
       Map<u64, memory_operation> sub_op_list;
@@ -125,8 +130,9 @@ void MemoryLiveness::memory_operation_register(u64 memory_op_id, u64 op_id, memo
         sub_ops_node->second.emplace(op_id, mem_op);
       }
     }
+#endif
   }
-  
+
 }
 
 void MemoryLiveness::op_callback(OperationPtr op, bool is_submemory) {
@@ -169,6 +175,8 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
       memory_operation_register(op->op_id, op->op_id, REDSHOW_MEMORY_ALLOC);
     }
   } else {
+#ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+
     update_torch_python_states(op->op_id);
     _sub_op_node.try_emplace(op->op_id, "ALLOC");
 
@@ -177,6 +185,7 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
     _sub_addresses_map.try_emplace(op->memory_range.start, op->op_id);
     _submemory_size_list.push_back(MemoryEntry(op->op_id, op->len));
     _current_submemory_usage += op->len;
+    _submemory_size_log.try_emplace(op->op_id, memory_size("alloc", _current_submemory_usage));
 
     if (_current_submemory_usage > _current_submemory_peak) {
       _current_submemory_peak = _current_submemory_usage;
@@ -186,6 +195,7 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
       memory_operation_register(op->op_id, op->op_id, REDSHOW_SUBMEMORY_ALLOC, true);
     }
 
+#endif
   }
 
 }
@@ -208,6 +218,7 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
     memory_operation_register(malloc_op_id, op->op_id, REDSHOW_MEMORY_FREE);
 
   } else {
+#ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
     update_torch_python_states(op->op_id);
     _sub_op_node.try_emplace(op->op_id, "FREE");
 
@@ -217,8 +228,10 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
     _sub_addresses_map.erase(address);
     _current_submemories.erase(sub_alloc_id);
     _current_submemory_usage -= op->len;
+    _submemory_size_log.try_emplace(op->op_id, memory_size("free", _current_submemory_usage));
     
     memory_operation_register(sub_alloc_id, op->op_id, REDSHOW_SUBMEMORY_FREE, true);
+#endif
   }
 
 }
@@ -269,7 +282,7 @@ void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
 }
 
 void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
-  // update_op_node(op->op_id, op->ctx_id);
+  update_op_node(op->op_id, op->ctx_id);
 
   if (op->src_memory_op_id != REDSHOW_MEMORY_HOST) {
     update_ctx_node(op->ctx_id, REDSHOW_MEMORY_COPYF);
@@ -314,7 +327,7 @@ void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
 }
 
 void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
-  // update_op_node(op->op_id, op->ctx_id);
+  update_op_node(op->op_id, op->ctx_id);
   update_ctx_node(op->ctx_id, REDSHOW_MEMORY_SET);
 
   memory_operation_register(op->memory_op_id, op->op_id, REDSHOW_MEMORY_SET);
@@ -492,7 +505,7 @@ void MemoryLiveness::output_ctx_node(std::string file_name) {
   output.close();
 }
 
-void MemoryLiveness::output_op_sequence(std::string filename) {
+void MemoryLiveness::output_memory_size_growth_sequence(std::string filename) {
   std::ofstream output(filename);
   output << "memory_peak_kernel: " << _memory_peak_kernel << std::endl;
   output << "optimal_memory_peak: " << _optimal_memory_peak << " B" << std::endl;
@@ -503,6 +516,8 @@ void MemoryLiveness::output_op_sequence(std::string filename) {
   }
   output.close();
 }
+
+#ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
 
 void MemoryLiveness::output_submemory_liveness(std::string file_name) {
   std::ofstream output(file_name);
@@ -551,6 +566,18 @@ void MemoryLiveness::output_submemory_info(std::string file_name) {
   output.close();
 }
 
+void MemoryLiveness::output_submemory_size_growth_sequence(std::string filename) {
+  std::ofstream output(filename);
+  output << "submemory_peak_kernel: " << _submemory_peak_kernel << std::endl;
+  output << "optimal_submemory_peak: " << _optimal_submemory_peak << " B" << std::endl;
+  output << "current_submemory_peak: " << _current_submemory_peak - 512 << " B" << std::endl << std::endl;
+
+  for (auto op : _submemory_size_log) {
+    output << op.first << "(" << op.second.op << "): " << op.second.size << " B" << std::endl;
+  }
+  output.close();
+}
+
 void MemoryLiveness::output_torch_python_states(std::string filename) {
   std::ofstream output(filename);
   for (auto miter : _torch_python_states) {
@@ -570,6 +597,8 @@ void MemoryLiveness::output_torch_python_states(std::string filename) {
   }
 }
 
+#endif
+
 void MemoryLiveness::flush_thread(u32 cpu_thread, const std::string &output_dir,
                             const LockableMap<u32, Cubin> &cubins,
                             redshow_record_data_callback_func record_data_callback) {}
@@ -585,7 +614,7 @@ void MemoryLiveness::flush(const std::string &output_dir, const LockableMap<u32,
 
   output_ctx_node(output_dir + "memory_liveness.csv");
 
-  // output_op_sequence(output_dir + "memory_op_sequence");
+  output_memory_size_growth_sequence(output_dir + "memory_growth_sequence.txt");
 
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
 
@@ -596,6 +625,8 @@ void MemoryLiveness::flush(const std::string &output_dir, const LockableMap<u32,
   output_submemory_info(output_dir + "submemory_info.txt");
 
   output_torch_python_states(output_dir + "torch_python_states.txt");
+
+  output_submemory_size_growth_sequence(output_dir + "submemory_growth_sequence.txt");
 
 #endif
 }
