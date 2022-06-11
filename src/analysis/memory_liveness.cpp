@@ -66,7 +66,7 @@ void MemoryLiveness::update_aux_hit(void* aux, u64 kernel_op_id, bool is_sub) {
 
     if (_optimal_submemory_peak < kernel_submemory_usage) {
       _submemory_peak_kernel = kernel_op_id;
-      _optimal_memory_peak = kernel_submemory_usage;
+      _optimal_submemory_peak = kernel_submemory_usage;
     }
 
 #endif
@@ -357,10 +357,24 @@ void MemoryLiveness::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_i
   gpu_patch_buffer_t* buffer = static_cast<gpu_patch_buffer_t*>(trace_data);
 
   if (buffer->aux) {
+    // gpu_patch_aux_address_dict_t* kernel_aux = static_cast<gpu_patch_aux_address_dict_t*>(buffer->aux);
+    // printf("kernel_op_id: %lu, aux->size: %d\n", host_op_id, kernel_aux->size);
+    // for (int i = 0; i < kernel_aux->size; i++) {
+    //   printf("%lu, len: %lu, aux->addr[%lu, %lu], aux->hit[%d]\n", _addresses_map.at(kernel_aux->start_end[i].start),\
+    //     _current_memories.at(_addresses_map.at(kernel_aux->start_end[i].start))->len,\
+    //     kernel_aux->start_end[i].start, kernel_aux->start_end[i].end, kernel_aux->hit[i]);
+    // }
     update_aux_hit(buffer->aux, host_op_id);
   }
 
   if (buffer->torch_aux) {
+    // gpu_patch_aux_address_dict_t* kernel_aux = static_cast<gpu_patch_aux_address_dict_t*>(buffer->torch_aux);
+    // printf("torch_kernel_op_id: %lu, aux->size: %d\n", host_op_id, kernel_aux->size);
+    // for (int i = 0; i < kernel_aux->size; i++) {
+    //   printf("%lu, len: %lu, aux->addr[%lu, %lu], aux->hit[%d]\n", _sub_addresses_map.at(kernel_aux->start_end[i].start),\
+    //     _current_submemories.at(_sub_addresses_map.at(kernel_aux->start_end[i].start))->len,\
+    //     kernel_aux->start_end[i].start, kernel_aux->start_end[i].end, kernel_aux->hit[i]);
+    // }
     update_aux_hit(buffer->torch_aux, host_op_id, true);
   }
 
