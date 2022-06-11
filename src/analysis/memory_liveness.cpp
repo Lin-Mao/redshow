@@ -547,6 +547,10 @@ void MemoryLiveness::output_submemory_liveness(std::string file_name) {
 
 void MemoryLiveness::output_submemory_size_list(std::string file_name) {
 
+  if (_submemory_size_list.size() == 0) {
+    return;
+  }
+
   // sort the vector
   for (int i = 0; i < _submemory_size_list.size()-1; i++) { // TODO(@Lin-Mao): unknown bug
     int index = i;
