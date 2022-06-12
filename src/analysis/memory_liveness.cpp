@@ -242,6 +242,11 @@ void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
   update_ctx_node(op->ctx_id, REDSHOW_MEMORY_ACCESS);
   _kernel_op_node[op->op_id] = op->ctx_id;
 
+#ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+  _sub_op_node.try_emplace(op->op_id, "ACCESS");
+  update_torch_python_states(op->op_id);
+#endif
+
 #ifndef REDSHOW_GPU_ANALYSIS
   if (_trace.get() == NULL) {
     // If the kernel is sampled
