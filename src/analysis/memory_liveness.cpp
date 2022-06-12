@@ -547,7 +547,7 @@ void MemoryLiveness::output_submemory_liveness(std::string file_name) {
 
 void MemoryLiveness::output_submemory_size_list(std::string file_name) {
 
-  if (_submemory_size_list.size() == 0) {
+  if (_submemories.empty()) {
     return;
   }
 
@@ -577,6 +577,10 @@ void MemoryLiveness::output_submemory_size_list(std::string file_name) {
 }
 
 void MemoryLiveness::output_submemory_info(std::string file_name) {
+  if (_submemories.empty()) {
+    return;
+  }
+
   std::ofstream output(file_name);
   output << "submemory_peak_kernel: " << _submemory_peak_kernel << std::endl;
   output << "optimal_submemory_peak: " << _optimal_submemory_peak << " B" << std::endl;
@@ -585,6 +589,10 @@ void MemoryLiveness::output_submemory_info(std::string file_name) {
 }
 
 void MemoryLiveness::output_submemory_size_growth_sequence(std::string filename) {
+  if (_submemories.empty()) {
+    return;
+  }
+
   std::ofstream output(filename);
   output << "submemory_peak_kernel: " << _submemory_peak_kernel << std::endl;
   output << "optimal_submemory_peak: " << _optimal_submemory_peak << " B" << std::endl;
@@ -597,6 +605,10 @@ void MemoryLiveness::output_submemory_size_growth_sequence(std::string filename)
 }
 
 void MemoryLiveness::output_torch_python_states(std::string filename) {
+  if (_submemories.empty()) {
+    return;
+  }
+
   std::ofstream output(filename);
   for (auto miter : _torch_python_states) {
     output << "------------------------------" << std::endl;
