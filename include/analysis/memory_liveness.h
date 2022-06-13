@@ -204,6 +204,20 @@ private:
     PythonState(std::string file_name, std::string function_name, size_t function_first_lineno, size_t lineno) \
       : file_name(file_name), function_name(function_name), function_first_lineno(function_first_lineno), \
       lineno(lineno) {}
+
+    bool operator==(const PythonState &other) const {
+      if (this->file_name.compare(other.file_name) != 0) {
+        return false;
+      } else if (this->function_name.compare(other.function_name)) {
+        return false;
+      } else if (this->function_first_lineno != other.function_first_lineno) {
+        return false;
+      } else if (this->lineno != other.lineno) {
+        return false;
+      } else {
+        return true;
+      }
+    }
   };
 
   // <op_id, vector<python_states>>
@@ -361,6 +375,11 @@ void output_submemory_size_growth_sequence(std::string filename);
  * @param file_name
  */
 void output_torch_python_states(std::string file_name);
+
+/**
+ * @brief output merged pytorch states
+ **/
+void output_merged_torch_python_states(std::string filename);
 
 /**
  * @brief udpate torch python states

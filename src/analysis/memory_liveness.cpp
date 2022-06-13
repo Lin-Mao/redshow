@@ -632,6 +632,41 @@ void MemoryLiveness::output_torch_python_states(std::string filename) {
   }
 }
 
+void MemoryLiveness::output_merged_torch_python_states(std::string filename) {
+  if (_submemories.empty()) {
+    return;
+  }
+
+  std::ofstream output(filename);
+  
+  for(auto liter = _torch_python_states.begin(); liter != _torch_python_states.end(); liter) {
+    auto temp_iter = liter;
+    output << "--------------------------------------------------" << std::endl;
+    output << _sub_op_node.at(liter->first) << " " << liter->first << std::endl;
+    for(auto riter = ++temp_iter; riter != _torch_python_states.end(); riter) {
+      if (riter->second == liter->second) {
+        output << _sub_op_node.at(riter->first) << " " << riter->first << std::endl;
+        riter = _torch_python_states.erase(riter);
+      } else {
+        ++riter;
+      }
+    }
+    int count = 0;
+    for (auto state_iter : liter->second) {
+      output << "(" << count << ")"
+             << "File: " <<  state_iter.file_name << std::endl;
+      output << "\tFunction: " << state_iter.function_name << std::endl;
+      output << "\tFirst line: " << state_iter.function_first_lineno << std::endl;
+      output << "\tCall at line: " << state_iter.lineno << std::endl;
+      count++;
+    }
+    output << std::endl;
+    liter = _torch_python_states.erase(liter);
+  }
+
+  output.close();
+}
+
 #endif
 
 void MemoryLiveness::flush_thread(u32 cpu_thread, const std::string &output_dir,
@@ -660,6 +695,8 @@ void MemoryLiveness::flush(const std::string &output_dir, const LockableMap<u32,
   output_submemory_info(output_dir + "submemory_info.txt");
 
   output_torch_python_states(output_dir + "torch_python_states.txt");
+
+  output_merged_torch_python_states(output_dir + "merged_torch_python_states.txt");
 
   output_submemory_size_growth_sequence(output_dir + "submemory_growth_sequence.txt");
 
