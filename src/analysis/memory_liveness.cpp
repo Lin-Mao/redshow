@@ -243,8 +243,10 @@ void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
   _kernel_op_node[op->op_id] = op->ctx_id;
 
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+if (!_submemories.empty()) {
   _sub_op_node.try_emplace(op->op_id, "ACCESS");
   update_torch_python_states(op->op_id);
+}
 #endif
 
 #ifndef REDSHOW_GPU_ANALYSIS
