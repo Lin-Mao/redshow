@@ -226,6 +226,33 @@ private:
   // <op_id, op_type>
   Map<u64, std::string> _sub_op_node;
 
+  struct Libunwind_Frame {
+    u64 pc;
+    u64 offset;
+    std::string frame;
+
+    Libunwind_Frame() = default;
+
+    Libunwind_Frame(u64 pc, u64 offset, std::string frame) : pc(pc), offset(offset), frame(frame) {}
+
+    Libunwind_Frame(u64 pc, std::string frame) : pc(pc), offset(0), frame(frame) {}
+
+    bool operator==(const Libunwind_Frame &other) const {
+      if (this->pc != other.pc) {
+        return false;
+      } else if (this->offset != other.offset) {
+        return false;
+      } else if (this->frame.compare(other.frame)) {
+        return false;
+      } else {
+        return true;
+      }
+    }
+  };
+
+  // store libunwind call backtrace
+  Map<u64, Vector<Libunwind_Frame>> _memory_libunwind_frames;
+
 #endif
 
 /********************************************************************************
@@ -394,6 +421,16 @@ void update_torch_python_states(u64 op_id);
  * @brief verify sub_allocation on gpu
  **/
 bool verify_sub_allocation_ongpu(std::shared_ptr<Memory> sub_alloc);
+
+/**
+ * @brief get torch cpp backtrace
+ **/
+void get_torch_libunwind_backtrace(u64 op_id);
+
+/**
+ * @brief output torch cpp backtrace
+ **/
+void output_torch_libunwind_backtrace(std::string filename);
 
 #endif
 

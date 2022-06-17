@@ -13,6 +13,9 @@
 
 #include "torch_monitor.h"
 
+#define UNW_LOCAL_ONLY
+#include <libunwind.h>
+
 namespace redshow {
 
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
@@ -32,6 +35,38 @@ void MemoryLiveness::update_torch_python_states(u64 op_id) {
   }
   _torch_python_states.try_emplace(op_id, pstates);
 
+}
+
+// Call this function to get a backtrace.
+void MemoryLiveness::get_torch_libunwind_backtrace(u64 op_id) {
+
+  unw_cursor_t cursor;
+  unw_context_t context;
+
+  // Initialize cursor to current frame for local unwinding.
+  unw_getcontext(&context);
+  unw_init_local(&cursor, &context);
+
+  Vector<Libunwind_Frame> frames;
+  // Unwind frames one by one, going up the frame stack.
+  while (unw_step(&cursor) > 0) {
+    unw_word_t offset, pc;
+    unw_get_reg(&cursor, UNW_REG_IP, &pc);
+    if (pc == 0) {
+      break;
+    }
+    printf("0x%lx:", pc);
+
+    char sym[256];
+    if (unw_get_proc_name(&cursor, sym, sizeof(sym), &offset) == 0) {
+      printf(" (%s+0x%lx)\n", sym, offset);
+      frames.push_back(Libunwind_Frame(pc, offset, sym));
+    } else {
+      printf(" -- error: unable to obtain symbol name for this frame\n");
+      frames.push_back(Libunwind_Frame(pc, " -- error: unable to obtain symbol name for this frame"));
+    }
+  }
+  _memory_libunwind_frames.try_emplace(op_id, frames);
 }
 
 #endif
@@ -176,6 +211,7 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
     }
   } else {
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+    get_torch_libunwind_backtrace(op->op_id);
 
     update_torch_python_states(op->op_id);
     _sub_op_node.try_emplace(op->op_id, "ALLOC");
@@ -219,6 +255,8 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
 
   } else {
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+    get_torch_libunwind_backtrace(op->op_id);
+
     update_torch_python_states(op->op_id);
     _sub_op_node.try_emplace(op->op_id, "FREE");
 
@@ -609,6 +647,17 @@ void MemoryLiveness::output_submemory_size_growth_sequence(std::string filename)
     output << op.first << "(" << op.second.op << "): " << op.second.size << " B" << std::endl;
   }
   output.close();
+
+  // Used for ls peak change
+  std::ofstream output1("id_" + filename);
+  output1 << "submemory_peak_kernel: " << _submemory_peak_kernel << std::endl;
+  output1 << "optimal_submemory_peak: " << _optimal_submemory_peak << " B" << std::endl;
+  output1 << "current_submemory_peak: " << _current_submemory_peak - 512 << " B" << std::endl << std::endl;
+
+  for (auto op : _submemory_size_log) {
+    output1 << "(" << op.second.op << "): " << op.second.size << " B" << std::endl;
+  }
+  output1.close();
 }
 
 void MemoryLiveness::output_torch_python_states(std::string filename) {
@@ -669,6 +718,33 @@ void MemoryLiveness::output_merged_torch_python_states(std::string filename) {
   output.close();
 }
 
+void MemoryLiveness::output_torch_libunwind_backtrace(std::string filename) {
+  std::ofstream output(filename);
+
+  for (auto liter = _memory_libunwind_frames.begin(); liter != _memory_libunwind_frames.end(); liter) {
+    auto temp_iter = liter;
+    output << "--------------------------------------------------" << std::endl;
+    output << _sub_op_node.at(liter->first) << " " << liter->first << std::endl;
+    for (auto riter = ++temp_iter; riter != _memory_libunwind_frames.end(); riter) {
+      if (riter->second == liter->second) {
+        output << _sub_op_node.at(riter->first) << " " << riter->first << std::endl;
+        riter = _memory_libunwind_frames.erase(riter);
+      } else {
+        ++riter;
+      }
+    }
+    for (auto frame : liter->second) {
+      output << "0x" << std::hex << frame.pc << ": ";
+      output << frame.frame << "+0x" << std::hex << frame.offset << std::endl;
+    }
+
+    output << std::endl;
+    liter = _memory_libunwind_frames.erase(liter);
+  }
+
+  output.close();
+}
+
 #endif
 
 void MemoryLiveness::flush_thread(u32 cpu_thread, const std::string &output_dir,
@@ -701,6 +777,8 @@ void MemoryLiveness::flush(const std::string &output_dir, const LockableMap<u32,
   output_merged_torch_python_states(output_dir + "merged_torch_python_states.txt");
 
   output_submemory_size_growth_sequence(output_dir + "submemory_growth_sequence.txt");
+
+  output_torch_libunwind_backtrace(output_dir + "torch_libunwind_backtrace.txt");
 
 #endif
 }
