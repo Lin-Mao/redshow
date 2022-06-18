@@ -16,6 +16,8 @@
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
 
+#include <cxxabi.h>
+
 namespace redshow {
 
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
@@ -55,14 +57,24 @@ void MemoryLiveness::get_torch_libunwind_backtrace(u64 op_id) {
     if (pc == 0) {
       break;
     }
-    printf("0x%lx:", pc);
+    // std::printf("0x%lx:", pc);
 
     char sym[256];
     if (unw_get_proc_name(&cursor, sym, sizeof(sym), &offset) == 0) {
-      printf(" (%s+0x%lx)\n", sym, offset);
-      frames.push_back(Libunwind_Frame(pc, offset, sym));
+      char* nameptr = sym;
+      int status;
+      char* demangled = abi::__cxa_demangle(sym, nullptr, nullptr, &status);
+
+      if (status == 0) {
+        nameptr = demangled;
+      }
+
+      // std::printf(" (%s+0x%lx)\n", nameptr, offset);
+      frames.push_back(Libunwind_Frame(pc, offset, nameptr));
+
+      std::free(demangled);  
     } else {
-      printf(" -- error: unable to obtain symbol name for this frame\n");
+      // std::printf(" -- error: unable to obtain symbol name for this frame\n");
       frames.push_back(Libunwind_Frame(pc, " -- error: unable to obtain symbol name for this frame"));
     }
   }
