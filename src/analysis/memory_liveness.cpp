@@ -746,8 +746,8 @@ void MemoryLiveness::output_torch_libunwind_backtrace(std::string filename) {
       }
     }
     for (auto frame : liter->second) {
-      output << "0x" << std::hex << frame.pc << ": ";
-      output << frame.frame << "+0x" << std::hex << frame.offset << std::endl;
+      output << "0x" << frame.pc << ": ";
+      output << frame.frame << "+0x" << frame.offset << std::endl;
     }
 
     output << std::endl;
