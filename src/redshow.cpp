@@ -677,6 +677,7 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
       break;
     case REDSHOW_ANALYSIS_MEMORY_LIVENESS:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_LIVENESS, std::make_shared<MemoryLiveness>());
+      break;
     default:
       result = REDSHOW_ERROR_NO_SUCH_ANALYSIS;
       break;
