@@ -307,7 +307,7 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
 
 
         // len += range_iter.end - range_iter.start;
-        // update_blank_chunks(_trace->kernel.op_id, mem_iter.first, range_iter);
+        update_blank_chunks(_trace->kernel.op_id, mem_iter.first, range_iter);
       }  
         
       } else {
@@ -355,7 +355,7 @@ void MemoryProfile::kernel_op_callback(std::shared_ptr<Kernel> op) {
       
 
         // len += range_iter.end - range_iter.start;
-        // update_blank_chunks(_trace->kernel.op_id, mem_iter.first, range_iter);
+        update_blank_chunks(_trace->kernel.op_id, mem_iter.first, range_iter);
     }  
       } else {
         // len = memory->len;

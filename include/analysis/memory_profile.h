@@ -26,6 +26,7 @@
 #include "operation/memset.h"
 
 #include <fstream>
+#include <unordered_map>
 
 
 namespace redshow {
