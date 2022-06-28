@@ -82,8 +82,7 @@ class MemoryProfile final : public Analysis {
     // here use memory range to loge access range but not allocation and sub-allocation
 
     // u64: Memory:Operation->op_id
-    Map<u64, Set<MemoryRange>> read_memory;
-    Map<u64, Set<MemoryRange>> write_memory;
+    Map<u64, Set<MemoryRange>> access_memory;
 
     MemoryProfileTrace() = default;
 
@@ -158,10 +157,12 @@ Map<u64, size_t> larget_chunk_with_memories;
 struct ChunkFragmentation {
   size_t largest_chunk;
   float fragmentation;
+  float access_rate;
 
   ChunkFragmentation() = default;
 
-  ChunkFragmentation(size_t chunk, float frag) : largest_chunk(chunk), fragmentation(frag) {}
+  ChunkFragmentation(size_t chunk, float frag, float access_rate) : largest_chunk(chunk), fragmentation(frag),
+                      access_rate(access_rate) {}
 };
 
 /**
@@ -204,22 +205,6 @@ void memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory = false);
 void memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory = false);
 
 /**
- * @brief Memcpy register callback function
- * 
- * @param op 
- */
-void memcpy_op_callback(std::shared_ptr<Memcpy> op);
-
-/**
- * @brief Memset register callback function
- * 
- * @param op 
- */
-void memset_op_callback(std::shared_ptr<Memset> op);
-
-void memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation mem_op);
-
-/**
  * @brief Update the op_id map
  * 
  * @param op_id 
@@ -245,24 +230,7 @@ void update_blank_chunks(u64 kernel_op_id, u64 memory_op_id, MemoryRange range_i
  * @param kernel_id 
  * @param op_id 
  */
-void update_object_fragmentation_in_kernel(u32 cpu_thread, u64 kernel_op_id);
-
-
-/**
- * @brief Output largest list of memories
- * 
- * @param 
- */
-void output_memory_size_list(std::string file_name);
-
-/**
- * @brief Output memory opreation list
- * 
- * @param 
- */
-void output_memory_operation_list(std::string file_name);
-
-
+void update_object_fragmentation_per_kernel(u32 cpu_thread, u64 kernel_op_id);
 
 
 }; // class MemoryProfile
