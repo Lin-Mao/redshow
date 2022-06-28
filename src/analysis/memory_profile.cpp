@@ -63,14 +63,6 @@ void MemoryProfile::memory_op_callback(std::shared_ptr<Memory> op, bool is_subme
     // TODO(@Lin-Mao): This map can be removed, to design a better update_chunk function
     larget_chunk_with_memories.try_emplace(op->op_id, op->len);
 
-
-    // uint8_t* arr = (uint8_t*) malloc(sizeof(uint8_t) * op->len);
-    // memset(arr, 0, sizeof(uint8_t) * op->len);
-  
-    // HeatMapMemory heatmap(op->len);
-    // heatmap.array = arr;
-    // _heatmap_list[op->op_id] = heatmap;
-
   } else { // is_submemory == true
     
     _sub_memories.try_emplace(op->op_id, op);
@@ -90,7 +82,7 @@ void MemoryProfile::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_sub
     u64 malloc_op_id = _addresses_map.at(address); 
     _current_memories.erase(malloc_op_id);
     _addresses_map.erase(address);
-    _liveness_map.emplace(malloc_op_id, op->op_id);
+    // _liveness_map.emplace(malloc_op_id, op->op_id);
 
     memory_operation_register(malloc_op_id, op->op_id, FREE);
 
@@ -590,9 +582,9 @@ void MemoryProfile::output_memory_operation_list(std::string file_name) {
 void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback) {
 
-  output_memory_size_list(output_dir + "largest_memory_list.txt");
+  // output_memory_size_list(output_dir + "largest_memory_list.txt");
 
-  output_memory_operation_list(output_dir + "memory_operation_list.txt");
+  // output_memory_operation_list(output_dir + "memory_operation_list.txt");
   
   std::ofstream out(output_dir + "memory_profile_flush" + ".csv");
 
@@ -601,21 +593,19 @@ void MemoryProfile::flush(const std::string &output_dir, const LockableMap<u32, 
   for (auto iter : _kernel_memory_size) {
     sum += iter.second;
   }
-  out << "Launch " << _kernel_memory_size.size() << " kernels, " ;
+  out << "Launch " << _kernel_memory_size.size() << " kernels" ;
   if (_kernel_memory_size.size() != 0) {
-    out << "average memory usage in each kernel launch: " << sum / _kernel_memory_size.size() << " B" << std::endl;
+    out << ", average memory usage: " << sum / _kernel_memory_size.size() << " B" << std::endl;
   } else {
-    out << "average memory usage in each kernel launch: 0 B" << std::endl;
+    out << std::endl;
   }
      
-      
-
   // <thread_id, <kernel_op_id, <memory_op_id, fragmentation>>>>
   for (auto &titer : _object_fragmentation_of_kernel_per_thread) {
     out << "Thread_id " << titer.first << std::endl;
     auto &kernel_map = _object_fragmentation_of_kernel_per_thread.at(titer.first);
     for (auto &kiter : kernel_map) {
-      out << "  Kernel launched at " << kiter.first << " kernel_id " << _op_node[kiter.first] << std::endl;
+      out << "  Kernel_op_id " << kiter.first << " kernel_id " << _op_node[kiter.first] << std::endl;
       out << "  mem_peak: " << _kernel_memory_size.at(kiter.first) << " B" << std::endl;
       auto &memory_map = kernel_map.at(kiter.first);
       for (auto &miter : memory_map) {
