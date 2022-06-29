@@ -25,7 +25,7 @@
 // Enable liveness analysis on GPU (HPCRUN_SANITIZER_LIVENESS_ONGPU=1)
 #define REDSHOW_GPU_ANALYSIS
 // Enable PyTorch submemory analysis (HPCRUN_SANITIZER_TORCH_ANALYSIS=1)
-#define REDSHOW_TORCH_SUBMEMORY_ANALYSIS
+// #define REDSHOW_TORCH_SUBMEMORY_ANALYSIS
 
 namespace redshow {
 

@@ -545,6 +545,7 @@ void MemoryLiveness::output_ctx_node(std::string file_name) {
 
   std::ofstream output(file_name);
 
+  output << "memory_peak_kernel: " << _memory_peak_kernel << std::endl;
   output << "optimal_memory_peak: " << _optimal_memory_peak << " B" << std::endl;
   output << "current_memory_peak: " << _current_memory_peak - 512 << " B" << std::endl;
   output << std::endl;
@@ -591,6 +592,9 @@ void MemoryLiveness::output_memory_size_growth_sequence(std::string filename) {
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
 
 void MemoryLiveness::output_submemory_liveness(std::string file_name) {
+  if (_submemories.empty()) {
+    return;
+  }
   std::ofstream output(file_name);
   for (auto sub_ops : _sub_operations) {
     output << "[" << sub_ops.first << "]: ";
@@ -731,6 +735,10 @@ void MemoryLiveness::output_merged_torch_python_states(std::string filename) {
 }
 
 void MemoryLiveness::output_torch_libunwind_backtrace(std::string filename) {
+  if (_submemories.empty()) {
+    return;
+  }
+
   std::ofstream output(filename);
 
   for (auto liter = _memory_libunwind_frames.begin(); liter != _memory_libunwind_frames.end(); liter) {
