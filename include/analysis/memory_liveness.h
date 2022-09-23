@@ -154,6 +154,8 @@ private:
   u64 _optimal_memory_peak = 0;
   u64 _memory_peak_kernel = 0;
 
+  Map<u64, int> kernel_active_objects;
+
   struct memory_size
   {
     std::string op;
@@ -167,6 +169,8 @@ private:
   };
 
   Map<u64, memory_size> _memory_size_log;
+
+  size_t count = 0;
 
 
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS

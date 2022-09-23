@@ -101,6 +101,7 @@ struct HeatMapMemory {
  */
 Map<u64, HeatMapMemory> _heatmap_list;
 
+u64 _total_access = 0;
 
 // functions
 private:

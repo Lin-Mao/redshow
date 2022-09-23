@@ -95,6 +95,12 @@ void MemoryLiveness::update_aux_hit(void* aux, u64 kernel_op_id, bool is_sub) {
         kernel_memory_usage += _current_memories.at(memory_op_id)->len;
       }
     }
+    int count = kernel_aux->size;
+    auto k_active = kernel_active_objects.find(kernel_op_id);
+    if (k_active == kernel_active_objects.end()) {
+      kernel_active_objects.emplace(kernel_op_id, count);
+    }
+
     if (_optimal_memory_peak < kernel_memory_usage) {
       _memory_peak_kernel = kernel_op_id;
       _optimal_memory_peak = kernel_memory_usage;
@@ -203,6 +209,8 @@ void MemoryLiveness::op_callback(OperationPtr op, bool is_submemory) {
 void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory) {
 
   if (!is_submemory) {
+    printf("aaaaaaaalloc id: %lu, opid: %lu, alloc ptr: %p, alloc size: %lu\n",
+    count++, op->op_id, op->memory_range.start, op->len);
     update_op_node(op->op_id, op->ctx_id);
     // update_ctx_table(op->op_id, op->ctx_id);
     update_ctx_node(op->ctx_id, REDSHOW_MEMORY_ALLOC);
@@ -773,6 +781,18 @@ void MemoryLiveness::flush_thread(u32 cpu_thread, const std::string &output_dir,
 
 void MemoryLiveness::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
                      redshow_record_data_callback_func record_data_callback) {
+
+  std::ofstream output(output_dir + "active_object.txt");
+  int max = 0;
+  for (auto i : kernel_active_objects) {
+    if (i.second > max) {
+      max = i.second;
+    }
+    output << "kernel:" << i.first << ": " << i.second << std::endl;
+  }
+  output << std::endl;
+  output << "max objects: " << max << std::endl;
+  output.close();
 
   output_memory_operation_list(output_dir + "memory_liveness.txt");
 
