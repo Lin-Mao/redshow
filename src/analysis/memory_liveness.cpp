@@ -32,8 +32,13 @@ void MemoryLiveness::update_torch_python_states(u64 op_id) {
 
   Vector<PythonState> pstates;
   for (size_t i = 0; i < num_states; ++i) {
-    pstates.push_back(PythonState(std::string(python_states[i].file_name), std::string(python_states[i].function_name), \ 
-                                  python_states[i].function_first_lineno, python_states[i].lineno));
+    pstates.push_back(
+      PythonState(
+        std::string(python_states[i].file_name),
+        std::string(python_states[i].function_name),
+        python_states[i].function_first_lineno,
+        python_states[i].lineno)
+      );
   }
   _torch_python_states.try_emplace(op_id, pstates);
 
@@ -75,7 +80,9 @@ void MemoryLiveness::get_torch_libunwind_backtrace(u64 op_id) {
       std::free(demangled);  
     } else {
       // std::printf(" -- error: unable to obtain symbol name for this frame\n");
-      frames.push_back(Libunwind_Frame(pc, " -- error: unable to obtain symbol name for this frame"));
+      frames.push_back(
+        Libunwind_Frame(pc, " -- error: unable to obtain symbol name for this frame")
+      );
     }
   }
   _memory_libunwind_frames.try_emplace(op_id, frames);
@@ -154,7 +161,9 @@ void MemoryLiveness::update_op_node(u64 op_id, i32 ctx_id) {
   }
 }
 
-void MemoryLiveness::memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation_t mem_op, bool is_sub) {
+void MemoryLiveness::memory_operation_register(
+  u64 memory_op_id, u64 op_id, memory_operation_t mem_op, bool is_sub
+) {
 
   if (!is_sub) {
     auto ops_node = _operations.find(memory_op_id);
@@ -209,7 +218,7 @@ void MemoryLiveness::op_callback(OperationPtr op, bool is_submemory) {
 void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory) {
 
   if (!is_submemory) {
-    printf("aaaaaaaalloc id: %lu, opid: %lu, alloc ptr: %p, alloc size: %lu\n",
+    printf("aaaaaaaalloc id: %lu, opid: %lu, alloc ptr: %lu, alloc size: %lu\n",
     count++, op->op_id, op->memory_range.start, op->len);
     update_op_node(op->op_id, op->ctx_id);
     // update_ctx_table(op->op_id, op->ctx_id);
@@ -413,8 +422,10 @@ void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
 }
 
 
-void MemoryLiveness::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id,
-                              GPUPatchType type, void* trace_data) {
+void MemoryLiveness::analysis_begin(
+  u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id,
+  GPUPatchType type, void* trace_data
+) {
   // Do not need to know value and need to get interval of memory
   assert(type == GPU_PATCH_TYPE_ADDRESS_PATCH || type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS);
 
@@ -422,24 +433,10 @@ void MemoryLiveness::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_i
   gpu_patch_buffer_t* buffer = static_cast<gpu_patch_buffer_t*>(trace_data);
 
   if (buffer->aux) {
-    // gpu_patch_aux_address_dict_t* kernel_aux = static_cast<gpu_patch_aux_address_dict_t*>(buffer->aux);
-    // printf("kernel_op_id: %lu, aux->size: %d\n", host_op_id, kernel_aux->size);
-    // for (int i = 0; i < kernel_aux->size; i++) {
-    //   printf("%lu, len: %lu, aux->addr[%lu, %lu], aux->hit[%d]\n", _addresses_map.at(kernel_aux->start_end[i].start),\
-    //     _current_memories.at(_addresses_map.at(kernel_aux->start_end[i].start))->len,\
-    //     kernel_aux->start_end[i].start, kernel_aux->start_end[i].end, kernel_aux->hit[i]);
-    // }
     update_aux_hit(buffer->aux, host_op_id);
   }
 
   if (buffer->torch_aux) {
-    // gpu_patch_aux_address_dict_t* kernel_aux = static_cast<gpu_patch_aux_address_dict_t*>(buffer->torch_aux);
-    // printf("torch_kernel_op_id: %lu, aux->size: %d\n", host_op_id, kernel_aux->size);
-    // for (int i = 0; i < kernel_aux->size; i++) {
-    //   printf("%lu, len: %lu, aux->addr[%lu, %lu], aux->hit[%d]\n", _sub_addresses_map.at(kernel_aux->start_end[i].start),\
-    //     _current_submemories.at(_sub_addresses_map.at(kernel_aux->start_end[i].start))->len,\
-    //     kernel_aux->start_end[i].start, kernel_aux->start_end[i].end, kernel_aux->hit[i]);
-    // }
     update_aux_hit(buffer->torch_aux, host_op_id, true);
   }
 
@@ -457,7 +454,9 @@ void MemoryLiveness::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_i
   }
 
   // ?? How to make sure this _trace are the same with the _trace in kernel_op_callback
-  _trace = std::dynamic_pointer_cast<MemoryLivenessTrace>(this->_kernel_trace[cpu_thread][host_op_id]);
+  _trace = std::dynamic_pointer_cast<MemoryLivenessTrace>(
+    this->_kernel_trace[cpu_thread][host_op_id]
+  );
 
   unlock();
 #endif
@@ -470,9 +469,10 @@ void MemoryLiveness::block_enter(const ThreadId &thread_id) {}
 
 void MemoryLiveness::block_exit(const ThreadId &thread_id) {}
 
-void MemoryLiveness::unit_access(i32 kernel_id, u64 host_op_id, const ThreadId &thread_id, const AccessKind &access_kind,
-                           const Memory &memory, u64 pc, u64 value, u64 addr, u32 index,
-                           GPUPatchFlags flags) {
+void MemoryLiveness::unit_access(
+  i32 kernel_id, u64 host_op_id, const ThreadId &thread_id, const AccessKind &access_kind,
+  const Memory &memory, u64 pc, u64 value, u64 addr, u32 index, GPUPatchFlags flags
+) {
 #ifndef REDSHOW_GPU_ANALYSIS
   if (memory.op_id <= REDSHOW_MEMORY_HOST) {
     return;
@@ -589,10 +589,12 @@ void MemoryLiveness::output_memory_size_growth_sequence(std::string filename) {
   std::ofstream output(filename);
   output << "memory_peak_kernel: " << _memory_peak_kernel << std::endl;
   output << "optimal_memory_peak: " << _optimal_memory_peak << " B" << std::endl;
-  output << "current_memory_peak: " << _current_memory_peak - 512 << " B" << std::endl << std::endl;
+  output << "current_memory_peak: " << _current_memory_peak - 512
+        << " B" << std::endl << std::endl;
 
   for (auto op : _memory_size_log) {
-    output << op.first << "(" << op.second.op << "): " << op.second.size << " B" << std::endl;
+    output << op.first << "(" << op.second.op << "): " << op.second.size
+          << " B" << std::endl;
   }
   output.close();
 }
@@ -653,7 +655,8 @@ void MemoryLiveness::output_submemory_info(std::string file_name) {
   std::ofstream output(file_name);
   output << "submemory_peak_kernel: " << _submemory_peak_kernel << std::endl;
   output << "optimal_submemory_peak: " << _optimal_submemory_peak << " B" << std::endl;
-  output << "current_submemory_peak: " << _current_submemory_peak - 512 << " B" << std::endl << std::endl;
+  output << "current_submemory_peak: " << _current_submemory_peak - 512
+        << " B" << std::endl << std::endl;
   output.close();
 }
 
@@ -665,7 +668,8 @@ void MemoryLiveness::output_submemory_size_growth_sequence(std::string filename)
   std::ofstream output(filename);
   output << "submemory_peak_kernel: " << _submemory_peak_kernel << std::endl;
   output << "optimal_submemory_peak: " << _optimal_submemory_peak << " B" << std::endl;
-  output << "current_submemory_peak: " << _current_submemory_peak - 512 << " B" << std::endl << std::endl;
+  output << "current_submemory_peak: " << _current_submemory_peak - 512
+        << " B" << std::endl << std::endl;
 
   for (auto op : _submemory_size_log) {
     output << op.first << "(" << op.second.op << "): " << op.second.size << " B" << std::endl;
@@ -676,7 +680,8 @@ void MemoryLiveness::output_submemory_size_growth_sequence(std::string filename)
   std::ofstream output1("id_" + filename);
   output1 << "submemory_peak_kernel: " << _submemory_peak_kernel << std::endl;
   output1 << "optimal_submemory_peak: " << _optimal_submemory_peak << " B" << std::endl;
-  output1 << "current_submemory_peak: " << _current_submemory_peak - 512 << " B" << std::endl << std::endl;
+  output1 << "current_submemory_peak: " << _current_submemory_peak - 512
+          << " B" << std::endl << std::endl;
 
   for (auto op : _submemory_size_log) {
     output1 << "(" << op.second.op << "): " << op.second.size << " B" << std::endl;
@@ -714,7 +719,9 @@ void MemoryLiveness::output_merged_torch_python_states(std::string filename) {
 
   std::ofstream output(filename);
   
-  for(auto liter = _torch_python_states.begin(); liter != _torch_python_states.end(); liter) {
+  for(
+    auto liter = _torch_python_states.begin(); liter != _torch_python_states.end(); liter
+  ) {
     auto temp_iter = liter;
     output << "--------------------------------------------------" << std::endl;
     output << _sub_op_node.at(liter->first) << " " << liter->first << std::endl;
@@ -749,7 +756,9 @@ void MemoryLiveness::output_torch_libunwind_backtrace(std::string filename) {
 
   std::ofstream output(filename);
 
-  for (auto liter = _memory_libunwind_frames.begin(); liter != _memory_libunwind_frames.end(); liter) {
+  for (
+    auto liter = _memory_libunwind_frames.begin(); liter != _memory_libunwind_frames.end(); liter
+  ) {
     auto temp_iter = liter;
     output << "--------------------------------------------------" << std::endl;
     output << _sub_op_node.at(liter->first) << " " << liter->first << std::endl;
@@ -779,8 +788,10 @@ void MemoryLiveness::flush_thread(u32 cpu_thread, const std::string &output_dir,
                             const LockableMap<u32, Cubin> &cubins,
                             redshow_record_data_callback_func record_data_callback) {}
 
-void MemoryLiveness::flush(const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
-                     redshow_record_data_callback_func record_data_callback) {
+void MemoryLiveness::flush(
+  const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
+  redshow_record_data_callback_func record_data_callback
+) {
 
   std::ofstream output(output_dir + "active_object.txt");
   int max = 0;
