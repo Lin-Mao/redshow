@@ -218,8 +218,6 @@ void MemoryLiveness::op_callback(OperationPtr op, bool is_submemory) {
 void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory) {
 
   if (!is_submemory) {
-    printf("aaaaaaaalloc id: %lu, opid: %lu, alloc ptr: %lu, alloc size: %lu\n",
-    count++, op->op_id, op->memory_range.start, op->len);
     update_op_node(op->op_id, op->ctx_id);
     // update_ctx_table(op->op_id, op->ctx_id);
     update_ctx_node(op->ctx_id, REDSHOW_MEMORY_ALLOC);
