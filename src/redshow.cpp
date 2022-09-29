@@ -86,22 +86,26 @@ static void torch_memory_callback(torch_monitor_callback_site_t callback_site,
                             torch_monitor_callback_data_t* callback_data) {
     if (callback_site == TORCH_MONITOR_CALLBACK_ENTER) {
        std::cout << "Torch_Domain: " << callback_data->domain << std::endl;
-      if (callback_data->domain == TORCH_MONITOR_DOMAIN_MEMORY \ 
+      if (callback_data->domain == TORCH_MONITOR_DOMAIN_MEMORY
           && callback_data->data.mem_data.device_type == TORCH_MONITOR_DEVICE_TYPE_GPU) {
         std::cout << "Current thread id: " << callback_data->current_thread_id << std::endl;
         if (callback_data->data.mem_data.type == TORCH_MONITOR_MEM_DATA_ALLOC) {
           std::cout << "Allocate ptr: " << std::hex << callback_data->data.mem_data.ptr << std::dec
                     << std::endl;
           u64 op_id = update_op_id_func();
-          redshow_result_t res = redshow_submemory_register(0, op_id, (u64) callback_data->data.mem_data.ptr, \
-          (u64) callback_data->data.mem_data.ptr + callback_data->data.mem_data.size);
+          redshow_result_t res = redshow_submemory_register(
+            0, op_id, (u64) callback_data->data.mem_data.ptr,
+            (u64) callback_data->data.mem_data.ptr + callback_data->data.mem_data.size
+          );
 
         } else {
           std::cout << "Free ptr: 0x" << std::hex << callback_data->data.mem_data.ptr << std::dec
                     << std::endl;
           u64 op_id = update_op_id_func();
-          redshow_submemory_unregister(0, op_id, (u64) callback_data->data.mem_data.ptr, \
-          (u64) callback_data->data.mem_data.ptr + callback_data->data.mem_data.size);
+          redshow_submemory_unregister(
+            0, op_id, (u64) callback_data->data.mem_data.ptr,
+            (u64) callback_data->data.mem_data.ptr + callback_data->data.mem_data.size
+          );
       
         }
         std::cout << "Size: " << callback_data->data.mem_data.size << std::endl;
@@ -819,8 +823,8 @@ redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mod_id) {
 redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id, uint64_t start,
                                          uint64_t end) {
   PRINT(
-      "\nredshow-> Enter redshow_memory_register\nmemory_id: %d\nhost_op_id: %lu\nstart: %p\nend: "
-      "%p\n",
+      "\nredshow-> Enter redshow_memory_register\nmemory_id: %d\nhost_op_id: %lu\nstart: %lu\nend: "
+      "%lu\n",
       memory_id, host_op_id, start, end);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -867,7 +871,7 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
 
 redshow_result_t redshow_memory_unregister(int32_t memory_id, uint64_t host_op_id, uint64_t start, 
                                            uint64_t end) {
-  PRINT("\nredshow-> Enter redshow_memory_unregister\nmemory_free_id: %d\nhost_op_id: %lu\nstart: %p\nend: %p\n",
+  PRINT("\nredshow-> Enter redshow_memory_unregister\nmemory_free_id: %d\nhost_op_id: %lu\nstart: %lu\nend: %lu\n",
         memory_id, host_op_id, start, end);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -905,7 +909,7 @@ redshow_result_t redshow_memory_unregister(int32_t memory_id, uint64_t host_op_i
 
 redshow_result_t redshow_submemory_register(int32_t sub_memory_id, uint64_t host_op_id,
                                                  uint64_t start, uint64_t end) {
-  PRINT("\nredshow-> Enter redshow_submemory_register\nmemory_id: %d\nhost_op_id: %lu\nstart: %p\nend: %p\n",
+  PRINT("\nredshow-> Enter redshow_submemory_register\nmemory_id: %d\nhost_op_id: %lu\nstart: %lu\nend: %lu\n",
   sub_memory_id, host_op_id, start, end);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -955,7 +959,7 @@ redshow_result_t redshow_submemory_register(int32_t sub_memory_id, uint64_t host
 
 redshow_result_t redshow_submemory_unregister(int32_t sub_memory_id, uint64_t host_op_id, uint64_t start, 
                                            uint64_t end) {
-  PRINT("\nredshow-> Enter redshow_submemory_unregister\nmemory_free_id: %d\nhost_op_id: %lu\nstart: %p\nend: %p\n",
+  PRINT("\nredshow-> Enter redshow_submemory_unregister\nmemory_free_id: %d\nhost_op_id: %lu\nstart: %lu\nend: %lu\n",
         sub_memory_id, host_op_id, start, end);
 
   redshow_result_t result = REDSHOW_SUCCESS;
@@ -995,7 +999,7 @@ redshow_result_t redshow_submemory_unregister(int32_t sub_memory_id, uint64_t ho
 redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32_t *memory_id,
                                       uint64_t *memory_op_id, uint64_t *shadow_start,
                                       uint64_t *len) {
-  PRINT("\nredshow-> Enter redshow_memory_query\nhost_op_id: %lu\nstart: %p\n", host_op_id, start);
+  PRINT("\nredshow-> Enter redshow_memory_query\nhost_op_id: %lu\nstart: %lu\n", host_op_id, start);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -1013,7 +1017,7 @@ redshow_result_t redshow_memory_query(uint64_t host_op_id, uint64_t start, int32
       auto offset = start - memory_map_iter->first.start;
       *shadow_start = reinterpret_cast<uint64_t>(memory_map_iter->second->value.get()) + offset;
       *len = memory_map_iter->second->len;
-      PRINT("memory_id: %d\nmemory_op_id: %lu\noffset %lu\nshadow: %p\nlen: %lu\n", *memory_id,
+      PRINT("memory_id: %d\nmemory_op_id: %lu\noffset %lu\nshadow: %lu\nlen: %lu\n", *memory_id,
             *memory_op_id, offset, *shadow_start, *len);
       result = REDSHOW_SUCCESS;
     } else {
