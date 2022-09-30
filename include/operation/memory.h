@@ -20,6 +20,7 @@ struct MemoryRange {
 };
 
 struct Memory : public Operation {
+  u32 stream_id;
   MemoryRange memory_range;
   size_t len;
   std::shared_ptr<u8[]> value;
@@ -33,8 +34,9 @@ struct Memory : public Operation {
   Memory(u64 op_id, i32 ctx_id, u64 start, size_t len)
       : Operation(op_id, ctx_id, OPERATION_TYPE_MEMORY), memory_range(start, start + len), len(len) {}
 
-  Memory(u64 op_id, i32 ctx_id, MemoryRange &memory_range)
+  Memory(u32 stream_id, u64 op_id, i32 ctx_id, MemoryRange &memory_range)
       : Operation(op_id, ctx_id, OPERATION_TYPE_MEMORY),
+        stream_id(stream_id),
         memory_range(memory_range),
         len(memory_range.end - memory_range.start),
         value(new u8[len]),

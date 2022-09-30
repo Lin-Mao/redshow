@@ -34,6 +34,7 @@ namespace redshow {
 struct Memfree : public Operation {
   MemoryRange memory_range;
   size_t len;
+  u32 stream_id;
 
   Memfree() : Operation(0, 0, OPERATION_TYPE_MEMFREE) {}
 
@@ -44,8 +45,9 @@ struct Memfree : public Operation {
       : Operation(op_id, ctx_id, OPERATION_TYPE_MEMFREE), memory_range(start, start + len), len(len) {}
 
   // used for memory profile free with context
-  Memfree(u64 op_id, i32 ctx_id, MemoryRange &memory_range)
+  Memfree(u32 stream_id, u64 op_id, i32 ctx_id, MemoryRange &memory_range)
       : Operation(op_id, ctx_id, OPERATION_TYPE_MEMFREE),
+        stream_id(stream_id),
         memory_range(memory_range),
         len(memory_range.end - memory_range.start) {}
 

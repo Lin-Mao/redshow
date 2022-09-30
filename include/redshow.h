@@ -268,8 +268,9 @@ EXTERNC redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mo
  *
  * @thread-safe: YES
  */
-EXTERNC redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
-                                                 uint64_t start, uint64_t end);
+EXTERNC redshow_result_t redshow_memory_register(uint32_t stream_id, int32_t memory_id,
+                                                 uint64_t host_op_id, uint64_t start,
+                                                 uint64_t end);
 
 /**
  * @brief This function is used to unregister a global memory region.
@@ -281,8 +282,9 @@ EXTERNC redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t hos
  *
  * @thread-safe: YES
  */
-EXTERNC redshow_result_t redshow_memory_unregister(int32_t memory_id, uint64_t host_op_id, 
-                                                   uint64_t start, uint64_t end);
+EXTERNC redshow_result_t redshow_memory_unregister(uint32_t stream_id, int32_t memory_id,
+                                                   uint64_t host_op_id, uint64_t start,
+                                                   uint64_t end);
 
 /**
  * @brief This function is used to register a memory sub-alloction.

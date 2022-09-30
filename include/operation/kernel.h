@@ -29,6 +29,7 @@ struct Kernel : public Operation {
   Kernel(u64 op_id, i32 ctx_id, u32 cpu_thread, u32 stream_id, u32 cubin_id, u32 mod_id)
       : Kernel(op_id, ctx_id, cpu_thread, stream_id, cubin_id, mod_id, 0, 0) {}
 
+  // @Lin-Mao: add stream_id in the upper constructions may lead to some unexpected problems.
   Kernel(u64 op_id, i32 ctx_id, u32 cpu_thread, u32 stream_id)
       : Kernel(op_id, ctx_id, cpu_thread, stream_id, 0, 0, 0, 0) {}
 

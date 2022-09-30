@@ -820,18 +820,18 @@ redshow_result_t redshow_cubin_unregister(uint32_t cubin_id, uint32_t mod_id) {
   return result;
 }
 
-redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id, uint64_t start,
-                                         uint64_t end) {
+redshow_result_t redshow_memory_register(uint32_t stream_id, int32_t memory_id, uint64_t host_op_id,
+                                         uint64_t start, uint64_t end) {
   PRINT(
-      "\nredshow-> Enter redshow_memory_register\nmemory_id: %d\nhost_op_id: %lu\nstart: %lu\nend: "
-      "%lu\n",
-      memory_id, host_op_id, start, end);
+      "\nredshow-> Enter redshow_memory_register\nstream_id: %u\nmemory_id: %d\nhost_op_id: %lu\n"
+      "start: %lu\nend: %lu\n",
+      stream_id, memory_id, host_op_id, start, end);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
   MemoryMap memory_map;
   MemoryRange memory_range(start, end);
-  auto memory = std::make_shared<Memory>(host_op_id, memory_id, memory_range);
+  auto memory = std::make_shared<Memory>(stream_id, host_op_id, memory_id, memory_range);
 
   memory_snapshot.lock();
   if (memory_snapshot.size() == 0) {
@@ -869,16 +869,17 @@ redshow_result_t redshow_memory_register(int32_t memory_id, uint64_t host_op_id,
   return result;
 }
 
-redshow_result_t redshow_memory_unregister(int32_t memory_id, uint64_t host_op_id, uint64_t start, 
-                                           uint64_t end) {
-  PRINT("\nredshow-> Enter redshow_memory_unregister\nmemory_free_id: %d\nhost_op_id: %lu\nstart: %lu\nend: %lu\n",
-        memory_id, host_op_id, start, end);
+redshow_result_t redshow_memory_unregister(uint32_t stream_id, int32_t memory_id, uint64_t host_op_id,
+                                           uint64_t start, uint64_t end) {
+  PRINT("\nredshow-> Enter redshow_memory_unregister\nstream_id: %u\nmemory_free_id: %d\n"
+        "host_op_id: %lu\nstart: %lu\nend: %lu\n",
+        stream_id, memory_id, host_op_id, start, end);
 
   redshow_result_t result = REDSHOW_SUCCESS;
 
   MemoryMap memory_map;
   MemoryRange memory_range(start, end);
-  auto memfree = std::make_shared<Memfree>(host_op_id, memory_id, memory_range);
+  auto memfree = std::make_shared<Memfree>(stream_id, host_op_id, memory_id, memory_range);
 
   memory_snapshot.lock();
   auto snapshot_iter = memory_snapshot.prev(host_op_id);
@@ -917,7 +918,7 @@ redshow_result_t redshow_submemory_register(int32_t sub_memory_id, uint64_t host
   MemoryMap sub_memory_map;
   MemoryRange sub_memory_range(start, end);
 
-  auto submemory = std::make_shared<Memory>(host_op_id, sub_memory_id, sub_memory_range);
+  auto submemory = std::make_shared<Memory>(0, host_op_id, sub_memory_id, sub_memory_range);
 
   sub_memory_snapshot.lock();
     if (sub_memory_snapshot.size() == 0) {
@@ -966,7 +967,7 @@ redshow_result_t redshow_submemory_unregister(int32_t sub_memory_id, uint64_t ho
 
   MemoryMap sub_memory_map;
   MemoryRange sub_memory_range(start, end);
-  auto submemfree = std::make_shared<Memfree>(host_op_id, sub_memory_id, sub_memory_range);
+  auto submemfree = std::make_shared<Memfree>(0, host_op_id, sub_memory_id, sub_memory_range);
 
   sub_memory_snapshot.lock();
   auto snapshot_iter = sub_memory_snapshot.prev(host_op_id);
