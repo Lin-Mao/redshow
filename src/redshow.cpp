@@ -1140,8 +1140,8 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
     // Avoid memcpy to symbol without allocation
     src_mem_addr = src_start;
     dst_mem_addr = dst_start;
-    auto memcpy = std::make_shared<Memcpy>(host_op_id, memcpy_id, src_mem_op_id, src_mem_addr,
-                                           dst_mem_op_id, dst_mem_addr, copy_len);
+    auto memcpy = std::make_shared<Memcpy>(host_op_id, memcpy_id, src_mem_op_id, src_stream_id, src_mem_addr,
+                                           dst_mem_op_id, dst_stream_id, dst_mem_addr, copy_len);
 
     for (auto aiter : analysis_enabled) {
       aiter.second->op_callback(memcpy);
@@ -1169,7 +1169,7 @@ redshow_result_t redshow_memset_register(uint32_t stream_id, int32_t memset_id, 
 
   redshow_memory_query(host_op_id, start, &mem_id, &mem_op_id, &addr, &size);
 
-  auto memset = std::make_shared<Memset>(host_op_id, memset_id, mem_op_id, start_addr, value, len);
+  auto memset = std::make_shared<Memset>(host_op_id, memset_id, mem_op_id, stream_id, start_addr, value, len);
 
   if (addr != 0) {
     for (auto aiter : analysis_enabled) {
@@ -1227,7 +1227,7 @@ redshow_result_t redshow_kernel_end(uint32_t cpu_thread, uint32_t stream_id, int
   // read_memory_op_ids, write_memory_op_ids
   redshow_result_t result = REDSHOW_SUCCESS;
 
-  auto kernel = std::make_shared<Kernel>(host_op_id, kernel_id, cpu_thread);
+  auto kernel = std::make_shared<Kernel>(host_op_id, kernel_id, cpu_thread, stream_id);
 
   for (auto aiter : analysis_enabled) {
     aiter.second->op_callback(kernel);

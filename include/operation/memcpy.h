@@ -10,19 +10,23 @@ namespace redshow {
 
 struct Memcpy : public Operation {
   u64 src_memory_op_id;
+  u32 src_stream_id;
   u64 src_start;  // shadow dst start
   u64 dst_memory_op_id;
+  u32 dst_stream_id;
   u64 dst_start;  // shadow src start
   u64 len;
 
   Memcpy() : Operation(0, 0, OPERATION_TYPE_MEMCPY) {}
 
-  Memcpy(u64 op_id, i32 ctx_id, u64 src_memory_op_id, u64 src_start, u64 dst_memory_op_id,
-         u64 dst_start, u64 len)
+  Memcpy(u64 op_id, i32 ctx_id, u64 src_memory_op_id, u32 src_stream_id, u64 src_start, u64 dst_memory_op_id,
+         u32 dst_stream_id, u64 dst_start, u64 len)
       : Operation(op_id, ctx_id, OPERATION_TYPE_MEMCPY),
         src_memory_op_id(src_memory_op_id),
+        src_stream_id(src_stream_id),
         src_start(src_start),
         dst_memory_op_id(dst_memory_op_id),
+        dst_stream_id(dst_stream_id),
         dst_start(dst_start),
         len(len) {}
 
