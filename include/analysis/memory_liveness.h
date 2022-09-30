@@ -368,6 +368,13 @@ void output_memory_size_growth_sequence(std::string file_name);
 void output_ctx_node(std::string file_name);
 
 /**
+ * @brief output stream info
+ * 
+ * @param
+ */
+void output_stream_info(std::string file_name);
+
+/**
  * @brief update _op_node;
  * 
  * @param op_id 

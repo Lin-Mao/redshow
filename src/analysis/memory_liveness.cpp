@@ -607,6 +607,52 @@ void MemoryLiveness::output_ctx_node(std::string file_name) {
   output.close();
 }
 
+void MemoryLiveness::output_stream_info(std::string file_name) {
+
+  std::ofstream output(file_name);
+
+  output << "test" << std::endl;
+
+  for (auto op : _op_node) {
+    output << "op_id: " << op.first << ", ";
+    auto ctx_type =_ctx_node.at(op.second);
+    auto op_stream = _op_to_stream.at(op.first);
+
+    if (ctx_type == REDSHOW_MEMORY_ALLOC) {
+      output << "ALLOC " << op.second << ", stream_id: " << op_stream.stream_id1 << std::endl; 
+    } else if (ctx_type == REDSHOW_MEMORY_FREE) {
+      output << "FREE " << op.second << ", stream_id: " << op_stream.stream_id1 << std::endl;
+    } else if (ctx_type == REDSHOW_MEMORY_ACCESS) {
+      output << "ACCESS " << op.second << ", stream_id: " << op_stream.stream_id1 << std::endl;
+    } else if (ctx_type == REDSHOW_MEMORY_SET) {
+      output << "SET " << op.second << ", stream_id: " << op_stream.stream_id1 << std::endl;
+    } else if (ctx_type == REDSHOW_MEMORY_COPYT) {
+      u32 stream_id;
+      if (op_stream.op_type1 == REDSHOW_MEMORY_COPYT) {
+        stream_id = op_stream.stream_id1;
+      } else if (op_stream.op_type2 == REDSHOW_MEMORY_COPYT) {
+        stream_id = op_stream.stream_id2;
+      }
+      output << "COPYT " << op.second << ", stream_id: " << stream_id << std::endl;
+    } else if (ctx_type == REDSHOW_MEMORY_COPYF) {
+      u32 stream_id;
+      if (op_stream.op_type1 == REDSHOW_MEMORY_COPYF) {
+        stream_id = op_stream.stream_id1;
+      } else if (op_stream.op_type2 == REDSHOW_MEMORY_COPYF) {
+        stream_id = op_stream.stream_id2;
+      }
+      output << "COPYF " << op.second << ", stream_id: " << stream_id << std::endl;
+    } else if (ctx_type == REDSHOW_SUBMEMORY_ALLOC) {
+      output << "SUBALLOC" << op.second << std::endl;
+    } else if (ctx_type == REDSHOW_SUBMEMORY_FREE) {
+      output << "SUBFREE" << op.second << std::endl;
+    }
+
+  }
+
+  output.close();
+}
+
 void MemoryLiveness::output_memory_size_growth_sequence(std::string filename) {
   std::ofstream output(filename);
   output << "memory_peak_kernel: " << _memory_peak_kernel << std::endl;
@@ -835,6 +881,8 @@ void MemoryLiveness::flush(
   output_ctx_node(output_dir + "memory_liveness.csv");
 
   output_memory_size_growth_sequence(output_dir + "memory_growth_sequence.txt");
+
+  output_stream_info(output_dir + "operation_stream_info.txt");
 
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
 
