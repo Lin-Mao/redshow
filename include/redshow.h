@@ -344,8 +344,9 @@ EXTERNC redshow_result_t redshow_submemory_ranges_get(uint64_t host_op_id, uint6
  * @thread-safe: YES
  */
 EXTERNC redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
-                                                 bool src_host, uint64_t src_start, bool dst_host,
-                                                 uint64_t dst_start, uint64_t len);
+                                                 bool src_host, uint32_t src_stream_id, uint64_t src_start,
+                                                 bool dst_host, uint32_t dst_stream_id, uint64_t dst_start,
+                                                 uint64_t len);
 
 /**
  * @brief This funciton is used to track a memset operation
@@ -359,7 +360,7 @@ EXTERNC redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t hos
  *
  * @thread-safe: YES
  */
-EXTERNC redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id,
+EXTERNC redshow_result_t redshow_memset_register(uint32_t stream_id, int32_t memset_id, uint64_t host_op_id,
                                                  uint64_t start, uint32_t value, uint64_t len);
 
 /**
@@ -452,7 +453,7 @@ EXTERNC redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kerne
  * @param host_op_id
  * @return EXTERNC
  */
-EXTERNC redshow_result_t redshow_kernel_end(uint32_t cpu_thread, int32_t kernel_id,
+EXTERNC redshow_result_t redshow_kernel_end(uint32_t cpu_thread, uint32_t stream_id, int32_t kernel_id,
                                             uint64_t host_op_id);
 
 /**

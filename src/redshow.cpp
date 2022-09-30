@@ -1096,14 +1096,14 @@ EXTERNC redshow_result_t redshow_submemory_ranges_get(uint64_t host_op_id, uint6
   return result;
 }
 
-redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id, bool src_host,
-                                         uint64_t src_start, bool dst_host, uint64_t dst_start,
+redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id, bool src_host, uint32_t src_stream_id,
+                                         uint64_t src_start, bool dst_host, uint32_t dst_stream_id, uint64_t dst_start,
                                          uint64_t len) {
   PRINT(
       "\nredshow-> Enter redshow_memcpy_register\nmemcpy_id: %d\nhost_op_id: "
-      "%lu\nsrc_host: %d\nsrc_start: %lu\ndst_host: %d\ndst_start: "
+      "%lu\nsrc_host: %d\nsrc_stream_id: %u\nsrc_start: %lu\ndst_host: %d\ndst_stream_id: %u\ndst_start: "
       "%lu\nlen: %lu\n",
-      memcpy_id, host_op_id, src_host, src_start, dst_host, dst_start, len);
+      memcpy_id, host_op_id, src_host, src_stream_id, src_start, dst_host, dst_stream_id, dst_start, len);
 
   auto copy_len = len;
 
@@ -1151,12 +1151,12 @@ redshow_result_t redshow_memcpy_register(int32_t memcpy_id, uint64_t host_op_id,
   return result;
 }
 
-redshow_result_t redshow_memset_register(int32_t memset_id, uint64_t host_op_id, uint64_t start,
+redshow_result_t redshow_memset_register(uint32_t stream_id, int32_t memset_id, uint64_t host_op_id, uint64_t start,
                                          uint32_t value, uint64_t len) {
   PRINT(
-      "\nredshow-> Enter redshow_memset_register\nmemset_id: %d\nhost_op_id: %lu\nstart: "
+      "\nredshow-> Enter redshow_memset_register\nstream_id%u\nmemset_id: %d\nhost_op_id: %lu\nstart: "
       "%lu\nvalue: %u\nlen: %lu\n",
-      memset_id, host_op_id, start, value, len);
+      stream_id, memset_id, host_op_id, start, value, len);
 
   auto start_addr = start;
 
@@ -1219,9 +1219,9 @@ redshow_result_t redshow_kernel_begin(uint32_t cpu_thread, int32_t kernel_id, ui
   return REDSHOW_SUCCESS;
 }
 
-redshow_result_t redshow_kernel_end(uint32_t cpu_thread, int32_t kernel_id, uint64_t host_op_id) {
-  PRINT("\nredshow-> Enter redshow_kernel_end\ncpu_thread: %u\nkernel_id: %d\nhost_op_id: %lu\n",
-        cpu_thread, kernel_id, host_op_id);
+redshow_result_t redshow_kernel_end(uint32_t cpu_thread, uint32_t stream_id, int32_t kernel_id, uint64_t host_op_id) {
+  PRINT("\nredshow-> Enter redshow_kernel_end\ncpu_thread: %u\nstream_id: %u\nkernel_id: %d\nhost_op_id: %lu\n",
+        cpu_thread, stream_id, kernel_id, host_op_id);
 
   // propose changes
   // read_memory_op_ids, write_memory_op_ids
