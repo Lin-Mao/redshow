@@ -1,7 +1,7 @@
 /**
  * @file memory_liveness.cpp
  * @author @Lin-Mao
- * @brief Split the liveness part from memory profile mode. Faster to get the liveness.
+ * @brief Memory liveness analysis.
  * @version 0.1
  * @date 2022-03-11
  * 
@@ -101,11 +101,6 @@ void MemoryLiveness::update_aux_hit(void* aux, u64 kernel_op_id, bool is_sub) {
         memory_operation_register(memory_op_id, kernel_op_id, REDSHOW_MEMORY_ACCESS);
         kernel_memory_usage += _current_memories.at(memory_op_id)->len;
       }
-    }
-    int count = kernel_aux->size;
-    auto k_active = kernel_active_objects.find(kernel_op_id);
-    if (k_active == kernel_active_objects.end()) {
-      kernel_active_objects.emplace(kernel_op_id, count);
     }
 
     if (_optimal_memory_peak < kernel_memory_usage) {
@@ -717,9 +712,12 @@ void MemoryLiveness::output_merged_torch_python_states(std::string filename) {
 
   std::ofstream output(filename);
   
-  for(
-    auto liter = _torch_python_states.begin(); liter != _torch_python_states.end(); liter
-  ) {
+  for (
+    auto liter = _torch_python_states.begin();
+    liter != _torch_python_states.end();
+    liter
+  )
+  {
     auto temp_iter = liter;
     output << "--------------------------------------------------" << std::endl;
     output << _sub_op_node.at(liter->first) << " " << liter->first << std::endl;
@@ -755,8 +753,11 @@ void MemoryLiveness::output_torch_libunwind_backtrace(std::string filename) {
   std::ofstream output(filename);
 
   for (
-    auto liter = _memory_libunwind_frames.begin(); liter != _memory_libunwind_frames.end(); liter
-  ) {
+    auto liter = _memory_libunwind_frames.begin();
+    liter != _memory_libunwind_frames.end();
+    liter
+  )
+  {
     auto temp_iter = liter;
     output << "--------------------------------------------------" << std::endl;
     output << _sub_op_node.at(liter->first) << " " << liter->first << std::endl;
@@ -782,26 +783,19 @@ void MemoryLiveness::output_torch_libunwind_backtrace(std::string filename) {
 
 #endif
 
-void MemoryLiveness::flush_thread(u32 cpu_thread, const std::string &output_dir,
-                            const LockableMap<u32, Cubin> &cubins,
-                            redshow_record_data_callback_func record_data_callback) {}
+void MemoryLiveness::flush_thread(
+  u32 cpu_thread,
+  const std::string &output_dir,
+  const LockableMap<u32, Cubin> &cubins,
+  redshow_record_data_callback_func record_data_callback
+) {}
 
 void MemoryLiveness::flush(
-  const std::string &output_dir, const LockableMap<u32, Cubin> &cubins,
+  const std::string &output_dir,
+  const LockableMap<u32, Cubin> &cubins,
   redshow_record_data_callback_func record_data_callback
-) {
-
-  std::ofstream output(output_dir + "active_object.txt");
-  int max = 0;
-  for (auto i : kernel_active_objects) {
-    if (i.second > max) {
-      max = i.second;
-    }
-    output << "kernel:" << i.first << ": " << i.second << std::endl;
-  }
-  output << std::endl;
-  output << "max objects: " << max << std::endl;
-  output.close();
+) 
+{
 
   output_memory_operation_list(output_dir + "memory_liveness.txt");
 

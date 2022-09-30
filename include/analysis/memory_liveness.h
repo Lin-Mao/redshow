@@ -154,8 +154,6 @@ private:
   u64 _optimal_memory_peak = 0;
   u64 _memory_peak_kernel = 0;
 
-  Map<u64, int> kernel_active_objects;
-
   struct memory_size
   {
     std::string op;
@@ -203,8 +201,15 @@ private:
 
     PythonState() = default;
 
-    PythonState(std::string file_name, std::string function_name, size_t function_first_lineno, size_t lineno) \
-      : file_name(file_name), function_name(function_name), function_first_lineno(function_first_lineno), \
+    PythonState(
+      std::string file_name,
+      std::string function_name,
+      size_t function_first_lineno,
+      size_t lineno
+    ) :
+      file_name(file_name),
+      function_name(function_name),
+      function_first_lineno(function_first_lineno),
       lineno(lineno) {}
 
     bool operator==(const PythonState &other) const {
@@ -235,9 +240,11 @@ private:
 
     Libunwind_Frame() = default;
 
-    Libunwind_Frame(u64 pc, u64 offset, std::string frame) : pc(pc), offset(offset), frame(frame) {}
+    Libunwind_Frame(u64 pc, u64 offset, std::string frame)
+      : pc(pc), offset(offset), frame(frame) {}
 
-    Libunwind_Frame(u64 pc, std::string frame) : pc(pc), offset(0), frame(frame) {}
+    Libunwind_Frame(u64 pc, std::string frame)
+      : pc(pc), offset(0), frame(frame) {}
 
     bool operator==(const Libunwind_Frame &other) const {
       if (this->pc != other.pc) {
