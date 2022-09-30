@@ -112,7 +112,8 @@ private:
     REDSHOW_MEMORY_ACCESS = 4,
     REDSHOW_MEMORY_FREE = 5,
     REDSHOW_SUBMEMORY_ALLOC = 6,
-    REDSHOW_SUBMEMORY_FREE = 7
+    REDSHOW_SUBMEMORY_FREE = 7,
+    REDSHOW_OPERATION_NUMS = 8
   } memory_operation_t;
 
   // log ctx for callpath
@@ -147,6 +148,26 @@ private:
 	Map<u64, u64> _addresses_map;
 
 	Map<u64, Map<u64, memory_operation_t>> _operations;
+
+  struct op_streams {
+    memory_operation_t op_type1;
+    u32 stream_id1;
+    // valid for device to device copy
+    memory_operation_t op_type2;
+    u32 stream_id2;
+
+    op_streams(memory_operation_t op_type1, u32 stream_id1, memory_operation_t op_type2, u32 stream_id2)
+      : op_type1(op_type1), stream_id1(stream_id1), op_type2(op_type2), stream_id2(stream_id2) {}
+
+    op_streams(memory_operation_t op_type1, u32 stream_id1)
+      : op_streams(op_type1, stream_id1, REDSHOW_OPERATION_NUMS, 0) {}
+
+  };
+
+  Map<u64, op_streams> _op_to_stream;
+
+// same consecutive op means device to device copy in the same stream
+  Map<u32, Vector<u64>> _stream_to_op;
 
   // current memory peak and optimal memory peak
   u64 _current_memory_usage = 0;  // to update _current_memory_peak
@@ -375,6 +396,12 @@ void update_ctx_table(u64 op_id, i32 ctx_id);
  * @param aux aux buffer
  */
 void update_aux_hit(void* aux, u64 kernel_op_id, bool is_sub = false);
+
+/**
+ * @brief update stream for operation, analysis liveness with stream
+ * @param
+ */
+void update_stream_for_ops (u32 stream_id, u64 op_id, memory_operation_t op_type);
 
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
 /**

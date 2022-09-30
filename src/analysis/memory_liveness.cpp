@@ -156,6 +156,29 @@ void MemoryLiveness::update_op_node(u64 op_id, i32 ctx_id) {
   }
 }
 
+void MemoryLiveness::update_stream_for_ops (u32 stream_id, u64 op_id, memory_operation_t op_type) {
+  
+  auto opnode = _op_to_stream.find(op_id);
+  if (opnode == _op_to_stream.end()) {
+    _op_to_stream.emplace(op_id, op_streams(op_type, stream_id));
+  } else {
+    if (op_type == REDSHOW_MEMORY_COPYT || op_type == REDSHOW_MEMORY_COPYF) {
+      opnode->second.op_type2 = op_type;
+      opnode->second.stream_id2 = stream_id;
+    }
+  }
+
+  auto stream = _stream_to_op.find(stream_id);
+  if (stream == _stream_to_op.end()) {
+    Vector<u64> op_list;
+    op_list.push_back(op_id);
+    _stream_to_op.emplace(stream_id, op_list);
+  } else {
+    stream->second.push_back(op_id);
+  }
+
+}
+
 void MemoryLiveness::memory_operation_register(
   u64 memory_op_id, u64 op_id, memory_operation_t mem_op, bool is_sub
 ) {
@@ -214,6 +237,7 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
 
   if (!is_submemory) {
     update_op_node(op->op_id, op->ctx_id);
+    update_stream_for_ops(op->stream_id, op->op_id, REDSHOW_MEMORY_ALLOC);
     // update_ctx_table(op->op_id, op->ctx_id);
     update_ctx_node(op->ctx_id, REDSHOW_MEMORY_ALLOC);
 
@@ -262,6 +286,7 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
 
   if (!is_submemory) {
     update_op_node(op->op_id, op->ctx_id);
+    update_stream_for_ops(op->stream_id, op->op_id, REDSHOW_MEMORY_FREE);
     // update_ctx_table(op->op_id, op->ctx_id);
     update_ctx_node(op->ctx_id, REDSHOW_MEMORY_FREE);
 
@@ -300,6 +325,7 @@ void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
   update_op_node(op->op_id, op->ctx_id);
   // update_ctx_table(op->op_id, op->ctx_id);
   update_ctx_node(op->ctx_id, REDSHOW_MEMORY_ACCESS);
+  update_stream_for_ops(op->stream_id, op->op_id, REDSHOW_MEMORY_ACCESS);
   _kernel_op_node[op->op_id] = op->ctx_id;
 
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
@@ -353,11 +379,13 @@ void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
 
   if (op->src_memory_op_id != REDSHOW_MEMORY_HOST) {
     update_ctx_node(op->ctx_id, REDSHOW_MEMORY_COPYF);
+    update_stream_for_ops(op->src_stream_id, op->op_id, REDSHOW_MEMORY_COPYF);
     memory_operation_register(op->src_memory_op_id, op->op_id, REDSHOW_MEMORY_COPYF);
   }
 
   if (op->dst_memory_op_id != REDSHOW_MEMORY_HOST) {
     update_ctx_node(op->ctx_id, REDSHOW_MEMORY_COPYT);
+    update_stream_for_ops(op->dst_stream_id, op->op_id, REDSHOW_MEMORY_COPYT);
     memory_operation_register(op->dst_memory_op_id, op->op_id, REDSHOW_MEMORY_COPYT);
   }
 
@@ -396,6 +424,7 @@ void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
 void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
   update_op_node(op->op_id, op->ctx_id);
   update_ctx_node(op->ctx_id, REDSHOW_MEMORY_SET);
+  update_stream_for_ops(op->stream_id, op->op_id, REDSHOW_MEMORY_SET);
 
   memory_operation_register(op->memory_op_id, op->op_id, REDSHOW_MEMORY_SET);
 
