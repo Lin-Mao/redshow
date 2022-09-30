@@ -171,7 +171,7 @@ void DataFlow::memory_op_callback(std::shared_ptr<Memory> op) {
 }
 
 void DataFlow::memset_op_callback(std::shared_ptr<Memset> op) {
-  u64 redundancy = compute_memset_redundancy(op->start, op->value, op->len);
+  u64 redundancy = compute_memset_redundancy(op->shadow_start, op->value, op->len);
   u64 overwrite = op->len;
 
   auto memory = _memories.at(op->memory_op_id);
@@ -181,7 +181,7 @@ void DataFlow::memset_op_callback(std::shared_ptr<Memset> op) {
   update_op_node(op->memory_op_id, op->ctx_id);
 
   // Update host
-  memset(reinterpret_cast<void *>(op->start), op->value, op->len);
+  memset(reinterpret_cast<void *>(op->shadow_start), op->value, op->len);
   u64 host = reinterpret_cast<u64>(memory->value.get());
 
   if (_configs[REDSHOW_ANALYSIS_DATA_FLOW_HASH] == true) {
@@ -202,7 +202,7 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
   auto src_len = src_memory->len == 0 ? op->len : src_memory->len;
   auto dst_len = dst_memory->len == 0 ? op->len : dst_memory->len;
 
-  u64 redundancy = compute_memcpy_redundancy<false>(op->dst_start, op->src_start, op->len);
+  u64 redundancy = compute_memcpy_redundancy<false>(op->dst_shadow_start, op->src_shadow_start, op->len);
 
   if (op->dst_memory_op_id == REDSHOW_MEMORY_HOST || op->dst_memory_op_id == REDSHOW_MEMORY_UVM) {
     // sink edge
@@ -224,11 +224,11 @@ void DataFlow::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
                     DATA_FLOW_EDGE_READ);
 
   // Update host
-  memory_copy(reinterpret_cast<void *>(op->dst_start), reinterpret_cast<void *>(op->src_start),
+  memory_copy(reinterpret_cast<void *>(op->dst_shadow_start), reinterpret_cast<void *>(op->src_shadow_start),
               op->len);
   u64 host = 0;
   if (op->dst_memory_op_id == REDSHOW_MEMORY_HOST || op->dst_memory_op_id == REDSHOW_MEMORY_UVM) {
-    host = op->dst_start;
+    host = op->dst_shadow_start;
   } else {
     host = reinterpret_cast<u64>(dst_memory->value.get());
   }

@@ -11,17 +11,19 @@ namespace redshow {
 struct Memset : public Operation {
   u64 memory_op_id;
   u32 stream_id;
-  u64 start;  // shadow start
+  u64 start;  // actual start
+  u64 shadow_start;  // shadow start
   u64 value;
   u64 len;
 
   Memset() : Operation(0, 0, OPERATION_TYPE_MEMSET) {}
 
-  Memset(u64 op_id, i32 ctx_id, u64 memory_op_id, u32 stream_id, u64 start, u64 value, u64 len)
+  Memset(u64 op_id, i32 ctx_id, u64 memory_op_id, u32 stream_id, u64 start, u64 shadow_start, u64 value, u64 len)
       : Operation(op_id, ctx_id, OPERATION_TYPE_MEMSET),
         memory_op_id(memory_op_id),
         stream_id(stream_id),
         start(start),
+        shadow_start(shadow_start),
         value(value),
         len(len) {}
 
