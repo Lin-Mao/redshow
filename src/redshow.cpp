@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "analysis/data_dependency.h"
 #include "analysis/memory_liveness.h"
 #include "analysis/memory_heatmap.h"
 #include "analysis/memory_profile.h"
@@ -682,6 +683,8 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
     case REDSHOW_ANALYSIS_MEMORY_LIVENESS:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_MEMORY_LIVENESS, std::make_shared<MemoryLiveness>());
       break;
+    case REDSHOW_ANALYSIS_DATA_DEPENDENCY:
+      analysis_enabled.emplace(REDSHOW_ANALYSIS_DATA_DEPENDENCY, std::make_shared<DataDependency>());
     default:
       result = REDSHOW_ERROR_NO_SUCH_ANALYSIS;
       break;
