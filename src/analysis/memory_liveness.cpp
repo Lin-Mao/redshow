@@ -240,6 +240,7 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
     update_stream_for_ops(op->stream_id, op->op_id, REDSHOW_MEMORY_ALLOC);
     // update_ctx_table(op->op_id, op->ctx_id);
     update_ctx_node(op->ctx_id, REDSHOW_MEMORY_ALLOC);
+    update_graph_at_malloc(op->op_id, REDSHOW_MEMORY_ALLOC);
 
     _memories.try_emplace(op->op_id, op);
     _current_memories.try_emplace(op->op_id, op);
@@ -299,6 +300,7 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
     _memory_size_log.emplace(op->op_id, memory_size("free", _current_memory_usage));
 
     memory_operation_register(malloc_op_id, op->op_id, REDSHOW_MEMORY_FREE);
+    update_graph_at_free(op->op_id, malloc_op_id, REDSHOW_MEMORY_FREE);
 
   } else {
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
@@ -381,12 +383,14 @@ void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
     update_ctx_node(op->ctx_id, REDSHOW_MEMORY_COPYF);
     update_stream_for_ops(op->src_stream_id, op->op_id, REDSHOW_MEMORY_COPYF);
     memory_operation_register(op->src_memory_op_id, op->op_id, REDSHOW_MEMORY_COPYF);
+    update_graph_at_access(op->op_id, REDSHOW_MEMORY_COPYF, op->src_stream_id, op->src_memory_op_id, READ);
   }
 
   if (op->dst_memory_op_id != REDSHOW_MEMORY_HOST) {
     update_ctx_node(op->ctx_id, REDSHOW_MEMORY_COPYT);
     update_stream_for_ops(op->dst_stream_id, op->op_id, REDSHOW_MEMORY_COPYT);
     memory_operation_register(op->dst_memory_op_id, op->op_id, REDSHOW_MEMORY_COPYT);
+    update_graph_at_access(op->op_id, REDSHOW_MEMORY_COPYT, op->dst_stream_id, op->dst_memory_op_id, WRITE);
   }
 
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
@@ -901,6 +905,70 @@ void MemoryLiveness::flush(
   output_torch_libunwind_backtrace(output_dir + "torch_libunwind_backtrace.txt");
 
 #endif
+}
+
+
+void MemoryLiveness::update_graph_at_malloc(u64 op_id, memory_operation_t op_type) {
+  if (!_graph.has_node(op_id)) {
+    _graph.add_node(op_id, op_id, op_type);
+    _obj_ownership_map.emplace(op_id, op_id);
+  }
+}
+
+void MemoryLiveness::update_graph_at_free(u64 op_id, u64 memory_op_id, memory_operation_t op_type) {
+  if (!_graph.has_node(op_id)) {
+    _graph.add_node(op_id, op_id, op_type);
+  }
+  auto index = _obj_ownership_map.at(memory_op_id);
+  auto edge_index = Edge_index(index, op_id, DATA_DEPENDENCY);
+  _graph.add_edge(std::move(edge_index));
+}
+
+void MemoryLiveness::update_graph_at_access(u64 op_id, memory_operation_t op_type, u32 stream_id,
+                                            u64 obj_op_id, AccessType access_type) {
+  if (!_graph.has_node(op_id)) {
+    _graph.add_node(op_id, op_id, op_type);
+  }
+  // For stream dependency
+  auto prev_stream_node = _stream_ownership_map.find(stream_id);
+  if (prev_stream_node == _stream_ownership_map.end()) {
+    _stream_ownership_map.emplace(stream_id, op_id);
+  } else {
+    auto edge_index = Edge_index(prev_stream_node->second, op_id, STREAM_DEPENDENCY);
+    _graph.add_edge(std::move(edge_index));
+    prev_stream_node->second = op_id;
+  }
+
+  // For data dependency
+  auto prev_obj_node = _obj_ownership_map.find(obj_op_id);
+  auto edge_index = Edge_index(prev_obj_node->second, op_id, DATA_DEPENDENCY);
+  if (!_graph.has_edge(edge_index)) {
+    auto & edge = _graph.edge(edge_index);
+    edge.touched_objs.emplace(obj_op_id, access_type);
+  } else {
+    _graph.add_edge(std::move(edge_index), obj_op_id, access_type);
+  }
+
+  if (access_type == WRITE) {
+    prev_obj_node->second = op_id;
+  }
+}
+
+void MemoryLiveness::update_graph_at_kernel(void* aux, u64 op_id, u32 stream_id) {
+  gpu_patch_aux_address_dict_t* kernel_aux = static_cast<gpu_patch_aux_address_dict_t*>(aux);
+
+  for (int i = 0; i < kernel_aux->size; i++) {
+    if (kernel_aux->hit[i] == 1) {
+      u64 memory_op_id = _addresses_map.at(kernel_aux->start_end[i].start);
+      if (kernel_aux->write[i] == 1) {
+        update_graph_at_access(op_id, REDSHOW_MEMORY_ACCESS, stream_id, memory_op_id, WRITE);
+      } else if (kernel_aux->read[i] == 1) {
+        update_graph_at_access(op_id, REDSHOW_MEMORY_ACCESS, stream_id, memory_op_id, READ);
+      } else {
+        printf("It shouldn't take this branch!!!\n");
+      }
+    }
+  }
 }
 
 }   // namespace redshow

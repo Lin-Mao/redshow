@@ -13,6 +13,9 @@
 #define REDSHOW_ANALYSIS_MEMORY_LIVENESS_H
 
 #include "analysis.h"
+#include "common/graph.h"
+#include "common/map.h"
+#include "common/set.h"
 #include "operation/operation.h"
 #include "operation/kernel.h"
 #include "operation/memcpy.h"
@@ -476,6 +479,73 @@ void get_torch_libunwind_backtrace(u64 op_id);
 void output_torch_libunwind_backtrace(std::string filename);
 
 #endif
+
+typedef u64 NodeIndex;
+
+struct Node {
+  NodeIndex op_id;
+  u32 stream_id;
+  memory_operation_t op_type;
+
+  Node(NodeIndex op_id, u32 stream_id, memory_operation_t op_type)
+      : op_id(op_id), stream_id(stream_id), op_type(op_type) {}
+  
+  Node(NodeIndex op_id, memory_operation_t op_type) : Node(op_id, 0, op_type) {}
+};
+
+typedef enum EdgeType {
+  STREAM_DEPENDENCY = 0,
+  DATA_DEPENDENCY = 1
+}EdgeType_t;
+enum AccessType {READ, WRITE};
+
+struct Edge_index {
+  NodeIndex from;
+  NodeIndex to;
+  EdgeType_t edge_type;
+
+  Edge_index(NodeIndex & from, NodeIndex & to, EdgeType_t edge_type)
+    : from(from), to(to), edge_type(edge_type) {}
+
+  bool operator<(const Edge_index &other) const {
+    if (this->from == other.from) {
+      if (this->to == other.to) {
+        return this->edge_type < other.edge_type;
+      } else {
+        return this->to < other.to;
+      }
+    } else {
+      return this->to < other.to;
+    }
+  }
+};
+
+struct Edge {
+  Map<u64, AccessType> touched_objs;
+
+  Edge() = default;
+
+  Edge(u64 obj, AccessType access_type) {
+    this->touched_objs.emplace(obj, access_type);
+  }
+};
+
+Map<u64, NodeIndex> _obj_ownership_map;
+
+Map<u32, NodeIndex> _stream_ownership_map;
+
+typedef Graph<NodeIndex, Node, Edge_index, Edge> DependencyGraph;
+
+DependencyGraph _graph;
+
+void update_graph_at_malloc(u64 op_id, memory_operation_t op_type);
+
+void update_graph_at_free(u64 op_id, u64 memory_op_id, memory_operation_t op_type);
+
+void update_graph_at_access(u64 op_id, memory_operation_t op_type, u32 stream_id,
+                            u64 obj_op_id, AccessType access_type);
+
+void update_graph_at_kernel(void* aux, u64 op_id, u32 stream_id);
 
 
 };	// MemoryLiveness
