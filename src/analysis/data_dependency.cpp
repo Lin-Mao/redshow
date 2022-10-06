@@ -267,8 +267,8 @@ void DataDependency::op_callback(OperationPtr op, bool is_submemory /* default =
   unlock();
 }
 
-void DataDependency::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id,
-                              GPUPatchType type, void* aux) {
+void DataDependency::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 stream_id,
+                            u32 cubin_id, u32 mod_id, GPUPatchType type, void* aux) {
   assert(type == GPU_PATCH_TYPE_ADDRESS_PATCH || type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS);
 
   lock();

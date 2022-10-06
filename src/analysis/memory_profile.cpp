@@ -272,8 +272,8 @@ void MemoryProfile::op_callback(OperationPtr op, bool is_submemory /* default = 
 }
 
 
-void MemoryProfile::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id, 
-                                    GPUPatchType type, void* aux) {
+void MemoryProfile::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 stream_id,
+                                  u32 cubin_id, u32 mod_id, GPUPatchType type, void* aux) {
     // Do not need to know value and need to get interval of memory
     assert(type == GPU_PATCH_TYPE_ADDRESS_PATCH || type == GPU_PATCH_TYPE_ADDRESS_ANALYSIS);
 

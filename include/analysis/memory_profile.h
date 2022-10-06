@@ -46,7 +46,7 @@ class MemoryProfile final : public Analysis {
   virtual void op_callback(OperationPtr operation, bool is_submemory = false);
 
   // Fine-grained
-  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id,
+  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 stream_id, u32 cubin_id, u32 mod_id,
                               GPUPatchType type, void* aux = NULL);
 
   virtual void analysis_end(u32 cpu_thread, i32 kernel_id);

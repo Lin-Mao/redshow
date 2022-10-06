@@ -58,8 +58,8 @@ void MemoryHeatmap::op_callback(OperationPtr op, bool is_submemory /* default = 
 }
 
 
-void MemoryHeatmap::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id, 
-                                    GPUPatchType type, void* aux) {
+void MemoryHeatmap::analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 stream_id,
+                                  u32 cubin_id, u32 mod_id, GPUPatchType type, void* aux) {
     gpu_patch_buffer_t* buffer = static_cast<gpu_patch_buffer_t*>(aux);
     _total_access += buffer->size;
 
