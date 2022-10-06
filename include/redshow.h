@@ -420,7 +420,7 @@ EXTERNC redshow_result_t redshow_record_data_callback_register(
  * @thread-safe YES
  */
 EXTERNC redshow_result_t redshow_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_t mod_id,
-                                         int32_t kernel_id, uint64_t host_op_id,
+                                         int32_t kernel_id, uint64_t host_op_id, uint32_t stream_id,
                                          gpu_patch_buffer_t *trace_data);
 
 /**

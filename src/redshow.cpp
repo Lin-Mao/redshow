@@ -425,7 +425,7 @@ static redshow_result_t trace_analyze_default(int32_t kernel_id, u64 host_op_id,
 }
 
 static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_t mod_id,
-                                      int32_t kernel_id, uint64_t host_op_id,
+                                      int32_t kernel_id, uint64_t host_op_id, uint32_t stream_id,
                                       gpu_patch_buffer_t *trace_data) {
   redshow_result_t result = REDSHOW_SUCCESS;
 
@@ -511,7 +511,7 @@ static redshow_result_t trace_analyze(uint32_t cpu_thread, uint32_t cubin_id, ui
   }
 
   for (auto aiter : analysis_enabled) {
-    aiter.second->analysis_begin(cpu_thread, kernel_id, host_op_id, cubin_id, mod_id,
+    aiter.second->analysis_begin(cpu_thread, kernel_id, host_op_id, stream_id, cubin_id, mod_id,
                                  static_cast<GPUPatchType>(trace_data->type), trace_data);
   }
 
@@ -1236,7 +1236,7 @@ redshow_result_t redshow_kernel_end(uint32_t cpu_thread, uint32_t stream_id, int
 }
 
 redshow_result_t redshow_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_t mod_id,
-                                 int32_t kernel_id, uint64_t host_op_id,
+                                 int32_t kernel_id, uint64_t host_op_id, uint32_t stream_id,
                                  gpu_patch_buffer_t *trace_data) {
   PRINT(
       "\nredshow-> Enter redshow_analyze\ncpu_thread: %u\ncubin_id: %u\nmod_id: %u\n"
@@ -1246,7 +1246,7 @@ redshow_result_t redshow_analyze(uint32_t cpu_thread, uint32_t cubin_id, uint32_
   redshow_result_t result;
 
   // Analyze trace_data
-  result = trace_analyze(cpu_thread, cubin_id, mod_id, kernel_id, host_op_id, trace_data);
+  result = trace_analyze(cpu_thread, cubin_id, mod_id, kernel_id, host_op_id, stream_id, trace_data);
 
   if (result == REDSHOW_SUCCESS) {
     if (log_data_callback) {
