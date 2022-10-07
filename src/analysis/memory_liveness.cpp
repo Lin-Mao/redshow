@@ -234,13 +234,14 @@ void MemoryLiveness::op_callback(OperationPtr op, bool is_submemory) {
 }
 
 void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_submemory) {
+  update_global_op_id_start(op->op_id);
 
   if (!is_submemory) {
     update_op_node(op->op_id, op->ctx_id);
     update_stream_for_ops(op->stream_id, op->op_id, REDSHOW_MEMORY_ALLOC);
     // update_ctx_table(op->op_id, op->ctx_id);
     update_ctx_node(op->ctx_id, REDSHOW_MEMORY_ALLOC);
-    update_graph_at_malloc(op->op_id, REDSHOW_MEMORY_ALLOC);
+    update_graph_at_malloc(op->op_id, op->stream_id, REDSHOW_MEMORY_ALLOC);
 
     _memories.try_emplace(op->op_id, op);
     _current_memories.try_emplace(op->op_id, op);
@@ -284,6 +285,7 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
 }
 
 void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_submemory) {
+  // update_global_op_id_start(op->op_id);
 
   if (!is_submemory) {
     update_op_node(op->op_id, op->ctx_id);
@@ -300,7 +302,7 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
     _memory_size_log.emplace(op->op_id, memory_size("free", _current_memory_usage));
 
     memory_operation_register(malloc_op_id, op->op_id, REDSHOW_MEMORY_FREE);
-    update_graph_at_free(op->op_id, malloc_op_id, REDSHOW_MEMORY_FREE);
+    update_graph_at_free(op->op_id, op->stream_id, malloc_op_id, REDSHOW_MEMORY_FREE);
 
   } else {
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
@@ -324,6 +326,7 @@ void MemoryLiveness::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_su
 }
 
 void MemoryLiveness::kernel_op_callback(std::shared_ptr<Kernel> op) {
+  // update_global_op_id_start(op->op_id);
   update_op_node(op->op_id, op->ctx_id);
   // update_ctx_table(op->op_id, op->ctx_id);
   update_ctx_node(op->ctx_id, REDSHOW_MEMORY_ACCESS);
@@ -377,6 +380,7 @@ if (!_submemories.empty()) {
 }
 
 void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
+  // update_global_op_id_start(op->op_id);
   update_op_node(op->op_id, op->ctx_id);
 
   if (op->src_memory_op_id != REDSHOW_MEMORY_HOST) {
@@ -426,6 +430,7 @@ void MemoryLiveness::memcpy_op_callback(std::shared_ptr<Memcpy> op) {
 }
 
 void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
+  // update_global_op_id_start(op->op_id);
   update_op_node(op->op_id, op->ctx_id);
   update_ctx_node(op->ctx_id, REDSHOW_MEMORY_SET);
   update_stream_for_ops(op->stream_id, op->op_id, REDSHOW_MEMORY_SET);
@@ -449,7 +454,7 @@ void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
 
 
 void MemoryLiveness::analysis_begin(
-  u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id,
+  u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 stream_id, u32 cubin_id, u32 mod_id,
   GPUPatchType type, void* trace_data
 ) {
   // Do not need to know value and need to get interval of memory
@@ -460,6 +465,7 @@ void MemoryLiveness::analysis_begin(
 
   if (buffer->aux) {
     update_aux_hit(buffer->aux, host_op_id);
+    update_graph_at_kernel(buffer->aux, host_op_id, stream_id);
   }
 
   if (buffer->torch_aux) {
@@ -888,6 +894,8 @@ void MemoryLiveness::flush(
 
   output_stream_info(output_dir + "operation_stream_info.txt");
 
+  dump_dependency_graph(output_dir + "dependency_graph.dot");
+
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
 
   output_submemory_liveness(output_dir + "submemory_liveness.txt");
@@ -907,46 +915,74 @@ void MemoryLiveness::flush(
 #endif
 }
 
-
-void MemoryLiveness::update_graph_at_malloc(u64 op_id, memory_operation_t op_type) {
-  if (!_graph.has_node(op_id)) {
-    _graph.add_node(op_id, op_id, op_type);
-    _obj_ownership_map.emplace(op_id, op_id);
+void MemoryLiveness::update_global_op_id_start(u64 op_id) {
+  if (op_id < _global_op_id_start) {
+    _global_op_id_start = op_id;
   }
 }
 
-void MemoryLiveness::update_graph_at_free(u64 op_id, u64 memory_op_id, memory_operation_t op_type) {
-  if (!_graph.has_node(op_id)) {
-    _graph.add_node(op_id, op_id, op_type);
+void MemoryLiveness::update_stream_nodes(u64 op_id, u32 stream_id) {
+  auto stream_nodes = _stream_nodes.find(stream_id);
+  if (stream_nodes == _stream_nodes.end()) {
+    Vector<NodeIndex> vec;
+    vec.push_back(op_id);
+    _stream_nodes.emplace(stream_id, vec);
+  } else {
+    auto node = std::find(stream_nodes->second.begin(), stream_nodes->second.end(), op_id);
+    if (node == stream_nodes->second.end()) {
+      stream_nodes->second.push_back(op_id);
+    }
   }
-  auto index = _obj_ownership_map.at(memory_op_id);
-  auto edge_index = Edge_index(index, op_id, DATA_DEPENDENCY);
-  _graph.add_edge(std::move(edge_index));
+}
+
+void MemoryLiveness::update_graph_at_malloc(u64 op_id, u32 stream_id, memory_operation_t op_type) {
+  if (!_graph.has_node(op_id)) {
+    _graph.add_node(op_id, Node(op_id, op_type));
+    _obj_ownership_map.emplace(op_id, op_id);
+  }
+  update_stream_nodes(op_id, stream_id);
+}
+
+void MemoryLiveness::update_graph_at_free(u64 op_id, u32 stream_id, u64 memory_op_id, memory_operation_t op_type) {
+  if (!_graph.has_node(op_id)) {
+    _graph.add_node(op_id, Node(op_id, op_type));
+  }
+  auto & index = _obj_ownership_map.at(memory_op_id);
+  auto edge_index = EdgeIndex(index, op_id, DATA_DEPENDENCY);
+  index = op_id;
+  _graph.add_edge(edge_index, Edge(memory_op_id, WRITE));
+  _edge_list.push_back(edge_index);
+
+  update_stream_nodes(op_id, stream_id);
 }
 
 void MemoryLiveness::update_graph_at_access(u64 op_id, memory_operation_t op_type, u32 stream_id,
                                             u64 obj_op_id, AccessType access_type) {
   if (!_graph.has_node(op_id)) {
-    _graph.add_node(op_id, op_id, op_type);
+    _graph.add_node(op_id, Node(op_id, op_type));
   }
   // For stream dependency
   auto prev_stream_node = _stream_ownership_map.find(stream_id);
   if (prev_stream_node == _stream_ownership_map.end()) {
     _stream_ownership_map.emplace(stream_id, op_id);
   } else {
-    auto edge_index = Edge_index(prev_stream_node->second, op_id, STREAM_DEPENDENCY);
-    _graph.add_edge(std::move(edge_index));
+    auto edge_index = EdgeIndex(prev_stream_node->second, op_id, STREAM_DEPENDENCY);
+    _graph.add_edge(edge_index, Edge());
+    _edge_list.push_back(edge_index);
     prev_stream_node->second = op_id;
   }
 
+  update_stream_nodes(op_id, stream_id);
+
   // For data dependency
   auto prev_obj_node = _obj_ownership_map.find(obj_op_id);
-  auto edge_index = Edge_index(prev_obj_node->second, op_id, DATA_DEPENDENCY);
-  if (!_graph.has_edge(edge_index)) {
+  auto edge_index = EdgeIndex(prev_obj_node->second, op_id, DATA_DEPENDENCY);
+  if (_graph.has_edge(edge_index)) {
     auto & edge = _graph.edge(edge_index);
     edge.touched_objs.emplace(obj_op_id, access_type);
   } else {
-    _graph.add_edge(std::move(edge_index), obj_op_id, access_type);
+    _graph.add_edge(edge_index, Edge(obj_op_id, access_type));
+    _edge_list.push_back(edge_index);
   }
 
   if (access_type == WRITE) {
@@ -956,6 +992,23 @@ void MemoryLiveness::update_graph_at_access(u64 op_id, memory_operation_t op_typ
 
 void MemoryLiveness::update_graph_at_kernel(void* aux, u64 op_id, u32 stream_id) {
   gpu_patch_aux_address_dict_t* kernel_aux = static_cast<gpu_patch_aux_address_dict_t*>(aux);
+  printf("kernel_op_id: %lu\n", op_id);
+  printf("hit: ");
+  for (int i = 0; i < kernel_aux->size; i++) {
+    printf("%u ", kernel_aux->hit[i]);
+  }
+  printf("\n");
+  printf("read: ");
+  for (int i = 0; i < kernel_aux->size; i++) {
+    printf("%u ", kernel_aux->read[i]);
+  }
+  printf("\n");
+  printf("write: ");
+  for (int i = 0; i < kernel_aux->size; i++) {
+    printf("%u ", kernel_aux->write[i]);
+  }
+  printf("\n");
+  
 
   for (int i = 0; i < kernel_aux->size; i++) {
     if (kernel_aux->hit[i] == 1) {
@@ -969,6 +1022,90 @@ void MemoryLiveness::update_graph_at_kernel(void* aux, u64 op_id, u32 stream_id)
       }
     }
   }
+}
+
+void MemoryLiveness::dump_dependency_graph(std::string filename) {
+  std::ofstream output(filename);
+  output << "digraph G {" << std::endl;
+  size_t count = 0;
+  Vector<NodeIndex> alloc_nodes;
+  Vector<NodeIndex> free_nodes;
+  // output << "_stream_nodes: " << _stream_nodes.size() << std::endl;
+  for (auto nodes : _stream_nodes) {
+    output << "subgraph cluster_" << count << " {" << std::endl;
+    output << "style=rounded;" << std::endl;
+    output << "color=lightgrey;" << std::endl;
+    // output << "node [style=filled];" << std::endl;
+    output << "label = \"stream" << nodes.first << "\";" << std::endl;
+    for (auto node : nodes.second) {
+      output << node - _global_op_id_start;
+      if (node != nodes.second.back()) {
+        output << " -> ";
+      }
+      if (_graph.node(node).op_type == REDSHOW_MEMORY_ALLOC) {
+        alloc_nodes.push_back(node);
+      } else if (_graph.node(node).op_type == REDSHOW_MEMORY_FREE) {
+        free_nodes.push_back(node);
+      }
+    }
+    output << "[color=green];" << std::endl;
+    for (auto node : alloc_nodes) {
+      output << node - _global_op_id_start << "[shape=box];" << std::endl;
+    }
+    for (auto node : free_nodes) {
+      output << node - _global_op_id_start << "[shape=box,color=lightgrey,style=filled];" << std::endl;
+    }
+    alloc_nodes.clear();
+    free_nodes.clear();
+
+    output << "}" << std::endl;
+    count++;
+  }
+
+  for (auto edge_index : _edge_list) {
+    if (edge_index.edge_type == DATA_DEPENDENCY) {
+      output << edge_index.from - _global_op_id_start << " -> " << edge_index.to - _global_op_id_start;
+
+      // get edge label
+      auto edge = _graph.edge(edge_index);
+      auto objs = edge.touched_objs;
+      // std::string str = "";
+      // if (!objs.empty()) {
+      //   if (_graph.node(edge_index.to).op_type == REDSHOW_MEMORY_FREE) {
+      //     str += "D" + (objs.begin()->first - _global_op_id_start);
+      //   } else {
+      //     for (auto obj : objs) {
+      //       if (obj.second == READ) {
+      //         str += "R" + (obj.first - _global_op_id_start);
+      //       } else {
+      //         str += "W" + (obj.first - _global_op_id_start);
+      //       }
+      //       str += " ";
+      //     }
+      //   }
+      // }
+      // output << "[color=red,label=\"" << str << "\"];" << std::endl;
+      output << "[color=red,label=\"";
+      if (!objs.empty()) {
+        if (_graph.node(edge_index.to).op_type == REDSHOW_MEMORY_FREE) {
+          output << "D" << (objs.begin()->first - _global_op_id_start);
+        } else {
+          for (auto obj : objs) {
+            if (obj.second == READ) {
+              output << "R" << (obj.first - _global_op_id_start);
+            } else {
+              output << "W" << (obj.first - _global_op_id_start);
+            }
+            output << " ";
+          }
+        }
+      }
+      output << "\"];" << std::endl;
+    }
+  }  
+
+  output << "}" << std::endl;
+  output.close();
 }
 
 }   // namespace redshow

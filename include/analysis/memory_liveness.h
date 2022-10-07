@@ -46,7 +46,7 @@ public:
   virtual void op_callback(OperationPtr operation, bool is_submemory = false);
 
   // Fine-grained
-  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 cubin_id, u32 mod_id,
+  virtual void analysis_begin(u32 cpu_thread, i32 kernel_id, u64 host_op_id, u32 stream_id, u32 cubin_id, u32 mod_id,
                               GPUPatchType type, void* aux = NULL);
 
   virtual void analysis_end(u32 cpu_thread, i32 kernel_id);
@@ -480,6 +480,56 @@ void output_torch_libunwind_backtrace(std::string filename);
 
 #endif
 
+template <typename NodeIndex, typename Node, typename EdgeIndex, typename Edge>
+class DependencyGraph {
+public:
+  typedef Map<NodeIndex, Set<EdgeIndex>> NeighborEdgeMap;
+  typedef Map<EdgeIndex, Edge> EdgeMap;
+  typedef Map<NodeIndex, Node> NodeMap;
+
+public:
+  DependencyGraph() {}
+
+  void add_node(NodeIndex node_index, Node node) {
+    _nodes.emplace(node_index, node);
+  }
+
+  void add_edge(EdgeIndex edge_index, Edge edge) {
+    _edges.emplace(edge_index, edge);
+    _incoming_edges[edge_index.to].emplace(edge_index);
+    _outcoming_edges[edge_index.from].emplace(edge_index);
+  }
+
+  bool has_node(NodeIndex node_index) {
+    return _nodes.find(node_index) != _nodes.end();
+  }
+
+  bool has_edge(EdgeIndex edge_index) {
+    return _edges.find(edge_index) != _edges.end();
+  }
+
+  Edge &edge(EdgeIndex edge_index) {
+    return _edges.at(edge_index);
+  }
+
+  Node &node(NodeIndex node_index) {
+    return _nodes.at(node_index);
+  }
+
+  void remove_edge(const EdgeIndex edge_index) {
+    _incoming_edges[edge_index.to].erase(edge_index);
+    _outcoming_edges[edge_index.from].erase(edge_index);
+    _edges.erase(edge_index);
+  }
+
+private:
+  NeighborEdgeMap _incoming_edges;
+  NeighborEdgeMap _outcoming_edges;
+  EdgeMap _edges;
+  NodeMap _nodes;
+
+};
+
 typedef u64 NodeIndex;
 
 struct Node {
@@ -499,15 +549,15 @@ typedef enum EdgeType {
 }EdgeType_t;
 enum AccessType {READ, WRITE};
 
-struct Edge_index {
+struct EdgeIndex {
   NodeIndex from;
   NodeIndex to;
   EdgeType_t edge_type;
 
-  Edge_index(NodeIndex & from, NodeIndex & to, EdgeType_t edge_type)
+  EdgeIndex(NodeIndex & from, NodeIndex & to, EdgeType_t edge_type)
     : from(from), to(to), edge_type(edge_type) {}
 
-  bool operator<(const Edge_index &other) const {
+  bool operator<(const EdgeIndex &other) const {
     if (this->from == other.from) {
       if (this->to == other.to) {
         return this->edge_type < other.edge_type;
@@ -515,7 +565,7 @@ struct Edge_index {
         return this->to < other.to;
       }
     } else {
-      return this->to < other.to;
+      return this->from < other.from;
     }
   }
 };
@@ -523,7 +573,7 @@ struct Edge_index {
 struct Edge {
   Map<u64, AccessType> touched_objs;
 
-  Edge() = default;
+  Edge() {this->touched_objs;}
 
   Edge(u64 obj, AccessType access_type) {
     this->touched_objs.emplace(obj, access_type);
@@ -534,18 +584,30 @@ Map<u64, NodeIndex> _obj_ownership_map;
 
 Map<u32, NodeIndex> _stream_ownership_map;
 
-typedef Graph<NodeIndex, Node, Edge_index, Edge> DependencyGraph;
+Map<u32, Vector<NodeIndex>> _stream_nodes;
 
-DependencyGraph _graph;
+Vector<EdgeIndex> _edge_list;
 
-void update_graph_at_malloc(u64 op_id, memory_operation_t op_type);
+typedef DependencyGraph<NodeIndex, Node, EdgeIndex, Edge> DependencyGraph_t;
 
-void update_graph_at_free(u64 op_id, u64 memory_op_id, memory_operation_t op_type);
+DependencyGraph_t _graph;
+
+u64 _global_op_id_start = UINT64_MAX;
+
+void update_global_op_id_start(u64 op_id);
+
+void update_stream_nodes(u64 op_id, u32 stream_id);
+
+void update_graph_at_malloc(u64 op_id, u32 stream_id, memory_operation_t op_type);
+
+void update_graph_at_free(u64 op_id, u32 stream_id, u64 memory_op_id, memory_operation_t op_type);
 
 void update_graph_at_access(u64 op_id, memory_operation_t op_type, u32 stream_id,
                             u64 obj_op_id, AccessType access_type);
 
 void update_graph_at_kernel(void* aux, u64 op_id, u32 stream_id);
+
+void dump_dependency_graph(std::string filename);
 
 
 };	// MemoryLiveness
