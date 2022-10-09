@@ -434,6 +434,7 @@ void MemoryLiveness::memset_op_callback(std::shared_ptr<Memset> op) {
   update_op_node(op->op_id, op->ctx_id);
   update_ctx_node(op->ctx_id, REDSHOW_MEMORY_SET);
   update_stream_for_ops(op->stream_id, op->op_id, REDSHOW_MEMORY_SET);
+  update_graph_at_access(op->op_id, REDSHOW_MEMORY_SET, op->stream_id, op->memory_op_id, WRITE);
 
   memory_operation_register(op->memory_op_id, op->op_id, REDSHOW_MEMORY_SET);
 
