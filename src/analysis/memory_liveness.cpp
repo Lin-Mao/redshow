@@ -242,6 +242,7 @@ void MemoryLiveness::memory_op_callback(std::shared_ptr<Memory> op, bool is_subm
     // update_ctx_table(op->op_id, op->ctx_id);
     update_ctx_node(op->ctx_id, REDSHOW_MEMORY_ALLOC);
     update_graph_at_malloc(op->op_id, op->stream_id, REDSHOW_MEMORY_ALLOC);
+    _read_nodes.emplace(op->op_id, Vector<u64>());
 
     _memories.try_emplace(op->op_id, op);
     _current_memories.try_emplace(op->op_id, op);
@@ -948,11 +949,28 @@ void MemoryLiveness::update_graph_at_free(u64 op_id, u32 stream_id, u64 memory_o
   if (!_graph.has_node(op_id)) {
     _graph.add_node(op_id, Node(op_id, op_type));
   }
-  auto & index = _obj_ownership_map.at(memory_op_id);
-  auto edge_index = EdgeIndex(index, op_id, DATA_DEPENDENCY);
-  index = op_id;
-  _graph.add_edge(edge_index, Edge(memory_op_id, WRITE));
-  _edge_list.push_back(edge_index);
+  auto & owner = _obj_ownership_map.at(memory_op_id);
+  // auto edge_index = EdgeIndex(index, op_id, DATA_DEPENDENCY);
+  // index = op_id;
+  // _graph.add_edge(edge_index, Edge(memory_op_id, WRITE));
+  // _edge_list.push_back(edge_index);
+
+  auto & read_nodes = _read_nodes.at(memory_op_id);
+  if (read_nodes.empty()) {
+    auto edge_index = EdgeIndex(owner, op_id, DATA_DEPENDENCY);
+    _graph.add_edge(edge_index, Edge(memory_op_id, WRITE));
+    _edge_list.push_back(edge_index);
+  } else {
+    for (auto rnode : read_nodes) {
+      auto edge_index = EdgeIndex(rnode, op_id, DATA_DEPENDENCY);
+      _graph.add_edge(edge_index, Edge(memory_op_id, WRITE));
+      _edge_list.push_back(edge_index);
+    }
+    read_nodes.clear();
+  }
+
+  owner = op_id;
+  
 
   update_stream_nodes(op_id, stream_id);
 }
@@ -976,18 +994,66 @@ void MemoryLiveness::update_graph_at_access(u64 op_id, memory_operation_t op_typ
   update_stream_nodes(op_id, stream_id);
 
   // For data dependency
+  // auto prev_obj_node = _obj_ownership_map.find(obj_op_id);
+  // auto edge_index = EdgeIndex(prev_obj_node->second, op_id, DATA_DEPENDENCY);
+  // if (_graph.has_edge(edge_index)) {
+  //   auto & edge = _graph.edge(edge_index);
+  //   edge.touched_objs.emplace(obj_op_id, access_type);
+  // } else {
+  //   _graph.add_edge(edge_index, Edge(obj_op_id, access_type));
+  //   _edge_list.push_back(edge_index);
+  // }
+
+  // if (access_type == WRITE) {
+  //   prev_obj_node->second = op_id;
+  // }
+
+  // For data dependency
   auto prev_obj_node = _obj_ownership_map.find(obj_op_id);
-  auto edge_index = EdgeIndex(prev_obj_node->second, op_id, DATA_DEPENDENCY);
-  if (_graph.has_edge(edge_index)) {
-    auto & edge = _graph.edge(edge_index);
-    edge.touched_objs.emplace(obj_op_id, access_type);
-  } else {
-    _graph.add_edge(edge_index, Edge(obj_op_id, access_type));
-    _edge_list.push_back(edge_index);
+  
+  if (access_type == READ) {
+    auto & read_nodes = _read_nodes.at(obj_op_id);
+    read_nodes.push_back(op_id);
+    auto edge_index = EdgeIndex(prev_obj_node->second, op_id, DATA_DEPENDENCY);
+    if (_graph.has_edge(edge_index)) {
+      auto & edge = _graph.edge(edge_index);
+      edge.touched_objs.emplace(obj_op_id, access_type);
+    } else {
+      _graph.add_edge(edge_index, Edge(obj_op_id, access_type));
+      _edge_list.push_back(edge_index);
+    }
   }
 
-  if (access_type == WRITE) {
+  else if (access_type == WRITE) {
+    auto & read_nodes = _read_nodes.at(obj_op_id);
+    if (read_nodes.empty()) {
+      auto edge_index = EdgeIndex(prev_obj_node->second, op_id, DATA_DEPENDENCY);
+      if (_graph.has_edge(edge_index)) {
+        auto & edge = _graph.edge(edge_index);
+        edge.touched_objs.emplace(obj_op_id, access_type);
+      } else {
+        _graph.add_edge(edge_index, Edge(obj_op_id, access_type));
+        _edge_list.push_back(edge_index);
+      }
+    } else {
+      for (auto rnode : read_nodes) {
+        auto edge_index = EdgeIndex(rnode, op_id, DATA_DEPENDENCY);
+        if (_graph.has_edge(edge_index)) {
+          auto & edge = _graph.edge(edge_index);
+          edge.touched_objs.emplace(obj_op_id, access_type);
+        } else {
+          _graph.add_edge(edge_index, Edge(obj_op_id, access_type));
+          _edge_list.push_back(edge_index);
+        }
+      }
+      read_nodes.clear();
+    }
+
     prev_obj_node->second = op_id;
+  }
+
+  else {
+    printf("It should not take this branch.\n");
   }
 }
 

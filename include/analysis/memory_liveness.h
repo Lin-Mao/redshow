@@ -586,6 +586,8 @@ Map<u32, NodeIndex> _stream_ownership_map;
 
 Map<u32, Vector<NodeIndex>> _stream_nodes;
 
+Map<u64, Vector<u64>> _read_nodes;
+
 Vector<EdgeIndex> _edge_list;
 
 typedef DependencyGraph<NodeIndex, Node, EdgeIndex, Edge> DependencyGraph_t;
