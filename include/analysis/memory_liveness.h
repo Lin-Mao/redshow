@@ -333,7 +333,8 @@ void memset_op_callback(std::shared_ptr<Memset> op);
  * @param op_id 
  * @param mem_op 
  */
-void memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation_t mem_op, bool is_sub = false);
+void memory_operation_register(u64 memory_op_id, u64 op_id, memory_operation_t mem_op,
+                              bool is_sub = false);
 
 /**
  * @brief Output memory opreation list
@@ -492,6 +493,8 @@ public:
 
   void add_node(NodeIndex node_index, Node node) {
     _nodes.emplace(node_index, node);
+    _incoming_edges[node_index] = Set<EdgeIndex>();
+    _outcoming_edges[node_index] = Set<EdgeIndex>();
   }
 
   void add_edge(EdgeIndex edge_index, Edge edge) {
@@ -520,6 +523,52 @@ public:
     _incoming_edges[edge_index.to].erase(edge_index);
     _outcoming_edges[edge_index.from].erase(edge_index);
     _edges.erase(edge_index);
+  }
+
+  void remove_node(NodeIndex node_index) {
+    Vector<EdgeIndex> e_list;
+    for (auto e_index : _incoming_edges[node_index]) {
+      e_list.push_back(e_index);
+    }
+    for (auto e_index : _outcoming_edges[node_index]) {
+      e_list.push_back(e_index);
+    }
+
+    for (auto e : e_list) {
+      remove_edge(e);
+    }
+
+    _incoming_edges.erase(node_index);
+    _outcoming_edges.erase(node_index);
+    _nodes.erase(node_index);
+  }
+
+  Vector<NodeIndex> get_no_inedge_nodes() {
+    auto nodes = Vector<NodeIndex>();
+    for (auto i : _incoming_edges) {
+      if (i.second.empty()) {
+        nodes.push_back(i.first);
+      }
+    }
+    return nodes;
+  }
+
+  bool is_empty() {
+    return _nodes.empty();
+  }
+
+  void dump_graph(u64 start) {
+    printf("nodes:");
+    for (auto node : _nodes) {
+      printf(" %lu(%d)", node.first, node.second.op_type);
+    } printf("\n");
+
+    printf("edges:");
+    for (auto edge : _edges) {
+      printf(" (%lu->%lu)[%d]", edge.first.from - start , edge.first.to - start , edge.first.edge_type);
+    } printf("\n");
+
+    printf("###################################\n");
   }
 
 private:
@@ -610,6 +659,8 @@ void update_graph_at_access(u64 op_id, memory_operation_t op_type, u32 stream_id
 void update_graph_at_kernel(void* aux, u64 op_id, u32 stream_id);
 
 void dump_dependency_graph(std::string filename);
+
+void dump_topological_order(std::string filename);
 
 
 };	// MemoryLiveness

@@ -898,6 +898,8 @@ void MemoryLiveness::flush(
 
   dump_dependency_graph(output_dir + "dependency_graph.dot");
 
+  dump_topological_order(output_dir + "topological_order.txt");
+
 #ifdef REDSHOW_TORCH_SUBMEMORY_ANALYSIS
 
   output_submemory_liveness(output_dir + "submemory_liveness.txt");
@@ -938,11 +940,22 @@ void MemoryLiveness::update_stream_nodes(u64 op_id, u32 stream_id) {
 }
 
 void MemoryLiveness::update_graph_at_malloc(u64 op_id, u32 stream_id, memory_operation_t op_type) {
+  // Assume the stream id of cudaMalloc is 0
   if (!_graph.has_node(op_id)) {
     _graph.add_node(op_id, Node(op_id, op_type));
     _obj_ownership_map.emplace(op_id, op_id);
   }
   update_stream_nodes(op_id, stream_id);
+
+  auto prev_stream_node = _stream_ownership_map.find(stream_id);
+  if (prev_stream_node == _stream_ownership_map.end()) {
+    _stream_ownership_map.emplace(stream_id, op_id);
+  } else {
+    auto edge_index = EdgeIndex(prev_stream_node->second, op_id, STREAM_DEPENDENCY);
+    _graph.add_edge(edge_index, Edge());
+    _edge_list.push_back(edge_index);
+    prev_stream_node->second = op_id;
+  }
 }
 
 void MemoryLiveness::update_graph_at_free(u64 op_id, u32 stream_id, u64 memory_op_id, memory_operation_t op_type) {
@@ -973,6 +986,16 @@ void MemoryLiveness::update_graph_at_free(u64 op_id, u32 stream_id, u64 memory_o
   
 
   update_stream_nodes(op_id, stream_id);
+
+  auto prev_stream_node = _stream_ownership_map.find(stream_id);
+  if (prev_stream_node == _stream_ownership_map.end()) {
+    _stream_ownership_map.emplace(stream_id, op_id);
+  } else {
+    auto edge_index = EdgeIndex(prev_stream_node->second, op_id, STREAM_DEPENDENCY);
+    _graph.add_edge(edge_index, Edge());
+    _edge_list.push_back(edge_index);
+    prev_stream_node->second = op_id;
+  }
 }
 
 void MemoryLiveness::update_graph_at_access(u64 op_id, memory_operation_t op_type, u32 stream_id,
@@ -985,10 +1008,13 @@ void MemoryLiveness::update_graph_at_access(u64 op_id, memory_operation_t op_typ
   if (prev_stream_node == _stream_ownership_map.end()) {
     _stream_ownership_map.emplace(stream_id, op_id);
   } else {
-    auto edge_index = EdgeIndex(prev_stream_node->second, op_id, STREAM_DEPENDENCY);
-    _graph.add_edge(edge_index, Edge());
-    _edge_list.push_back(edge_index);
-    prev_stream_node->second = op_id;
+    if (prev_stream_node->second != op_id) { // in case kernel call multiple times
+      auto edge_index = EdgeIndex(prev_stream_node->second, op_id, STREAM_DEPENDENCY);
+      _graph.add_edge(edge_index, Edge());
+      _edge_list.push_back(edge_index);
+      prev_stream_node->second = op_id;
+    }
+    
   }
 
   update_stream_nodes(op_id, stream_id);
@@ -1097,6 +1123,8 @@ void MemoryLiveness::dump_dependency_graph(std::string filename) {
   size_t count = 0;
   Vector<NodeIndex> alloc_nodes;
   Vector<NodeIndex> free_nodes;
+  Vector<NodeIndex> other_nodes;
+  Map<u64, std::string> node_labels;
   // output << "_stream_nodes: " << _stream_nodes.size() << std::endl;
   for (auto nodes : _stream_nodes) {
     output << "subgraph cluster_" << count << " {" << std::endl;
@@ -1105,25 +1133,46 @@ void MemoryLiveness::dump_dependency_graph(std::string filename) {
     // output << "node [style=filled];" << std::endl;
     output << "label = \"stream" << nodes.first << "\";" << std::endl;
     for (auto node : nodes.second) {
-      output << node - _global_op_id_start;
+      auto id = node - _global_op_id_start;
+      output << id;
       if (node != nodes.second.back()) {
         output << " -> ";
       }
       if (_graph.node(node).op_type == REDSHOW_MEMORY_ALLOC) {
         alloc_nodes.push_back(node);
+        node_labels.emplace(id, "A"+std::to_string(id));
       } else if (_graph.node(node).op_type == REDSHOW_MEMORY_FREE) {
         free_nodes.push_back(node);
+        node_labels.emplace(id, "F"+std::to_string(id));
+      } else if (_graph.node(node).op_type == REDSHOW_MEMORY_SET) {
+        other_nodes.push_back(node);
+        node_labels.emplace(id, "S"+std::to_string(id));
+      } else if (_graph.node(node).op_type == REDSHOW_MEMORY_ACCESS) {
+        other_nodes.push_back(node);
+        node_labels.emplace(id, "K"+std::to_string(id));
+      } else if (_graph.node(node).op_type == REDSHOW_MEMORY_COPYT
+                || _graph.node(node).op_type == REDSHOW_MEMORY_COPYF) {
+        other_nodes.push_back(node);
+        node_labels.emplace(id, "C"+std::to_string(id));
       }
     }
     output << "[color=green];" << std::endl;
     for (auto node : alloc_nodes) {
-      output << node - _global_op_id_start << "[shape=box];" << std::endl;
+      auto id = node - _global_op_id_start;
+      output << id << "[shape=box,label=" << node_labels[id] << "];" << std::endl;
     }
     for (auto node : free_nodes) {
-      output << node - _global_op_id_start << "[shape=box,color=lightgrey,style=filled];" << std::endl;
+      auto id = node - _global_op_id_start;
+      output << id << "[shape=box,color=lightgrey,style=filled,label=" << node_labels[id] << "];" << std::endl;
+    }
+    for (auto node : other_nodes) {
+      auto id = node - _global_op_id_start;
+      output << id << "[label=" << node_labels[id] << "];" << std::endl;
     }
     alloc_nodes.clear();
     free_nodes.clear();
+    other_nodes.clear();
+    node_labels.clear();
 
     output << "}" << std::endl;
     count++;
@@ -1172,6 +1221,33 @@ void MemoryLiveness::dump_dependency_graph(std::string filename) {
   }  
 
   output << "}" << std::endl;
+  output.close();
+}
+
+void MemoryLiveness::dump_topological_order(std::string filename) {
+  u64 top_index = 0;
+  Map<u64, Vector<u64>> topological_index;
+
+  _graph.dump_graph(_global_op_id_start);
+  
+  while (!_graph.is_empty()) {
+    auto nodes = _graph.get_no_inedge_nodes();
+    for (auto node : nodes) {
+      _graph.remove_node(node);
+    }
+    topological_index.emplace(top_index, nodes);
+    top_index++;
+  }
+
+  std::ofstream output(filename);
+  for (auto i : topological_index) {
+    output << "top_index: " << i.first << std::endl;
+    for (auto j : i.second) {
+      output << j << " " << j - _global_op_id_start << std::endl;
+    }
+    output << std::endl;
+  }
+
   output.close();
 }
 
