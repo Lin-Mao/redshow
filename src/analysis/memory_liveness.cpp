@@ -1085,23 +1085,6 @@ void MemoryLiveness::update_graph_at_access(u64 op_id, memory_operation_t op_typ
 
 void MemoryLiveness::update_graph_at_kernel(void* aux, u64 op_id, u32 stream_id) {
   gpu_patch_aux_address_dict_t* kernel_aux = static_cast<gpu_patch_aux_address_dict_t*>(aux);
-  printf("kernel_op_id: %lu\n", op_id);
-  printf("hit: ");
-  for (int i = 0; i < kernel_aux->size; i++) {
-    printf("%u ", kernel_aux->hit[i]);
-  }
-  printf("\n");
-  printf("read: ");
-  for (int i = 0; i < kernel_aux->size; i++) {
-    printf("%u ", kernel_aux->read[i]);
-  }
-  printf("\n");
-  printf("write: ");
-  for (int i = 0; i < kernel_aux->size; i++) {
-    printf("%u ", kernel_aux->write[i]);
-  }
-  printf("\n");
-  
 
   for (int i = 0; i < kernel_aux->size; i++) {
     if (kernel_aux->hit[i] == 1) {
