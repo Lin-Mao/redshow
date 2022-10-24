@@ -623,8 +623,6 @@ void MemoryLiveness::output_stream_info(std::string file_name) {
 
   std::ofstream output(file_name);
 
-  output << "test" << std::endl;
-
   for (auto op : _op_node) {
     output << "op_id: " << op.first << ", ";
     auto ctx_type =_ctx_node.at(op.second);
@@ -1226,7 +1224,20 @@ void MemoryLiveness::dump_topological_order(std::string filename) {
   for (auto i : topological_index) {
     output << "top_index: " << i.first << std::endl;
     for (auto j : i.second) {
-      output << j << " " << j - _global_op_id_start << std::endl;
+      auto op_type = _ctx_node.at(_op_node.at(j));
+      if (op_type == REDSHOW_MEMORY_ALLOC) {
+        output << j << " ALLOC " << i.first << std::endl;
+      } else if (op_type == REDSHOW_MEMORY_FREE) {
+        output << j << " FREE " << i.first << std::endl;
+      } else if (op_type == REDSHOW_MEMORY_ACCESS) {
+        output << j << " ACCESS " << i.first << std::endl;
+      } else if (op_type == REDSHOW_MEMORY_SET) {
+        output << j << " SET " << i.first << std::endl;
+      } else if (op_type == REDSHOW_MEMORY_COPYT) {
+        output << j << " COPYT " << i.first << std::endl;
+      } else if (op_type == REDSHOW_MEMORY_COPYF) {
+        output << j << " COPYF " << i.first << std::endl;
+      }
     }
     output << std::endl;
   }
