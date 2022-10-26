@@ -126,8 +126,6 @@ void MemoryLiveness::update_aux_hit(void* aux, u64 kernel_op_id, bool is_sub) {
 
 #endif
   }
-  
-
 }
 
 void MemoryLiveness::update_ctx_table(u64 op_id, i32 ctx_id) {
@@ -1209,7 +1207,7 @@ void MemoryLiveness::dump_topological_order(std::string filename) {
   u64 top_index = 0;
   Map<u64, Vector<u64>> topological_index;
 
-  _graph.dump_graph(_global_op_id_start);
+  // _graph.dump_graph(_global_op_id_start);
   
   while (!_graph.is_empty()) {
     auto nodes = _graph.get_no_inedge_nodes();
