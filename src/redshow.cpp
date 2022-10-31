@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "analysis/torch_monitor.h"
 #include "analysis/data_dependency.h"
 #include "analysis/memory_liveness.h"
 #include "analysis/memory_heatmap.h"
@@ -685,6 +686,10 @@ redshow_result_t redshow_analysis_enable(redshow_analysis_type_t analysis_type) 
       break;
     case REDSHOW_ANALYSIS_DATA_DEPENDENCY:
       analysis_enabled.emplace(REDSHOW_ANALYSIS_DATA_DEPENDENCY, std::make_shared<DataDependency>());
+      break;
+    case REDSHOW_ANALYSIS_TORCH_MONITOR:
+      analysis_enabled.emplace(REDSHOW_ANALYSIS_TORCH_MONITOR, std::make_shared<TorchMonitor>());
+      break;
     default:
       result = REDSHOW_ERROR_NO_SUCH_ANALYSIS;
       break;
