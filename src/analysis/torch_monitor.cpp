@@ -39,6 +39,7 @@ void TorchMonitor::memory_op_callback(std::shared_ptr<Memory> op, bool is_submem
     _current_memories.try_emplace(op->op_id, op);
     _addresses_map.try_emplace(op->memory_range.start, op->op_id);
     _current_memory_usage += op->len;
+    _nums_cudamalloc++;
 
     // printf("op_id:%lu, len:%d\n", op->op_id, op->len);
     if (_current_memory_usage > _memory_peak)
@@ -65,6 +66,7 @@ void TorchMonitor::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_subm
     _addresses_map.erase(address);
     _current_memories.erase(malloc_op_id);
     _current_memory_usage -= op->len;
+    _nums_cudafree++;
 
   } else {
     u64 address = op->memory_range.start;
@@ -164,6 +166,8 @@ void TorchMonitor::flush(const std::string &output_dir, const LockableMap<u32, C
   output << "GPU memory peak: " << _memory_peak << " B" << std::endl;
   output << "Optimal GPU memory peak: " << _optimal_memory_peak << " B" << std::endl;
   output << "Peak kernel op id: " << _memory_peak_kernel << std::endl;
+  output << "Number of cudaMallocs: " << _nums_cudamalloc << std::endl;
+  output << "Number of cudaFrees: " << _nums_cudafree << std::endl;
   output << std::endl;
 
   output << "Submemory peak: " << _submemory_peak << " B" << std::endl;

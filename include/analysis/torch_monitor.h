@@ -63,6 +63,9 @@ class TorchMonitor final : public Analysis {
   u64 _optimal_memory_peak = 0;
   u64 _memory_peak_kernel = 0;
 
+  u64 _nums_cudamalloc = 0;
+  u64 _nums_cudafree = 0;
+
 
 
 
