@@ -66,6 +66,9 @@ class TorchMonitor final : public Analysis {
   u64 _nums_cudamalloc = 0;
   u64 _nums_cudafree = 0;
 
+  Map<u64, i32> _op_node;
+  Map<u64, std::string> _op_type;
+
 
 
 

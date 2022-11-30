@@ -37,6 +37,9 @@ void TorchMonitor::memory_op_callback(std::shared_ptr<Memory> op, bool is_submem
   if (!is_submemory) {
     _memories.try_emplace(op->op_id, op);
     _current_memories.try_emplace(op->op_id, op);
+    _op_node.emplace(op->op_id, op->ctx_id);
+    _op_type.emplace(op->op_id, "ALLOC");
+
     _addresses_map.try_emplace(op->memory_range.start, op->op_id);
     _current_memory_usage += op->len;
     _nums_cudamalloc++;
@@ -62,6 +65,8 @@ void TorchMonitor::memfree_op_callback(std::shared_ptr<Memfree> op, bool is_subm
   if (!is_submemory) {
     u64 address = op->memory_range.start;
     u64 malloc_op_id = _addresses_map.at(address);
+    _op_node.emplace(op->op_id, op->ctx_id);
+    _op_type.emplace(op->op_id, "FREE");
     
     _addresses_map.erase(address);
     _current_memories.erase(malloc_op_id);
@@ -175,6 +180,13 @@ void TorchMonitor::flush(const std::string &output_dir, const LockableMap<u32, C
   output << "Peak kernel op id: " << _submemory_peak_kernel << std::endl;
 
   output.close();
+
+
+  std::ofstream out(output_dir + "memory_info.csv");
+  for (auto op : _op_node) {
+    out << "op_id: " << op.first << ", " << _op_type[op.first] << " " << op.second << std::endl;
+  }
+  out.close();
 }
 
 }  // namespace redshow
